@@ -868,6 +868,9 @@ fun ChatScreen(
                     onDeleteImage = { id ->
                         viewModel.deleteGeneratedImage(id)
                         Toast.makeText(context, "Gambar berhasil dihilangkan dari koleksi lokal.", Toast.LENGTH_SHORT).show()
+                    },
+                    onSaveEditedImage = { originalId, prompt, style, ratio, editedUrl ->
+                        viewModel.saveEditedImage(originalId, prompt, style, ratio, editedUrl)
                     }
                 )
             } else if (activeTab == "video_gen") {
@@ -883,6 +886,9 @@ fun ChatScreen(
                     onDeleteVideo = { id ->
                         viewModel.deleteGeneratedVideo(id)
                         Toast.makeText(context, "Video berhasil dihilangkan dari koleksi lokal.", Toast.LENGTH_SHORT).show()
+                    },
+                    onSaveEditedVideo = { originalId, prompt, style, ratio, res, dur, editedUrl ->
+                        viewModel.saveEditedVideo(originalId, prompt, style, ratio, res, dur, editedUrl)
                     }
                 )
             } else if (activeTab == "ai_code") {
@@ -916,6 +922,9 @@ fun ChatScreen(
                     onDeleteMusic = { id ->
                         viewModel.deleteGeneratedMusic(id)
                         Toast.makeText(context, "Musik berhasil dihilangkan dari koleksi lokal.", Toast.LENGTH_SHORT).show()
+                    },
+                    onSaveEditedMusic = { originalId, prompt, genre, dur, tempo, editedUrl ->
+                        viewModel.saveEditedMusic(originalId, prompt, genre, dur, tempo, editedUrl)
                     }
                 )
             }
@@ -1699,7 +1708,8 @@ fun EddieImageGeneratorView(
     uiState: ChatUiState,
     paddingValues: PaddingValues,
     onGenerate: (String, String, String) -> Unit,
-    onDeleteImage: (String) -> Unit
+    onDeleteImage: (String) -> Unit,
+    onSaveEditedImage: (String, String, String, String, String) -> Unit
 ) {
     val context = LocalContext.current
     var prompt by remember { mutableStateOf("") }
@@ -1708,6 +1718,7 @@ fun EddieImageGeneratorView(
 
     // Zoom popup dialog state controllers
     var selectedImageForZoom by remember { mutableStateOf<com.example.data.db.GeneratedImageEntity?>(null) }
+    var editingImageItem by remember { mutableStateOf<com.example.data.db.GeneratedImageEntity?>(null) }
 
     val styles = listOf(
         "Realistic" to false,
@@ -2160,17 +2171,30 @@ fun EddieImageGeneratorView(
                 }
             },
             confirmButton = {
-                Button(
-                    onClick = {
-                        val shareIntent = Intent(Intent.ACTION_SEND).apply {
-                            type = "text/plain"
-                            putExtra(Intent.EXTRA_SUBJECT, "Mahakarya Eddie AI")
-                            putExtra(Intent.EXTRA_TEXT, "Lihat gambar yang saya buat di Eddie Art Studio:\n\nPrompt: ${imageItem.prompt}\nLink: ${imageItem.imageUrl}")
-                        }
-                        context.startActivity(Intent.createChooser(shareIntent, "Bagikan Gambar"))
-                    }
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text("Bagikan")
+                    Button(
+                        onClick = {
+                            editingImageItem = imageItem
+                            selectedImageForZoom = null
+                        }
+                    ) {
+                        Text("Edit Gambar 🎨")
+                    }
+                    Button(
+                        onClick = {
+                            val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                                type = "text/plain"
+                                putExtra(Intent.EXTRA_SUBJECT, "Mahakarya Eddie AI")
+                                putExtra(Intent.EXTRA_TEXT, "Lihat gambar yang saya buat di Eddie Art Studio:\n\nPrompt: ${imageItem.prompt}\nLink: ${imageItem.imageUrl}")
+                            }
+                            context.startActivity(Intent.createChooser(shareIntent, "Bagikan Gambar"))
+                        }
+                    ) {
+                        Text("Bagikan")
+                    }
                 }
             },
             dismissButton = {
@@ -2185,13 +2209,22 @@ fun EddieImageGeneratorView(
             }
         )
     }
+
+    editingImageItem?.let { item ->
+        EddieImageEditorDialog(
+            imageItem = item,
+            onDismissRequest = { editingImageItem = null },
+            onSaveEditedImage = onSaveEditedImage
+        )
+    }
 }
 
 @Composable
 fun VideoPlayerDialog(
     videoItem: com.example.data.db.GeneratedVideoEntity,
     onDismissRequest: () -> Unit,
-    onDeleteVideo: (String) -> Unit
+    onDeleteVideo: (String) -> Unit,
+    onEditVideo: (() -> Unit)? = null
 ) {
     val context = LocalContext.current
     var isPlaying by remember { mutableStateOf(true) }
@@ -2417,17 +2450,32 @@ fun VideoPlayerDialog(
             }
         },
         confirmButton = {
-            Button(
-                onClick = {
-                    val shareIntent = Intent(Intent.ACTION_SEND).apply {
-                        type = "text/plain"
-                        putExtra(Intent.EXTRA_SUBJECT, "Render Sinematik Eddie AI")
-                        putExtra(Intent.EXTRA_TEXT, "Lihat video AI sinematik yang baru saya buat:\n\nPrompt: ${videoItem.prompt}\nSpek: Style: ${videoItem.style}, Rasio: ${videoItem.aspectRatio}, Resolusi: ${videoItem.resolution}, Durasi: ${videoItem.duration}\nLink Video: ${videoItem.videoUrl}")
-                    }
-                    context.startActivity(Intent.createChooser(shareIntent, "Bagikan Video"))
-                }
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("Bagikan")
+                if (onEditVideo != null) {
+                    Button(
+                        onClick = {
+                            onEditVideo()
+                            onDismissRequest()
+                        }
+                    ) {
+                        Text("Edit Video 🎬")
+                    }
+                }
+                Button(
+                    onClick = {
+                        val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                            type = "text/plain"
+                            putExtra(Intent.EXTRA_SUBJECT, "Render Sinematik Eddie AI")
+                            putExtra(Intent.EXTRA_TEXT, "Lihat video AI sinematik yang baru saya buat:\n\nPrompt: ${videoItem.prompt}\nSpek: Style: ${videoItem.style}, Rasio: ${videoItem.aspectRatio}, Resolusi: ${videoItem.resolution}, Durasi: ${videoItem.duration}\nLink Video: ${videoItem.videoUrl}")
+                        }
+                        context.startActivity(Intent.createChooser(shareIntent, "Bagikan Video"))
+                    }
+                ) {
+                    Text("Bagikan")
+                }
             }
         },
         dismissButton = {
@@ -2448,7 +2496,8 @@ fun EddieVideoGeneratorView(
     uiState: ChatUiState,
     paddingValues: PaddingValues,
     onGenerateVideo: (String, String, String, String, String) -> Unit,
-    onDeleteVideo: (String) -> Unit
+    onDeleteVideo: (String) -> Unit,
+    onSaveEditedVideo: (String, String, String, String, String, String, String) -> Unit
 ) {
     val context = LocalContext.current
     var prompt by remember { mutableStateOf("") }
@@ -2458,6 +2507,7 @@ fun EddieVideoGeneratorView(
     var selectedDuration by remember { mutableStateOf("5 detik") }
 
     var selectedVideoForPlay by remember { mutableStateOf<com.example.data.db.GeneratedVideoEntity?>(null) }
+    var editingVideoItem by remember { mutableStateOf<com.example.data.db.GeneratedVideoEntity?>(null) }
 
     val styles = listOf(
         "Realistic Drone" to false,
@@ -3021,7 +3071,18 @@ fun EddieVideoGeneratorView(
             onDeleteVideo = { id ->
                 onDeleteVideo(id)
                 selectedVideoForPlay = null
+            },
+            onEditVideo = {
+                editingVideoItem = video
             }
+        )
+    }
+
+    editingVideoItem?.let { item ->
+        EddieVideoEditorDialog(
+            videoItem = item,
+            onDismissRequest = { editingVideoItem = null },
+            onSaveEditedVideo = onSaveEditedVideo
         )
     }
 }
@@ -3031,7 +3092,8 @@ fun EddieMusicGeneratorView(
     uiState: ChatUiState,
     paddingValues: PaddingValues,
     onGenerateMusic: (String, String, String, String) -> Unit,
-    onDeleteMusic: (String) -> Unit
+    onDeleteMusic: (String) -> Unit,
+    onSaveEditedMusic: (String, String, String, String, String, String) -> Unit
 ) {
     val context = LocalContext.current
     var prompt by remember { mutableStateOf("") }
@@ -3044,6 +3106,8 @@ fun EddieMusicGeneratorView(
     var playingMusicId by remember { mutableStateOf<String?>(null) }
     var isAudioPlaying by remember { mutableStateOf(false) }
     var playPercent by remember { mutableStateOf(0f) }
+
+    var editingMusicItem by remember { mutableStateOf<com.example.data.db.GeneratedMusicEntity?>(null) }
 
     // Disposable effect to release media player when com.example.ui.chat is disposed
     DisposableEffect(Unit) {
@@ -3585,15 +3649,28 @@ fun EddieMusicGeneratorView(
                                     }
                                 }
 
-                                // 3. Delete button
-                                IconButton(
-                                    onClick = { onDeleteMusic(music.id) }
+                                // 3. Action Buttons (Edit & Delete)
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    Icon(
-                                        imageVector = Icons.Default.Delete,
-                                        contentDescription = "Hapus",
-                                        tint = MaterialTheme.colorScheme.error.copy(alpha = 0.8f)
-                                    )
+                                    IconButton(
+                                        onClick = { editingMusicItem = music }
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Edit,
+                                            contentDescription = "Edit Musik",
+                                            tint = MaterialTheme.colorScheme.primary
+                                        )
+                                    }
+                                    IconButton(
+                                        onClick = { onDeleteMusic(music.id) }
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Delete,
+                                            contentDescription = "Hapus",
+                                            tint = MaterialTheme.colorScheme.error.copy(alpha = 0.8f)
+                                        )
+                                    }
                                 }
                             }
 
@@ -3654,5 +3731,950 @@ fun EddieMusicGeneratorView(
 
         Spacer(modifier = Modifier.height(40.dp))
     }
+
+    editingMusicItem?.let { item ->
+        EddieMusicEditorDialog(
+            musicItem = item,
+            onDismissRequest = { editingMusicItem = null },
+            onSaveEditedMusic = onSaveEditedMusic
+        )
+    }
+}
+
+@Composable
+fun EddieImageEditorDialog(
+    imageItem: com.example.data.db.GeneratedImageEntity,
+    onDismissRequest: () -> Unit,
+    onSaveEditedImage: (String, String, String, String, String) -> Unit
+) {
+    val context = LocalContext.current
+    var brightness by remember { mutableStateOf(0f) } // range -0.5 to 0.5
+    var selectedTone by remember { mutableStateOf("Original") }
+    var customText by remember { mutableStateOf("") }
+    var textPosition by remember { mutableStateOf("Bottom") }
+    var selectedTextColor by remember { mutableStateOf("White") }
+
+    // Rendering / saving simulation state
+    var isSaving by remember { mutableStateOf(false) }
+    var savingLog by remember { mutableStateOf("") }
+    var savingProgress by remember { mutableStateOf(0f) }
+
+    val scope = rememberCoroutineScope()
+
+    val tones = listOf("Original", "Cyberpunk", "Vintage Lofi", "Emerald Green", "Cinema Warm", "B&W", "Cosmic Violet")
+    val positions = listOf("Top", "Center", "Bottom")
+    val textColors = listOf("White", "Black", "Gold", "Neon Green", "Hot Pink")
+
+    AlertDialog(
+        onDismissRequest = { if (!isSaving) onDismissRequest() },
+        title = {
+            Text(
+                text = "Studio Sunting Gambar Eddie AI 🎨",
+                style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold)
+            )
+        },
+        text = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                // Interactive Preview Box
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(220.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(Color.DarkGray),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Box(modifier = Modifier.fillMaxSize()) {
+                        AsyncImage(
+                            model = imageItem.imageUrl,
+                            contentDescription = "Preview",
+                            modifier = Modifier.fillMaxSize(),
+                            contentScale = ContentScale.Fit,
+                            colorFilter = if (selectedTone == "B&W") androidx.compose.ui.graphics.ColorFilter.colorMatrix(androidx.compose.ui.graphics.ColorMatrix().apply { setToSaturation(0f) }) else null
+                        )
+                        // Visual feedback overlay for Brightness
+                        if (brightness != 0f) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .background(
+                                        if (brightness > 0f) Color.White.copy(alpha = brightness * 0.6f)
+                                        else Color.Black.copy(alpha = (-brightness) * 0.6f)
+                                    )
+                            )
+                        }
+                        // Visual feedback overlay for Tone Filters
+                        if (selectedTone == "Cyberpunk") {
+                            Box(modifier = Modifier.fillMaxSize().background(Color.Magenta.copy(alpha = 0.22f)))
+                        } else if (selectedTone == "Vintage Lofi") {
+                            Box(modifier = Modifier.fillMaxSize().background(Color(0xFFE5A93C).copy(alpha = 0.25f)))
+                        } else if (selectedTone == "Emerald Green") {
+                            Box(modifier = Modifier.fillMaxSize().background(Color.Green.copy(alpha = 0.18f)))
+                        } else if (selectedTone == "Cinema Warm") {
+                            Box(modifier = Modifier.fillMaxSize().background(Color(0xFFFF8A00).copy(alpha = 0.18f)))
+                        } else if (selectedTone == "Cosmic Violet") {
+                            Box(modifier = Modifier.fillMaxSize().background(Color(0xFF8B00FF).copy(alpha = 0.22f)))
+                        }
+
+                        // Floating custom text overlay
+                        if (customText.isNotBlank()) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .padding(12.dp),
+                                contentAlignment = when (textPosition) {
+                                    "Top" -> Alignment.TopCenter
+                                    "Center" -> Alignment.Center
+                                    else -> Alignment.BottomCenter
+                                }
+                            ) {
+                                Text(
+                                    text = customText,
+                                    color = when (selectedTextColor) {
+                                        "White" -> Color.White
+                                        "Black" -> Color.Black
+                                        "Gold" -> Color(0xFFFFD700)
+                                        "Neon Green" -> Color.Green
+                                        else -> Color(0xFFFF1493)
+                                    },
+                                    fontWeight = FontWeight.Bold,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    modifier = Modifier
+                                        .background(Color.Black.copy(alpha = 0.5f), RoundedCornerShape(4.dp))
+                                        .padding(horizontal = 6.dp, vertical = 2.dp)
+                                )
+                            }
+                        }
+                    }
+                }
+
+                // Brightness adjustment
+                Column {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "Kecerahan (Brightness)",
+                            style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold)
+                        )
+                        Text(
+                            text = "${(brightness * 100).toInt()}%",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                    Slider(
+                        value = brightness,
+                        onValueChange = { brightness = it },
+                        valueRange = -0.5f..0.5f,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+
+                // Tones/Filters list
+                Column {
+                    Text(
+                        text = "Tapis Warna (Tone Filters)",
+                        style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                        modifier = Modifier.padding(bottom = 6.dp)
+                    )
+                    Row(
+                        modifier = Modifier.horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        tones.forEach { tone ->
+                            val isSelected = selectedTone == tone
+                            Surface(
+                                shape = RoundedCornerShape(16.dp),
+                                color = if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface,
+                                border = BorderStroke(1.dp, if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)),
+                                modifier = Modifier.clickable { selectedTone = tone }
+                            ) {
+                                Text(
+                                    text = tone,
+                                    style = MaterialTheme.typography.labelMedium,
+                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                                    color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface
+                                )
+                            }
+                        }
+                    }
+                }
+
+                // Overlays/Watermark Text Option
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text(
+                        text = "Sisipkan Teks / Watermark",
+                        style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold)
+                    )
+                    OutlinedTextField(
+                        value = customText,
+                        onValueChange = { customText = it },
+                        placeholder = { Text("Masukkan watermark...") },
+                        modifier = Modifier.fillMaxWidth(),
+                        maxLines = 1,
+                        singleLine = true,
+                        shape = RoundedCornerShape(8.dp)
+                    )
+
+                    if (customText.isNotBlank()) {
+                        // Text Position and Color Row
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = "Posisi Teks",
+                                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                                    modifier = Modifier.padding(bottom = 4.dp)
+                                )
+                                Row(
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                ) {
+                                    positions.forEach { pos ->
+                                        val isSel = textPosition == pos
+                                        Box(
+                                            modifier = Modifier
+                                                .background(
+                                                    if (isSel) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                                                    RoundedCornerShape(4.dp)
+                                                )
+                                                .clickable { textPosition = pos }
+                                                .padding(horizontal = 8.dp, vertical = 4.dp)
+                                        ) {
+                                            Text(
+                                                text = pos,
+                                                fontSize = 9.sp,
+                                                fontWeight = FontWeight.SemiBold,
+                                                color = if (isSel) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = "Warna Teks",
+                                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                                    modifier = Modifier.padding(bottom = 4.dp)
+                                )
+                                Row(
+                                    modifier = Modifier.horizontalScroll(rememberScrollState()),
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                ) {
+                                    textColors.forEach { colorStr ->
+                                        val isSel = selectedTextColor == colorStr
+                                        Box(
+                                            modifier = Modifier
+                                                .background(
+                                                    if (isSel) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                                                    RoundedCornerShape(4.dp)
+                                                )
+                                                .clickable { selectedTextColor = colorStr }
+                                                .padding(horizontal = 6.dp, vertical = 4.dp)
+                                        ) {
+                                            Text(
+                                                text = colorStr,
+                                                fontSize = 9.sp,
+                                                fontWeight = FontWeight.SemiBold,
+                                                color = if (isSel) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Saving Simulator
+                if (isSaving) {
+                    Surface(
+                        color = Color(0xFF151515),
+                        shape = RoundedCornerShape(8.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(modifier = Modifier.padding(10.dp)) {
+                            Text(
+                                text = "Progres Penyusunan Lapisan Piksel:",
+                                color = Color.Green,
+                                style = TextStyle(fontFamily = FontFamily.Monospace, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                            )
+                            Spacer(modifier = Modifier.height(6.dp))
+                            Text(
+                                text = savingLog,
+                                color = Color.White,
+                                style = TextStyle(fontFamily = FontFamily.Monospace, fontSize = 11.sp, lineHeight = 15.sp)
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            LinearProgressIndicator(
+                                progress = { savingProgress },
+                                modifier = Modifier.fillMaxWidth(),
+                                color = Color.Green,
+                                trackColor = Color.DarkGray
+                            )
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            if (!isSaving) {
+                Button(
+                    onClick = {
+                        isSaving = true
+                        scope.launch {
+                            savingLog = "> Membaca matriks piksel hifi gambar...\n"
+                            savingProgress = 0.1f
+                            delay(800)
+                            savingLog += "> Mengkalibrasi kecerahan: ${(brightness * 100).toInt()}%\n"
+                            savingProgress = 0.35f
+                            delay(850)
+                            savingLog += "> Mengaplikasikan tone filter: $selectedTone\n"
+                            savingProgress = 0.6f
+                            delay(900)
+                            if (customText.isNotBlank()) {
+                                savingLog += "> Menyisipkan watermark: '$customText' di posisi $textPosition ($selectedTextColor)\n"
+                                savingProgress = 0.85f
+                                delay(850)
+                            }
+                            savingLog += "> Render hibrida selesai! Menyimpan salinan disunting..."
+                            savingProgress = 1.0f
+                            delay(600)
+
+                            val styleSuffix = if (selectedTone != "Original") " [$selectedTone]" else ""
+                            val watermarkSuffix = if (customText.isNotBlank()) " | Tertera '$customText'" else ""
+                            val newPrompt = "${imageItem.prompt} (Disunting - Kecerahan ${(brightness * 100).toInt()}%$styleSuffix$watermarkSuffix)"
+
+                            onSaveEditedImage(
+                                imageItem.id,
+                                newPrompt,
+                                imageItem.style,
+                                imageItem.aspectRatio,
+                                imageItem.imageUrl // Keeps URL, simulated locally
+                            )
+
+                            isSaving = false
+                            Toast.makeText(context, "Hasil suntingan tersimpan di Galeri Utama!", Toast.LENGTH_SHORT).show()
+                            onDismissRequest()
+                        }
+                    }
+                ) {
+                    Text("Ekspor & Simpan 🎨")
+                }
+            }
+        },
+        dismissButton = {
+            if (!isSaving) {
+                TextButton(
+                    onClick = onDismissRequest
+                ) {
+                    Text("Batal")
+                }
+            }
+        }
+    )
+}
+
+@Composable
+fun EddieVideoEditorDialog(
+    videoItem: com.example.data.db.GeneratedVideoEntity,
+    onDismissRequest: () -> Unit,
+    onSaveEditedVideo: (String, String, String, String, String, String, String) -> Unit
+) {
+    val context = LocalContext.current
+    var startTrim by remember { mutableStateOf(0f) }
+    var endTrim by remember { mutableStateOf(5f) }
+    var selectedSpeed by remember { mutableStateOf("1.0x") }
+    var selectedTransition by remember { mutableStateOf("None") }
+    var selectedSoundtrack by remember { mutableStateOf("Mute Sound") }
+
+    // Rendering / saving simulation state
+    var isSaving by remember { mutableStateOf(false) }
+    var savingLog by remember { mutableStateOf("") }
+    var savingProgress by remember { mutableStateOf(0f) }
+
+    val scope = rememberCoroutineScope()
+
+    val speeds = listOf("0.5x (Slow-mo)", "1.0x (Normal)", "1.5x (Fast)", "2.0x (Hyperlapse)")
+    val transitions = listOf("None", "Fade In/Out", "Cross Dissolve", "Glitch Shift", "Zoom Wave")
+    val soundtracks = listOf("Mute Sound", "Synthwave Pulse ⚡", "Lofi Sunset Chill 🌅", "Cinematic Orchestral 🎻", "Heavy Cyber Techno 🎹")
+
+    AlertDialog(
+        onDismissRequest = { if (!isSaving) onDismissRequest() },
+        title = {
+            Text(
+                text = "Studio Sunting Video Eddie AI 🎬",
+                style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold)
+            )
+        },
+        text = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                // Video visualizer frame placeholder
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(180.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(
+                            brush = androidx.compose.ui.graphics.Brush.linearGradient(
+                                colors = listOf(Color(0xFF0F2027), Color(0xFF203A43), Color(0xFF2C5364))
+                            )
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text("🎬", fontSize = 42.sp)
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = "Sunting: ${videoItem.prompt}",
+                            color = Color.White,
+                            style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.SemiBold),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.padding(horizontal = 16.dp)
+                        )
+                        Text(
+                            text = "Rasio: ${videoItem.aspectRatio} • Asli: ${videoItem.duration}",
+                            color = Color.LightGray,
+                            style = MaterialTheme.typography.labelSmall
+                        )
+                    }
+                }
+
+                // Video Trimming Sliders
+                Column {
+                    Text(
+                        text = "Trim Durasi Konten (Detik)",
+                        style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                        modifier = Modifier.padding(bottom = 6.dp)
+                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("Mulai: ${String.format("%.1f", startTrim)}s", style = MaterialTheme.typography.labelSmall)
+                            Slider(
+                                value = startTrim,
+                                onValueChange = { startTrim = it.coerceAtMost(endTrim - 0.5f) },
+                                valueRange = 0f..10f,
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        }
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("Selesai: ${String.format("%.1f", endTrim)}s", style = MaterialTheme.typography.labelSmall)
+                            Slider(
+                                value = endTrim,
+                                onValueChange = { endTrim = it.coerceAtLeast(startTrim + 0.5f) },
+                                valueRange = 0f..10f,
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        }
+                    }
+                }
+
+                // Audio Soundtrack Overlay Selection
+                Column {
+                    Text(
+                        text = "Sisipkan Lagu Latar (Audio Overlay)",
+                        style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                        modifier = Modifier.padding(bottom = 6.dp)
+                    )
+                    Row(
+                        modifier = Modifier.horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        soundtracks.forEach { soundtrack ->
+                            val isSelected = selectedSoundtrack == soundtrack
+                            Surface(
+                                shape = RoundedCornerShape(16.dp),
+                                color = if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface,
+                                border = BorderStroke(1.dp, if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)),
+                                modifier = Modifier.clickable { selectedSoundtrack = soundtrack }
+                            ) {
+                                Text(
+                                    text = soundtrack,
+                                    style = MaterialTheme.typography.labelMedium,
+                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                                    color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface
+                                )
+                            }
+                        }
+                    }
+                }
+
+                // Playback speed selection (Speed Multiplier)
+                Column {
+                    Text(
+                        text = "Kecepatan Pemutaran (Playback Speed)",
+                        style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                        modifier = Modifier.padding(bottom = 6.dp)
+                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        speeds.forEach { speed ->
+                            val isSelected = selectedSpeed == speed.split(" ").first()
+                            Surface(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .clickable { selectedSpeed = speed.split(" ").first() },
+                                shape = RoundedCornerShape(8.dp),
+                                color = if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface,
+                                border = BorderStroke(1.dp, if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
+                            ) {
+                                Box(
+                                    modifier = Modifier.padding(vertical = 8.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        text = speed.split(" ").first(),
+                                        style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                                        color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Transition style
+                Column {
+                    Text(
+                        text = "Efek Transisi Gabungan",
+                        style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                        modifier = Modifier.padding(bottom = 6.dp)
+                    )
+                    Row(
+                        modifier = Modifier.horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        transitions.forEach { trans ->
+                            val isSelected = selectedTransition == trans
+                            Surface(
+                                shape = RoundedCornerShape(16.dp),
+                                color = if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface,
+                                border = BorderStroke(1.dp, if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)),
+                                modifier = Modifier.clickable { selectedTransition = trans }
+                            ) {
+                                Text(
+                                    text = trans,
+                                    style = MaterialTheme.typography.labelMedium,
+                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                                    color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface
+                                )
+                            }
+                        }
+                    }
+                }
+
+                // Progress saving log simulator block
+                if (isSaving) {
+                    Surface(
+                        color = Color(0xFF151515),
+                        shape = RoundedCornerShape(8.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(modifier = Modifier.padding(10.dp)) {
+                            Text(
+                                text = "Terminal Render Audio-Visual Multiplexing:",
+                                color = Color.Green,
+                                style = TextStyle(fontFamily = FontFamily.Monospace, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                            )
+                            Spacer(modifier = Modifier.height(6.dp))
+                            Text(
+                                text = savingLog,
+                                color = Color.White,
+                                style = TextStyle(fontFamily = FontFamily.Monospace, fontSize = 11.sp, lineHeight = 15.sp)
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            LinearProgressIndicator(
+                                progress = { savingProgress },
+                                modifier = Modifier.fillMaxWidth(),
+                                color = Color.Green,
+                                trackColor = Color.DarkGray
+                            )
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            if (!isSaving) {
+                Button(
+                    onClick = {
+                        isSaving = true
+                        scope.launch {
+                            savingLog = "> Mengunduh frame video mentah hifi...\n"
+                            savingProgress = 0.12f
+                            delay(850)
+                            savingLog += "> Melakukan trim klip: durasi detik ${String.format("%.1f", startTrim)} ke ${String.format("%.1f", endTrim)}...\n"
+                            savingProgress = 0.38f
+                            delay(900)
+                            savingLog += "> Menyusun transisi klip: $selectedTransition\n"
+                            savingProgress = 0.55f
+                            delay(800)
+                            savingLog += "> Mengatur pengali frame-rate kecepatan: $selectedSpeed\n"
+                            savingProgress = 0.72f
+                            delay(850)
+                            if (selectedSoundtrack != "Mute Sound") {
+                                savingLog += "> Me-muxing audio soundtrack: $selectedSoundtrack ke video...\n"
+                                savingProgress = 0.88f
+                                delay(900)
+                            }
+                            savingLog += "> Mengkompresi ke codec H.264 MP4 hifi selesai!"
+                            savingProgress = 1.0f
+                            delay(600)
+
+                            val estimatedDuration = String.format("%.1f", (endTrim - startTrim) / (selectedSpeed.replace("x", "").toFloatOrNull() ?: 1.0f))
+                            val trackSuffix = if (selectedSoundtrack != "Mute Sound") { " | Sound: $selectedSoundtrack" } else ""
+                            val transSuffix = if (selectedTransition != "None") { " | Transition: $selectedTransition" } else ""
+                            val finalNewPrompt = "${videoItem.prompt} (Disunting - ${selectedSpeed} speed$transSuffix$trackSuffix)"
+
+                            onSaveEditedVideo(
+                                videoItem.id,
+                                finalNewPrompt,
+                                videoItem.style,
+                                videoItem.aspectRatio,
+                                "1080p", // HD quality edited output
+                                "$estimatedDuration detik",
+                                videoItem.videoUrl
+                            )
+
+                            isSaving = false
+                            Toast.makeText(context, "Klip video hasil suntingan berhasil disimpan dalam Pustaka!", Toast.LENGTH_SHORT).show()
+                            onDismissRequest()
+                        }
+                    }
+                ) {
+                    Text("Kompilasi & Simpan 🚀")
+                }
+            }
+        },
+        dismissButton = {
+            if (!isSaving) {
+                TextButton(
+                    onClick = onDismissRequest
+                ) {
+                    Text("Batal")
+                }
+            }
+        }
+    )
+}
+
+@Composable
+fun EddieMusicEditorDialog(
+    musicItem: com.example.data.db.GeneratedMusicEntity,
+    onDismissRequest: () -> Unit,
+    onSaveEditedMusic: (String, String, String, String, String, String) -> Unit
+) {
+    val context = LocalContext.current
+    var selectedEq by remember { mutableStateOf("Balanced") }
+    var selectedTempoMultiplier by remember { mutableStateOf("100% (Normal)") }
+
+    // Multi-track fade stems mixer custom states
+    var vocalVolume by remember { mutableStateOf(0.8f) }
+    var beatVolume by remember { mutableStateOf(0.8f) }
+    var melodyVolume by remember { mutableStateOf(0.8f) }
+    var ambienceVolume by remember { mutableStateOf(0.7f) }
+
+    // Rendering / saving simulation state
+    var isSaving by remember { mutableStateOf(false) }
+    var savingLog by remember { mutableStateOf("") }
+    var savingProgress by remember { mutableStateOf(0f) }
+
+    val scope = rememberCoroutineScope()
+
+    val eqs = listOf("Balanced", "Bass Booster 🔥", "Vocal Clarity 🎤", "Treble Sparkle ✨", "Room Echo Delay 📻")
+    val tempos = listOf("85% (Slow Mix)", "100% (Normal)", "115% (Double-Pulse)", "130% (Speedup)")
+
+    AlertDialog(
+        onDismissRequest = { if (!isSaving) onDismissRequest() },
+        title = {
+            Text(
+                text = "Pencampur Mixer Musik Eddie AI 🎵",
+                style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold)
+            )
+        },
+        text = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                // Audio Wave Visualizer Block Placeholder
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(130.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(Color(0xFF1C0A35)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        modifier = Modifier.padding(12.dp)
+                    ) {
+                        Text("🎧", fontSize = 32.sp)
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = musicItem.prompt,
+                            color = Color.White,
+                            style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        Text(
+                            text = "Equalizer: $selectedEq • BPM: $selectedTempoMultiplier",
+                            color = MaterialTheme.colorScheme.primary,
+                            style = MaterialTheme.typography.labelSmall
+                        )
+
+                        // Fake visual audio frequencies
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            repeat(18) { index ->
+                                val height = 5 + (12 + index % 3 * 8 + (Math.sin(index.toDouble()) * 10).toInt()).coerceAtLeast(3).coerceAtMost(36)
+                                Box(
+                                    modifier = Modifier
+                                        .size(width = 3.dp, height = height.dp)
+                                        .background(
+                                            color = MaterialTheme.colorScheme.secondary,
+                                            shape = RoundedCornerShape(2.dp)
+                                        )
+                                )
+                            }
+                        }
+                    }
+                }
+
+                // Multi-Stems Mixer Sliders
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text(
+                        text = "Kontrol Multi-Track Mixer Stems",
+                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+
+                    // Stems 1: Vocal
+                    Column {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text("Volume Vokal Utama 🎤", style = MaterialTheme.typography.labelMedium)
+                            Text("${(vocalVolume * 100).toInt()}%", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
+                        }
+                        Slider(value = vocalVolume, onValueChange = { vocalVolume = it }, valueRange = 0f..1.2f)
+                    }
+
+                    // Stems 2: Beat Drums
+                    Column {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text("Drums / Ketukan Perkusi 🥁", style = MaterialTheme.typography.labelMedium)
+                            Text("${(beatVolume * 100).toInt()}%", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
+                        }
+                        Slider(value = beatVolume, onValueChange = { beatVolume = it }, valueRange = 0f..1.2f)
+                    }
+
+                    // Stems 3: Melody Piano/Synth
+                    Column {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text("Melodi / Komposisi Petikan 🎹", style = MaterialTheme.typography.labelMedium)
+                            Text("${(melodyVolume * 100).toInt()}%", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
+                        }
+                        Slider(value = melodyVolume, onValueChange = { melodyVolume = it }, valueRange = 0f..1.2f)
+                    }
+
+                    // Stems 4: Room Ambience
+                    Column {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text("Ruang Ambience Pad / Fx 🌌", style = MaterialTheme.typography.labelMedium)
+                            Text("${(ambienceVolume * 100).toInt()}%", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
+                        }
+                        Slider(value = ambienceVolume, onValueChange = { ambienceVolume = it }, valueRange = 0f..1.2f)
+                    }
+                }
+
+                // Equalizer selector
+                Column {
+                    Text(
+                        text = "Setelan Equalizer (EQ Profile)",
+                        style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                        modifier = Modifier.padding(bottom = 6.dp)
+                    )
+                    Row(
+                        modifier = Modifier.horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        eqs.forEach { eq ->
+                            val isSelected = selectedEq == eq
+                            Surface(
+                                shape = RoundedCornerShape(16.dp),
+                                color = if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface,
+                                border = BorderStroke(1.dp, if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)),
+                                modifier = Modifier.clickable { selectedEq = eq }
+                            ) {
+                                Text(
+                                    text = eq,
+                                    style = MaterialTheme.typography.labelMedium,
+                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                                    color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface
+                                )
+                            }
+                        }
+                    }
+                }
+
+                // Tempo / BPM adjustment
+                Column {
+                    Text(
+                        text = "Modulasi Tempo Musik (BPM)",
+                        style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                        modifier = Modifier.padding(bottom = 6.dp)
+                    )
+                    Row(
+                        modifier = Modifier.horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        tempos.forEach { tempo ->
+                            val isSelected = selectedTempoMultiplier == tempo
+                            Surface(
+                                shape = RoundedCornerShape(16.dp),
+                                color = if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface,
+                                border = BorderStroke(1.dp, if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)),
+                                modifier = Modifier.clickable { selectedTempoMultiplier = tempo }
+                            ) {
+                                Text(
+                                    text = tempo,
+                                    style = MaterialTheme.typography.labelMedium,
+                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                                    color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface
+                                )
+                            }
+                        }
+                    }
+                }
+
+                // Mixer Log Console Terminal Simulator
+                if (isSaving) {
+                    Surface(
+                        color = Color(0xFF151515),
+                        shape = RoundedCornerShape(8.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(modifier = Modifier.padding(10.dp)) {
+                            Text(
+                                text = "Mixer Console Realtime Re-synthesis Log:",
+                                color = Color.Green,
+                                style = TextStyle(fontFamily = FontFamily.Monospace, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                            )
+                            Spacer(modifier = Modifier.height(6.dp))
+                            Text(
+                                text = savingLog,
+                                color = Color.White,
+                                style = TextStyle(fontFamily = FontFamily.Monospace, fontSize = 11.sp, lineHeight = 15.sp)
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            LinearProgressIndicator(
+                                progress = { savingProgress },
+                                modifier = Modifier.fillMaxWidth(),
+                                color = Color.Green,
+                                trackColor = Color.DarkGray
+                            )
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            if (!isSaving) {
+                Button(
+                    onClick = {
+                        isSaving = true
+                        scope.launch {
+                            savingLog = "> Membaca data trek master audio hifi...\n"
+                            savingProgress = 0.15f
+                            delay(850)
+                            savingLog += "> Mengatur gain stem mixer: Vokal ${(vocalVolume * 100).toInt()}%, Beats ${(beatVolume * 100).toInt()}%...\n"
+                            savingProgress = 0.4f
+                            delay(900)
+                            savingLog += "> Mengkonfigurasi Equalization profile: $selectedEq\n"
+                            savingProgress = 0.65f
+                            delay(800)
+                            savingLog += "> Membentuk modulasi tempo master: $selectedTempoMultiplier\n"
+                            savingProgress = 0.85f
+                            delay(900)
+                            savingLog += "> Me-remix klip audio stereo multi-channel berhasil!"
+                            savingProgress = 1.0f
+                            delay(600)
+
+                            val eqSuffix = "EQ-$selectedEq"
+                            val speedFactor = selectedTempoMultiplier.split(" ").first()
+                            val remixedPrompt = "${musicItem.prompt} (Remix - $eqSuffix, Speed $speedFactor)"
+
+                            onSaveEditedMusic(
+                                musicItem.id,
+                                remixedPrompt,
+                                musicItem.genre,
+                                musicItem.duration,
+                                musicItem.tempo,
+                                musicItem.musicUrl
+                            )
+
+                            isSaving = false
+                            Toast.makeText(context, "Karya remix musik berhasil ditambahkan ke Gallery Studio!", Toast.LENGTH_SHORT).show()
+                            onDismissRequest()
+                        }
+                    }
+                ) {
+                    Text("Remix & Simpan Mentah 🎚️")
+                }
+            }
+        },
+        dismissButton = {
+            if (!isSaving) {
+                TextButton(
+                    onClick = onDismissRequest
+                ) {
+                    Text("Batal")
+                }
+            }
+        }
+    )
 }
 

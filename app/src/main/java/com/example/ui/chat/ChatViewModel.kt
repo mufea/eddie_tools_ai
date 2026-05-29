@@ -860,5 +860,74 @@ class ChatViewModel(
             }
         }
     }
+
+    fun saveEditedImage(
+        originalId: String,
+        prompt: String,
+        style: String,
+        aspectRatio: String,
+        imageUrl: String
+    ) {
+        viewModelScope.launch {
+            val editedEntity = com.example.data.db.GeneratedImageEntity(
+                id = java.util.UUID.randomUUID().toString(),
+                prompt = prompt,
+                imageUrl = imageUrl,
+                style = style,
+                aspectRatio = aspectRatio,
+                timestamp = System.currentTimeMillis(),
+                userEmail = _uiState.value.currentUserProfile?.email
+            )
+            chatDao.insertGeneratedImage(editedEntity)
+        }
+    }
+
+    fun saveEditedVideo(
+        originalId: String,
+        prompt: String,
+        style: String,
+        aspectRatio: String,
+        resolution: String,
+        duration: String,
+        videoUrl: String
+    ) {
+        viewModelScope.launch {
+            val editedEntity = com.example.data.db.GeneratedVideoEntity(
+                id = java.util.UUID.randomUUID().toString(),
+                prompt = prompt,
+                videoUrl = videoUrl,
+                style = style,
+                aspectRatio = aspectRatio,
+                resolution = resolution,
+                duration = duration,
+                timestamp = System.currentTimeMillis(),
+                userEmail = _uiState.value.currentUserProfile?.email
+            )
+            chatDao.insertGeneratedVideo(editedEntity)
+        }
+    }
+
+    fun saveEditedMusic(
+        originalId: String,
+        prompt: String,
+        genre: String,
+        duration: String,
+        tempo: String,
+        musicUrl: String
+    ) {
+        viewModelScope.launch {
+            val editedEntity = com.example.data.db.GeneratedMusicEntity(
+                id = java.util.UUID.randomUUID().toString(),
+                prompt = prompt,
+                musicUrl = musicUrl,
+                genre = genre,
+                duration = duration,
+                tempo = tempo,
+                timestamp = System.currentTimeMillis(),
+                userEmail = _uiState.value.currentUserProfile?.email
+            )
+            chatDao.insertGeneratedMusic(editedEntity)
+        }
+    }
 }
 
