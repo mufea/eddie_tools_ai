@@ -36,6 +36,42 @@ data class ChatMessageEntity(
     val isBookmarked: Boolean = false
 )
 
+@Entity(tableName = "generated_images")
+data class GeneratedImageEntity(
+    @PrimaryKey val id: String,
+    val prompt: String,
+    val imageUrl: String,
+    val style: String,
+    val aspectRatio: String,
+    val timestamp: Long = System.currentTimeMillis(),
+    val userEmail: String? = null
+)
+
+@Entity(tableName = "generated_videos")
+data class GeneratedVideoEntity(
+    @PrimaryKey val id: String,
+    val prompt: String,
+    val videoUrl: String,
+    val style: String,
+    val aspectRatio: String,
+    val resolution: String,
+    val duration: String,
+    val timestamp: Long = System.currentTimeMillis(),
+    val userEmail: String? = null
+)
+
+@Entity(tableName = "generated_music")
+data class GeneratedMusicEntity(
+    @PrimaryKey val id: String,
+    val prompt: String,
+    val musicUrl: String,
+    val genre: String,
+    val duration: String,
+    val tempo: String,
+    val timestamp: Long = System.currentTimeMillis(),
+    val userEmail: String? = null
+)
+
 // --- DAO (Data Access Object) ---
 
 @Dao
@@ -64,6 +100,42 @@ interface ChatDao {
     @Query("SELECT * FROM chat_messages WHERE isBookmarked = 1 ORDER BY timestamp DESC")
     fun getBookmarkedMessages(): Flow<List<ChatMessageEntity>>
 
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertGeneratedImage(image: GeneratedImageEntity)
+
+    @Query("SELECT * FROM generated_images ORDER BY timestamp DESC")
+    fun getAllGeneratedImages(): Flow<List<GeneratedImageEntity>>
+
+    @Query("SELECT * FROM generated_images WHERE userEmail = :email ORDER BY timestamp DESC")
+    fun getGeneratedImagesForUser(email: String): Flow<List<GeneratedImageEntity>>
+
+    @Query("DELETE FROM generated_images WHERE id = :imageId")
+    suspend fun deleteGeneratedImageById(imageId: String)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertGeneratedVideo(video: GeneratedVideoEntity)
+
+    @Query("SELECT * FROM generated_videos ORDER BY timestamp DESC")
+    fun getAllGeneratedVideos(): Flow<List<GeneratedVideoEntity>>
+
+    @Query("SELECT * FROM generated_videos WHERE userEmail = :email ORDER BY timestamp DESC")
+    fun getGeneratedVideosForUser(email: String): Flow<List<GeneratedVideoEntity>>
+
+    @Query("DELETE FROM generated_videos WHERE id = :videoId")
+    suspend fun deleteGeneratedVideoById(videoId: String)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertGeneratedMusic(music: GeneratedMusicEntity)
+
+    @Query("SELECT * FROM generated_music ORDER BY timestamp DESC")
+    fun getAllGeneratedMusic(): Flow<List<GeneratedMusicEntity>>
+
+    @Query("SELECT * FROM generated_music WHERE userEmail = :email ORDER BY timestamp DESC")
+    fun getGeneratedMusicForUser(email: String): Flow<List<GeneratedMusicEntity>>
+
+    @Query("DELETE FROM generated_music WHERE id = :musicId")
+    suspend fun deleteGeneratedMusicById(musicId: String)
+
     @Query("DELETE FROM chat_messages")
     suspend fun deleteAllMessages()
 
@@ -74,8 +146,14 @@ interface ChatDao {
 // --- AppDatabase class ---
 
 @Database(
-    entities = [ChatSessionEntity::class, ChatMessageEntity::class],
-    version = 1,
+    entities = [
+        ChatSessionEntity::class,
+        ChatMessageEntity::class,
+        GeneratedImageEntity::class,
+        GeneratedVideoEntity::class,
+        GeneratedMusicEntity::class
+    ],
+    version = 4,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -87,15 +165,49 @@ abstract class AppDatabase : RoomDatabase() {
 
         fun getDatabase(context: Context): AppDatabase {
             return INSTANCE ?: synchronized(this) {
-                val instance = Room.databaseBuilder(
-                    context.applicationContext,
-                    AppDatabase::class.java,
-                    "ai_chat_database"
-                )
-                .fallbackToDestructiveMigration()
-                .build()
-                INSTANCE = instance
-                instance
+                var db: AppDatabase? = null
+                try {
+                    val builder = Room.databaseBuilder(
+                        context.applicationContext,
+                        AppDatabase::class.java,
+                        "ai_chat_database"
+                    ).fallbackToDestructiveMigration()
+                    
+                    val tempDb = builder.build()
+                    // Force database to open and execute schema creation/validation
+                    tempDb.runInTransaction {
+                        tempDb.openHelper.writableDatabase
+                    }
+                    db = tempDb
+                } catch (e: Exception) {
+                    android.util.Log.e("AppDatabase", "Error initializing database, recreating...", e)
+                    try {
+                        context.applicationContext.deleteDatabase("ai_chat_database")
+                        val backupDb = Room.databaseBuilder(
+                            context.applicationContext,
+                            AppDatabase::class.java,
+                            "ai_chat_database"
+                        ).fallbackToDestructiveMigration().build()
+                        backupDb.runInTransaction {
+                            backupDb.openHelper.writableDatabase
+                        }
+                        db = backupDb
+                    } catch (ex: Exception) {
+                        android.util.Log.e("AppDatabase", "Fallback to in-memory database due to persistent error", ex)
+                        try {
+                            db = Room.inMemoryDatabaseBuilder(
+                                context.applicationContext,
+                                AppDatabase::class.java
+                            ).fallbackToDestructiveMigration().build()
+                        } catch (fatal: Exception) {
+                            // Absolute fallback
+                        }
+                    }
+                }
+                
+                val finalDb = db ?: INSTANCE ?: throw IllegalStateException("Database initialization collapsed entirely.")
+                INSTANCE = finalDb
+                finalDb
             }
         }
     }

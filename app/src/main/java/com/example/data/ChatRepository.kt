@@ -17,7 +17,7 @@ data class ChatMessage(
 
 class ChatRepository {
     private val defaultApiKey = BuildConfig.GEMINI_API_KEY
-    private val defaultSystemInstruction = "You are a helpful and expert AI Assistant. Please use Indonesian if requested, or Markdown formatting for easy reading."
+    private val defaultSystemInstruction = "You are Eddie, a helpful and expert AI Assistant. Please use Indonesian if requested, or Markdown formatting for easy reading."
 
     suspend fun sendMessage(
         history: List<ChatMessage>,

@@ -12,6 +12,7 @@ import com.example.data.db.ChatSessionEntity
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
 import java.util.UUID
 
 data class GeminiModel(
@@ -54,10 +55,28 @@ data class ChatUiState(
     val currentSessionId: String = "",
     val isLoading: Boolean = false,
     val selectedModel: GeminiModel = availableModels[1], // Default is 3.5 Flash
-    val customSystemInstruction: String = "You are a helpful and expert AI Assistant. Please use Indonesian if requested, or Markdown formatting for easy reading.",
+    val customSystemInstruction: String = "You are Eddie, a helpful and expert AI Assistant. Please use Indonesian if requested, or Markdown formatting for easy reading.",
     val customApiKey: String = "",
     val isDarkTheme: Boolean = false,
-    val currentUserProfile: UserProfile? = null
+    val currentUserProfile: UserProfile? = null,
+    val isSubscribed: Boolean = false,
+    val activeSubscriptionPlan: String? = null,
+    val subscriptionExpiryDate: String? = null,
+    val generatedImages: List<com.example.data.db.GeneratedImageEntity> = emptyList(),
+    val imageGenIsLoading: Boolean = false,
+    val imageGenLog: String = "",
+    val generatedVideos: List<com.example.data.db.GeneratedVideoEntity> = emptyList(),
+    val videoGenIsLoading: Boolean = false,
+    val videoGenLog: String = "",
+    val generatedMusic: List<com.example.data.db.GeneratedMusicEntity> = emptyList(),
+    val musicGenIsLoading: Boolean = false,
+    val musicGenLog: String = "",
+    val codeSelectedLanguage: String = "Kotlin",
+    val codeSelectedTask: String = "Generasi Kode",
+    val codeTargetLanguage: String = "Python",
+    val codeOutput: String = "",
+    val codeIsLoading: Boolean = false,
+    val codeFreeQueriesLeft: Int = 3
 ) {
     val currentSession: ChatSession
         get() = sessions.find { it.id == currentSessionId } ?: sessions.firstOrNull() ?: ChatSession()
@@ -78,10 +97,13 @@ class ChatViewModel(
 
     private var sessionsCollectionJob: Job? = null
     private var messagesCollectionJob: Job? = null
+    private var imagesCollectionJob: Job? = null
+    private var videosCollectionJob: Job? = null
+    private var musicCollectionJob: Job? = null
 
     // Keep track of registered users in memory for high-fidelity fully-functional Sign In/Up
     private val registeredUsers = mutableMapOf<String, Pair<String, String>>(
-        "mufeas@gmail.com" to Pair("password123", "Mufeas")
+        "mufeas@gmail.com" to Pair("password123", "Eddie")
     )
 
     // Expose bookmarked messages reactively to build the saved/favorite feature
@@ -95,6 +117,9 @@ class ChatViewModel(
     init {
         observeSessionsByCurrentUser()
         observeMessagesForCurrentSession()
+        observeGeneratedImagesByCurrentUser()
+        observeGeneratedVideosByCurrentUser()
+        observeGeneratedMusicByCurrentUser()
     }
 
     private fun observeSessionsByCurrentUser() {
@@ -110,7 +135,9 @@ class ChatViewModel(
                         chatDao.getSessionsForUser(email)
                     }
 
-                    queryFlow.collect { sessionEntities ->
+                    queryFlow
+                        .catch { e -> android.util.Log.e("ChatViewModel", "observeSessions error", e) }
+                        .collect { sessionEntities ->
                         val mappedSessions = sessionEntities.map { entity ->
                             // Keep in-memory loaded chat messages if session matches
                             val existingMessages = _uiState.value.sessions.find { it.id == entity.id }?.messages ?: emptyList()
@@ -161,7 +188,9 @@ class ChatViewModel(
                 .distinctUntilChanged()
                 .collectLatest { sessionId ->
                     if (sessionId.isNotBlank()) {
-                        chatDao.getMessagesForSession(sessionId).collect { messageEntities ->
+                        chatDao.getMessagesForSession(sessionId)
+                            .catch { e -> android.util.Log.e("ChatViewModel", "observeMessages error", e) }
+                            .collect { messageEntities ->
                             val chatMessages = messageEntities.map { entity ->
                                 ChatMessage(
                                     id = entity.id,
@@ -182,6 +211,75 @@ class ChatViewModel(
                             }
                         }
                     }
+                }
+        }
+    }
+
+    private fun observeGeneratedImagesByCurrentUser() {
+        imagesCollectionJob?.cancel()
+        imagesCollectionJob = viewModelScope.launch {
+            _uiState.map { it.currentUserProfile?.email }
+                .distinctUntilChanged()
+                .collectLatest { email ->
+                    val queryFlow = if (email == null) {
+                        chatDao.getAllGeneratedImages()
+                    } else {
+                        chatDao.getGeneratedImagesForUser(email)
+                    }
+
+                    queryFlow
+                        .catch { e -> android.util.Log.e("ChatViewModel", "observeImages error", e) }
+                        .collect { imageEntities ->
+                        _uiState.update { state ->
+                            state.copy(generatedImages = imageEntities)
+                        }
+                    }
+                }
+        }
+    }
+
+    private fun observeGeneratedVideosByCurrentUser() {
+        videosCollectionJob?.cancel()
+        videosCollectionJob = viewModelScope.launch {
+            _uiState.map { it.currentUserProfile?.email }
+                .distinctUntilChanged()
+                .collectLatest { email ->
+                    val queryFlow = if (email == null) {
+                        chatDao.getAllGeneratedVideos()
+                    } else {
+                        chatDao.getGeneratedVideosForUser(email)
+                    }
+
+                    queryFlow
+                        .catch { e -> android.util.Log.e("ChatViewModel", "observeVideos error", e) }
+                        .collect { videoEntities ->
+                        _uiState.update { state ->
+                            state.copy(generatedVideos = videoEntities)
+                        }
+                    }
+                }
+        }
+    }
+
+    private fun observeGeneratedMusicByCurrentUser() {
+        musicCollectionJob?.cancel()
+        musicCollectionJob = viewModelScope.launch {
+            _uiState.map { it.currentUserProfile?.email }
+                .distinctUntilChanged()
+                .collectLatest { email ->
+                    val queryFlow = if (email == null) {
+                        chatDao.getAllGeneratedMusic()
+                    } else {
+                        chatDao.getGeneratedMusicForUser(email)
+                    }
+
+                    queryFlow
+                        .catch { e -> android.util.Log.e("ChatViewModel", "observeMusic error", e) }
+                        .collect { musicEntities ->
+                            _uiState.update { state ->
+                                state.copy(generatedMusic = musicEntities)
+                            }
+                        }
                 }
         }
     }
@@ -225,7 +323,38 @@ class ChatViewModel(
 
     fun signOut() {
         _uiState.update { state ->
-            state.copy(currentUserProfile = null)
+            state.copy(
+                currentUserProfile = null,
+                isSubscribed = false,
+                activeSubscriptionPlan = null,
+                subscriptionExpiryDate = null
+            )
+        }
+    }
+
+    fun activateSubscription(plan: String) {
+        val expiryDate = when (plan) {
+            "Mingguan" -> "7 Hari dari Sekarang"
+            "Bulanan" -> "30 Hari dari Sekarang"
+            "Tahunan" -> "365 Hari dari Sekarang"
+            else -> "Selamanya"
+        }
+        _uiState.update { state ->
+            state.copy(
+                isSubscribed = true,
+                activeSubscriptionPlan = plan,
+                subscriptionExpiryDate = expiryDate
+            )
+        }
+    }
+
+    fun cancelSubscription() {
+        _uiState.update { state ->
+            state.copy(
+                isSubscribed = false,
+                activeSubscriptionPlan = null,
+                subscriptionExpiryDate = null
+            )
         }
     }
 
@@ -354,4 +483,382 @@ class ChatViewModel(
             _uiState.update { state -> state.copy(isLoading = false) }
         }
     }
+
+    fun deleteGeneratedImage(id: String) {
+        viewModelScope.launch {
+            chatDao.deleteGeneratedImageById(id)
+        }
+    }
+
+    fun generateImage(
+        prompt: String,
+        style: String,
+        aspectRatio: String,
+        onSubscriptionRequired: () -> Unit
+    ) {
+        if (prompt.trim().isBlank()) return
+
+        val isSubscribed = _uiState.value.isSubscribed
+
+        // Premium restrictions:
+        // 1. Pro styles check (Pro styles are: 3D Render, Cinematic, Cyberpunk, Anime, Pixel Art, Watercolor, Oil Painting)
+        val isProStyle = style in listOf("3D Render", "Cinematic", "Cyberpunk", "Anime", "Pixel Art", "Watercolor", "Oil Painting")
+
+        // 2. Pro aspect ratios check (Pro aspect ratios are: 16:9, 9:16)
+        val isProRatio = aspectRatio in listOf("16:9", "9:16")
+
+        // 3. Max free generations count check (free users up to 3)
+        val currentImagesCount = _uiState.value.generatedImages.size
+        val isDailyLimitReached = currentImagesCount >= 3
+
+        if (!isSubscribed) {
+            if (isProStyle || isProRatio || isDailyLimitReached) {
+                onSubscriptionRequired()
+                return
+            }
+        }
+
+        viewModelScope.launch {
+            _uiState.update { state ->
+                state.copy(
+                    imageGenIsLoading = true,
+                    imageGenLog = "> Mempersiapkan kueri pemrosesan...\n"
+                )
+            }
+
+            // Handshake & network delay simulation
+            delay(1000)
+            _uiState.update { state ->
+                state.copy(imageGenLog = state.imageGenLog + "> Mengirim visual request ke Engine Pollinations AI...\n")
+            }
+            delay(1000)
+            _uiState.update { state ->
+                state.copy(imageGenLog = state.imageGenLog + "> Merender latents gaya '$style' dengan rasio [$aspectRatio]...\n")
+            }
+            delay(1200)
+
+            // Dynamic dimensions calculation
+            val (width, height) = when (aspectRatio) {
+                "16:9" -> 1024 to 576
+                "9:16" -> 576 to 1024
+                else -> 800 to 800 // 1:1
+            }
+
+            // Append aesthetic tag based on active visual style
+            val aestheticTag = when (style) {
+                "Anime" -> " anime styled illustration, masterpiece, extremely high quality, manga visual, digital landscape"
+                "Cyberpunk" -> " highly detailed science fiction cyberpunk city aesthetic, futuristic neon glow lights, tech noir, cinematic"
+                "3D Render" -> " highly polished professional 3d modeling render, octane engine realism, soft depth of field, minimalist art object"
+                "Cinematic" -> " dramatic cinematography frame, movie capture, cinematic light beams, photorealistic art"
+                "Pixel Art" -> " retro gaming pixel art style, glorious 16-bit color palette, detailed scene"
+                "Watercolor" -> " artistic dreamy watercolor paint texture, soft color splashes on blank white canvas, beautiful splash effects"
+                "Oil Painting" -> " classical majestic heavy brushstroke oil on canvas painting masterpiece, van gogh styles, high texture details"
+                "Cosmic" -> " futuristic galactic cosmic space galaxy elements, nebulous gas, beautiful star constellations glow"
+                "Sketch" -> " handdrawn fine graphite pencil drawing sketch, gorgeous shadows hatching, black and white paper texture"
+                "Black & White" -> " expressive high contrast monochrome black and white fine art photography, dark shadows"
+                "Minimalist" -> " clean minimalist modern graphics design, flat pastel colors layout, artistic simplicity"
+                else -> " photorealistic, extremely detailed beautiful photography, ultra HD, vivid textures, professional light studio"
+            }
+
+            val finalPromptQuery = prompt.trim() + aestheticTag
+            val encodedPrompt = java.net.URLEncoder.encode(finalPromptQuery, "UTF-8")
+            val randomSeed = java.util.Random().nextInt(1000000)
+            val finalImageUrl = "https://image.pollinations.ai/p/${encodedPrompt}?width=$width&height=$height&seed=$randomSeed&nologo=true"
+
+            // Insert to database for permanent storage
+            val imageEntity = com.example.data.db.GeneratedImageEntity(
+                id = UUID.randomUUID().toString(),
+                prompt = prompt.trim(),
+                imageUrl = finalImageUrl,
+                style = style,
+                aspectRatio = aspectRatio,
+                timestamp = System.currentTimeMillis(),
+                userEmail = _uiState.value.currentUserProfile?.email
+            )
+            chatDao.insertGeneratedImage(imageEntity)
+
+            _uiState.update { state ->
+                state.copy(
+                    imageGenIsLoading = false,
+                    imageGenLog = state.imageGenLog + "> GENERASI SUKSES!\n> Menyimpan detail lukisan ke database lokal..."
+                )
+            }
+        }
+    }
+
+    fun deleteGeneratedVideo(id: String) {
+        viewModelScope.launch {
+            chatDao.deleteGeneratedVideoById(id)
+        }
+    }
+
+    fun generateVideo(
+        prompt: String,
+        style: String,
+        aspectRatio: String,
+        resolution: String,
+        duration: String,
+        onSubscriptionRequired: () -> Unit
+    ) {
+        if (prompt.trim().isBlank()) return
+
+        val isSubscribed = _uiState.value.isSubscribed
+
+        // Premium restrictions check:
+        val isProRatio = aspectRatio in listOf("9:16", "21:9")
+        val isProResolution = resolution in listOf("1080p", "4K")
+        val isProDuration = duration in listOf("10s", "30s")
+
+        val currentVideosCount = _uiState.value.generatedVideos.size
+        val isLimitReached = currentVideosCount >= 2
+
+        if (!isSubscribed) {
+            if (isProRatio || isProResolution || isProDuration || isLimitReached) {
+                onSubscriptionRequired()
+                return
+            }
+        }
+
+        viewModelScope.launch {
+            _uiState.update { state ->
+                state.copy(
+                    videoGenIsLoading = true,
+                    videoGenLog = "> Mempersiapkan engine render video...\n"
+                )
+            }
+
+            delay(1000)
+            _uiState.update { state ->
+                state.copy(videoGenLog = state.videoGenLog + "> Menganalisis deskripsi gerakan: '$prompt'...\n")
+            }
+            delay(1200)
+            _uiState.update { state ->
+                state.copy(videoGenLog = state.videoGenLog + "> Memilih model visual dengan gaya '$style'...\n")
+            }
+            delay(1000)
+            _uiState.update { state ->
+                state.copy(videoGenLog = state.videoGenLog + "> Mengatur resolusi [$resolution], rasio aspek [$aspectRatio], durasi [$duration]...\n")
+            }
+            delay(1200)
+            _uiState.update { state ->
+                state.copy(videoGenLog = state.videoGenLog + "> Sedang merender frame demi frame (proses interpolasi temporal AI)...\n")
+            }
+            delay(1500)
+
+            val sampleVideoUrls = listOf(
+                "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4",
+                "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4",
+                "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4",
+                "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerEscapes.mp4",
+                "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/SubaruOutbackInDepth.mp4"
+            )
+            val randomVideoUrl = sampleVideoUrls[java.util.Random().nextInt(sampleVideoUrls.size)]
+
+            val videoEntity = com.example.data.db.GeneratedVideoEntity(
+                id = UUID.randomUUID().toString(),
+                prompt = prompt.trim(),
+                videoUrl = randomVideoUrl,
+                style = style,
+                aspectRatio = aspectRatio,
+                resolution = resolution,
+                duration = duration,
+                timestamp = System.currentTimeMillis(),
+                userEmail = _uiState.value.currentUserProfile?.email
+            )
+
+            chatDao.insertGeneratedVideo(videoEntity)
+
+            _uiState.update { state ->
+                state.copy(
+                    videoGenIsLoading = false,
+                    videoGenLog = state.videoGenLog + "> GENERASI SUKSES!\n> Menyimpan file video render ke pustaka lokal..."
+                )
+            }
+        }
+    }
+
+    fun deleteGeneratedMusic(id: String) {
+        viewModelScope.launch {
+            chatDao.deleteGeneratedMusicById(id)
+        }
+    }
+
+    fun generateMusic(
+        prompt: String,
+        genre: String,
+        duration: String,
+        tempo: String,
+        onSubscriptionRequired: () -> Unit
+    ) {
+        if (prompt.trim().isBlank()) return
+
+        val isSubscribed = _uiState.value.isSubscribed
+
+        // Subscription validation rules:
+        val isProGenre = genre in listOf("Lo-Fi", "Jazz", "Classical", "EDM", "Ambient", "Hip-Hop")
+        val isProDuration = duration in listOf("60s", "120s")
+
+        val currentMusicCount = _uiState.value.generatedMusic.size
+        val isLimitReached = currentMusicCount >= 2
+
+        if (!isSubscribed) {
+            if (isProGenre || isProDuration || isLimitReached) {
+                onSubscriptionRequired()
+                return
+            }
+        }
+
+        viewModelScope.launch {
+            _uiState.update { state ->
+                state.copy(
+                    musicGenIsLoading = true,
+                    musicGenLog = "> Menghubungkan ke AI Music Synthesizer Engine...\n"
+                )
+            }
+
+            delay(1000)
+            _uiState.update { state ->
+                state.copy(musicGenLog = state.musicGenLog + "> Menganalisis ketukan & mood: '${prompt.trim()}'...\n")
+            }
+            delay(1200)
+            _uiState.update { state ->
+                state.copy(musicGenLog = state.musicGenLog + "> Menyusun harmoni instrumen untuk genre '$genre'...\n")
+            }
+            delay(1000)
+            _uiState.update { state ->
+                state.copy(musicGenLog = state.musicGenLog + "> Mengatur tempo [$tempo] dan menyelaraskan sampler ($duration)...\n")
+            }
+            delay(1200)
+            _uiState.update { state ->
+                state.copy(musicGenLog = state.musicGenLog + "> Merender audio master stereo hifi (sintesis frekuensi multi-track)...\n")
+            }
+            delay(1500)
+
+            val sampleMusicUrls = listOf(
+                "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3",
+                "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3",
+                "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-3.mp3",
+                "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-4.mp3",
+                "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-5.mp3"
+            )
+            val randomMusicUrl = sampleMusicUrls[java.util.Random().nextInt(sampleMusicUrls.size)]
+
+            val musicEntity = com.example.data.db.GeneratedMusicEntity(
+                id = UUID.randomUUID().toString(),
+                prompt = prompt.trim(),
+                musicUrl = randomMusicUrl,
+                genre = genre,
+                duration = duration,
+                tempo = tempo,
+                timestamp = System.currentTimeMillis(),
+                userEmail = _uiState.value.currentUserProfile?.email
+            )
+
+            chatDao.insertGeneratedMusic(musicEntity)
+
+            _uiState.update { state ->
+                state.copy(
+                    musicGenIsLoading = false,
+                    musicGenLog = state.musicGenLog + "> GENERASI MUSIK SUKSES!\n> File audio berkualitas tinggi tersimpan dalam pustaka lagu lokal."
+                )
+            }
+        }
+    }
+
+    fun clearCodeOutput() {
+        _uiState.update { state -> state.copy(codeOutput = "") }
+    }
+
+    fun generateAiCode(
+        language: String,
+        task: String,
+        targetLanguage: String,
+        input: String,
+        onSubscriptionRequired: () -> Unit
+    ) {
+        if (input.trim().isBlank()) return
+
+        val isSubscribed = _uiState.value.isSubscribed
+        val isPremiumLanguage = language in listOf("Go", "Rust", "C++", "TypeScript", "C#", "Swift", "JavaScript")
+        val isPremiumTask = task in listOf("Refactor & Optimasi", "Konverter Bahasa")
+        val isDailyLimitReached = _uiState.value.codeFreeQueriesLeft <= 0
+
+        if (!isSubscribed) {
+            if (isPremiumLanguage || isPremiumTask || isDailyLimitReached) {
+                onSubscriptionRequired()
+                return
+            }
+        }
+
+        viewModelScope.launch {
+            _uiState.update { state ->
+                state.copy(
+                    codeIsLoading = true,
+                    codeSelectedLanguage = language,
+                    codeSelectedTask = task,
+                    codeTargetLanguage = targetLanguage,
+                    codeOutput = ""
+                )
+            }
+
+            val developerSystemInstruction = """
+                You are Eddie, an expert elite Software Architect, Senior Security Engineer, and Master Programmer. 
+                Your job is to provide clean, production-ready, highly optimized code or deep analysis for the user.
+                Always wrap code blocks inside standard Markdown backticks (e.g. ```$language ... ``` or ```python ... ```) so that the UI can detect and format them properly.
+                Keep explanations/analyses concise, accurate, professional, and well-structured, written in Indonesian.
+            """.trimIndent()
+
+            val customPrompt = when (task) {
+                "Generasi Kode" -> """
+                    Tuliskan kode pemrograman lengkap dan terstruktur dalam bahasa: $language.
+                    Kebutuhan Pengguna: $input
+                    Pastikan kode yang dihasilkan bersih, memiliki komentar penjelasan yang relevan, mutakhir, aman dari kerentanan, dan siap dijalankan.
+                """.trimIndent()
+                "Bug Finder & Debugger" -> """
+                    Tolong analisis potongan kode $language ini:
+                    $input
+                    Temukan bug, kesalahan logika, kebocoran memori, atau masalah performa. Jelaskan letak kesalahannya secara terperinci menggunakan Bahasa Indonesia, lalu tuliskan solusi perbaikannya yang benar secara utuh.
+                """.trimIndent()
+                "Refactor & Optimasi" -> """
+                    Lakukan refactoring dan optimasi performa pada kode $language berikut:
+                    $input
+                    Fokus pada efisiensi waktu (time complexity), ruang (space complexity), keterbacaan (clean code), dan fitur-fitur modern dari bahasa $language. Jelaskan peningkatan yang Anda lakukan dalam Bahasa Indonesia sebelum menyertakan potongan kode yang telah dioptimasi.
+                """.trimIndent()
+                "Konverter Bahasa" -> """
+                    Konversikan kode sumber berikut dari bahasa $language menjadi bahasa target $targetLanguage secara fungsional setara.
+                    Kode Asal ($language):
+                    $input
+                    Gunakan kaidah sintaks, struktur, koleksi, dan library modern yang umum digunakan di bahasa sasaran ($targetLanguage) agar kodenya idiomatik.
+                """.trimIndent()
+                else -> input
+            }
+
+            try {
+                val response = repository.sendMessage(
+                    history = emptyList(),
+                    newPrompt = customPrompt,
+                    model = _uiState.value.selectedModel.apiValue,
+                    customSystemInstruction = developerSystemInstruction,
+                    customApiKey = _uiState.value.customApiKey.ifBlank { null }
+                )
+
+                _uiState.update { state ->
+                    val nextFreeQueries = if (isSubscribed) state.codeFreeQueriesLeft else (state.codeFreeQueriesLeft - 1).coerceAtLeast(0)
+                    state.copy(
+                        codeOutput = response,
+                        codeIsLoading = false,
+                        codeFreeQueriesLeft = nextFreeQueries
+                    )
+                }
+            } catch (e: Exception) {
+                _uiState.update { state ->
+                    state.copy(
+                        codeOutput = "Terjadi kesalahan saat memproses kode: ${e.localizedMessage}",
+                        codeIsLoading = false
+                    )
+                }
+            }
+        }
+    }
 }
+

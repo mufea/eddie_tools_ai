@@ -1,6 +1,6 @@
 {
-  "name": "AI Assistant",
-  "description": "AI Chat Assistant powered by Gemini API",
+  "name": "Eddie",
+  "description": "Asisten Personal Eddie dengan Fitur Chat AI dan Generator Gambar AI Premium",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }
