@@ -167,19 +167,20 @@ abstract class AppDatabase : RoomDatabase() {
             return INSTANCE ?: synchronized(this) {
                 var db: AppDatabase? = null
                 try {
-                    val builder = Room.databaseBuilder(
+                    val tempDb = Room.databaseBuilder(
                         context.applicationContext,
                         AppDatabase::class.java,
                         "ai_chat_database"
-                    ).fallbackToDestructiveMigration()
-                    
-                    val tempDb = builder.build()
+                    )
+                    .allowMainThreadQueries()
+                    .fallbackToDestructiveMigration()
+                    .build()
                     // Force database to open and execute schema creation/validation
                     tempDb.runInTransaction {
                         tempDb.openHelper.writableDatabase
                     }
                     db = tempDb
-                } catch (e: Exception) {
+                } catch (e: Throwable) {
                     android.util.Log.e("AppDatabase", "Error initializing database, recreating...", e)
                     try {
                         context.applicationContext.deleteDatabase("ai_chat_database")
@@ -187,19 +188,25 @@ abstract class AppDatabase : RoomDatabase() {
                             context.applicationContext,
                             AppDatabase::class.java,
                             "ai_chat_database"
-                        ).fallbackToDestructiveMigration().build()
+                        )
+                        .allowMainThreadQueries()
+                        .fallbackToDestructiveMigration()
+                        .build()
                         backupDb.runInTransaction {
                             backupDb.openHelper.writableDatabase
                         }
                         db = backupDb
-                    } catch (ex: Exception) {
+                    } catch (ex: Throwable) {
                         android.util.Log.e("AppDatabase", "Fallback to in-memory database due to persistent error", ex)
                         try {
                             db = Room.inMemoryDatabaseBuilder(
                                 context.applicationContext,
                                 AppDatabase::class.java
-                            ).fallbackToDestructiveMigration().build()
-                        } catch (fatal: Exception) {
+                            )
+                            .allowMainThreadQueries()
+                            .fallbackToDestructiveMigration()
+                            .build()
+                        } catch (fatal: Throwable) {
                             // Absolute fallback
                         }
                     }

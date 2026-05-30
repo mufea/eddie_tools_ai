@@ -18,4 +18,13 @@ class ExampleRobolectricTest {
     val appName = context.getString(R.string.app_name)
     assertEquals("Eddie", appName)
   }
+
+  @Test
+  fun testViewModelInitialization() {
+    val context = ApplicationProvider.getApplicationContext<Context>()
+    AppContextProvider.init(context)
+    val viewModel = com.example.ui.chat.ChatViewModel()
+    val state = viewModel.uiState.value
+    assert(state.selectedModel.displayName.isNotEmpty())
+  }
 }

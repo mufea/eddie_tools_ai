@@ -98,25 +98,37 @@ fun ChatScreen(
     var currentlySpeakingMessageId by remember { mutableStateOf<String?>(null) }
 
     DisposableEffect(context) {
-        val tts = TextToSpeech(context) { status ->
-            if (status == TextToSpeech.SUCCESS) {
-                // Successfully initialized
+        var tts: TextToSpeech? = null
+        try {
+            val tempTts = TextToSpeech(context) { status ->
+                if (status == TextToSpeech.SUCCESS) {
+                    // Successfully initialized
+                }
             }
+            tempTts.setOnUtteranceProgressListener(object : android.speech.tts.UtteranceProgressListener() {
+                override fun onStart(utteranceId: String?) {}
+                override fun onDone(utteranceId: String?) {
+                    currentlySpeakingMessageId = null
+                    viewModel.setVoiceSpeakActive(false)
+                }
+                @Deprecated("Deprecated in Java")
+                override fun onError(utteranceId: String?) {
+                    currentlySpeakingMessageId = null
+                    viewModel.setVoiceSpeakActive(false)
+                }
+            })
+            tts = tempTts
+            ttsUser = tempTts
+        } catch (e: Throwable) {
+            android.util.Log.e("ChatScreen", "Failed to initialize TTS engine", e)
         }
-        tts.setOnUtteranceProgressListener(object : android.speech.tts.UtteranceProgressListener() {
-            override fun onStart(utteranceId: String?) {}
-            override fun onDone(utteranceId: String?) {
-                currentlySpeakingMessageId = null
-            }
-            @Deprecated("Deprecated in Java")
-            override fun onError(utteranceId: String?) {
-                currentlySpeakingMessageId = null
-            }
-        })
-        ttsUser = tts
         onDispose {
-            tts.stop()
-            tts.shutdown()
+            try {
+                tts?.stop()
+                tts?.shutdown()
+            } catch (e: Throwable) {
+                // Ignore
+            }
         }
     }
 
@@ -162,7 +174,11 @@ fun ChatScreen(
         if (result.resultCode == Activity.RESULT_OK) {
             val spokenText = result.data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)?.firstOrNull()
             if (spokenText != null) {
-                inputText = spokenText
+                if (activeTab == "voice_ai") {
+                    viewModel.processVoiceInput(spokenText, ttsUser)
+                } else {
+                    inputText = spokenText
+                }
             }
         }
     }
@@ -257,7 +273,7 @@ fun ChatScreen(
                     )
 
                     NavigationDrawerItem(
-                        icon = { Icon(Icons.Default.Face, contentDescription = null) },
+                        icon = { Text("💬", style = TextStyle(fontSize = 16.sp)) },
                         label = { Text("Asisten Chat Eddie", fontWeight = FontWeight.SemiBold) },
                         selected = activeTab == "chat",
                         onClick = {
@@ -267,7 +283,7 @@ fun ChatScreen(
                     )
 
                     NavigationDrawerItem(
-                        icon = { Icon(Icons.Default.Build, contentDescription = null) }, // Use Build or dynamic style icon
+                        icon = { Text("🎨", style = TextStyle(fontSize = 16.sp)) },
                         label = {
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
@@ -296,7 +312,7 @@ fun ChatScreen(
                     )
 
                     NavigationDrawerItem(
-                        icon = { Icon(Icons.Default.PlayArrow, contentDescription = null) },
+                        icon = { Text("🎬", style = TextStyle(fontSize = 16.sp)) },
                         label = {
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
@@ -325,7 +341,7 @@ fun ChatScreen(
                     )
 
                     NavigationDrawerItem(
-                        icon = { Icon(Icons.Default.Build, contentDescription = null) },
+                        icon = { Text("💻", style = TextStyle(fontSize = 16.sp)) },
                         label = {
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
@@ -354,7 +370,7 @@ fun ChatScreen(
                     )
 
                     NavigationDrawerItem(
-                        icon = { Icon(Icons.Default.PlayArrow, contentDescription = null) },
+                        icon = { Text("🎵", style = TextStyle(fontSize = 16.sp)) },
                         label = {
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
@@ -378,6 +394,101 @@ fun ChatScreen(
                         selected = activeTab == "music_gen",
                         onClick = {
                             activeTab = "music_gen"
+                            scope.launch { drawerState.close() }
+                        }
+                    )
+
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Text(
+                        text = "INTELLIGENCE & MULTIMODAL",
+                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold, letterSpacing = 1.sp),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
+                    )
+
+                    NavigationDrawerItem(
+                        icon = { Text("🎙️", style = TextStyle(fontSize = 16.sp)) },
+                        label = {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text("Asisten Suara Eddie", fontWeight = FontWeight.SemiBold)
+                                Surface(
+                                    color = MaterialTheme.colorScheme.secondary,
+                                    shape = RoundedCornerShape(4.dp)
+                                ) {
+                                    Text(
+                                        text = "VOICE AI",
+                                        color = Color.White,
+                                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 8.sp, fontWeight = FontWeight.Bold),
+                                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                                    )
+                                }
+                            }
+                        },
+                        selected = activeTab == "voice_ai",
+                        onClick = {
+                            activeTab = "voice_ai"
+                            scope.launch { drawerState.close() }
+                        }
+                    )
+
+                    NavigationDrawerItem(
+                        icon = { Text("📸", style = TextStyle(fontSize = 16.sp)) },
+                        label = {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text("AI Vision Analyzer", fontWeight = FontWeight.SemiBold)
+                                Surface(
+                                    color = MaterialTheme.colorScheme.tertiary,
+                                    shape = RoundedCornerShape(4.dp)
+                                ) {
+                                    Text(
+                                        text = "VISION",
+                                        color = Color.White,
+                                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 8.sp, fontWeight = FontWeight.Bold),
+                                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                                    )
+                                }
+                            }
+                        },
+                        selected = activeTab == "ai_vision",
+                        onClick = {
+                            activeTab = "ai_vision"
+                            scope.launch { drawerState.close() }
+                        }
+                    )
+
+                    NavigationDrawerItem(
+                        icon = { Text("📄", style = TextStyle(fontSize = 16.sp)) },
+                        label = {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text("Ringkasan Dokumen & PDF", fontWeight = FontWeight.SemiBold)
+                                Surface(
+                                    color = MaterialTheme.colorScheme.primary,
+                                    shape = RoundedCornerShape(4.dp)
+                                ) {
+                                    Text(
+                                        text = "DOC AI",
+                                        color = Color.White,
+                                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 8.sp, fontWeight = FontWeight.Bold),
+                                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                                    )
+                                }
+                            }
+                        },
+                        selected = activeTab == "doc_intelligence",
+                        onClick = {
+                            activeTab = "doc_intelligence"
                             scope.launch { drawerState.close() }
                         }
                     )
@@ -440,7 +551,7 @@ fun ChatScreen(
                     )
 
                     NavigationDrawerItem(
-                        icon = { Icon(Icons.Default.Face, contentDescription = null) },
+                        icon = { Text("🌙", style = TextStyle(fontSize = 16.sp)) },
                         label = {
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
@@ -460,7 +571,7 @@ fun ChatScreen(
                     )
 
                     NavigationDrawerItem(
-                        icon = { Icon(Icons.Default.Build, contentDescription = null) },
+                        icon = { Text("🤖", style = TextStyle(fontSize = 16.sp)) },
                         label = { Text("Sistem Instruksi (Custom)") },
                         selected = false,
                         onClick = {
@@ -470,7 +581,7 @@ fun ChatScreen(
                     )
 
                     NavigationDrawerItem(
-                        icon = { Icon(Icons.Default.Lock, contentDescription = null) },
+                        icon = { Text("🔑", style = TextStyle(fontSize = 16.sp)) },
                         label = { Text("API Key Manager") },
                         selected = false,
                         onClick = {
@@ -524,6 +635,25 @@ fun ChatScreen(
                         }
                     )
 
+                    if (uiState.isSubscribed) {
+                        NavigationDrawerItem(
+                            icon = { Text("❌", style = TextStyle(fontSize = 16.sp)) },
+                            label = {
+                                Text(
+                                    text = "Berhenti Berlangganan",
+                                    color = MaterialTheme.colorScheme.error,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            },
+                            selected = false,
+                            onClick = {
+                                scope.launch { drawerState.close() }
+                                viewModel.cancelSubscription()
+                                Toast.makeText(context, "Berhasil berhenti berlangganan. Status Anda kembali ke akun Uji Coba Gratis.", Toast.LENGTH_LONG).show()
+                            }
+                        )
+                    }
+
                     Spacer(modifier = Modifier.height(16.dp))
                     Text(
                         text = "LAINNYA",
@@ -533,7 +663,7 @@ fun ChatScreen(
                     )
 
                     NavigationDrawerItem(
-                        icon = { Icon(Icons.Default.Info, contentDescription = null) },
+                        icon = { Text("ℹ️", style = TextStyle(fontSize = 16.sp)) },
                         label = { Text("Bantuan & Info") },
                         selected = false,
                         onClick = {
@@ -666,88 +796,109 @@ fun ChatScreen(
                 Column {
                     TopAppBar(
                         navigationIcon = {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                IconButton(
-                                    onClick = { scope.launch { drawerState.open() } },
-                                    modifier = Modifier.padding(start = 4.dp)
+                            IconButton(
+                                onClick = { scope.launch { drawerState.open() } },
+                                modifier = Modifier.padding(start = 4.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Menu,
+                                    contentDescription = "Membuka Menu Samping"
+                                )
+                            }
+                        },
+                        title = {
+                            var dropdownExpanded by remember { mutableStateOf(false) }
+                            Box {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .clickable { dropdownExpanded = true }
+                                        .padding(horizontal = 8.dp, vertical = 4.dp)
                                 ) {
-                                    Icon(
-                                        imageVector = Icons.Default.Menu,
-                                        contentDescription = "Membuka Menu Samping"
-                                    )
-                                }
-
-                                var dropdownExpanded by remember { mutableStateOf(false) }
-                                Box(modifier = Modifier.padding(start = 4.dp)) {
-                                    TextButton(
-                                        onClick = { dropdownExpanded = true },
-                                        colors = ButtonDefaults.textButtonColors(
-                                            contentColor = MaterialTheme.colorScheme.onSurfaceVariant
-                                        )
-                                    ) {
+                                    Column {
                                         Text(
-                                            text = uiState.selectedModel.displayName,
-                                            style = MaterialTheme.typography.titleMedium.copy(
-                                                fontWeight = FontWeight.SemiBold,
-                                                letterSpacing = (-0.5).sp
-                                            )
+                                            text = "Eddie Chat",
+                                            style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                                            color = MaterialTheme.colorScheme.onSurface
                                         )
-                                        Spacer(modifier = Modifier.width(4.dp))
-                                        Icon(
-                                            imageVector = Icons.Default.ArrowDropDown,
-                                            contentDescription = "Pilih Model"
+                                        Text(
+                                            text = "${uiState.selectedModel.provider} • ${uiState.selectedModel.displayName}",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = MaterialTheme.colorScheme.primary
                                         )
                                     }
-                                    DropdownMenu(
-                                        expanded = dropdownExpanded,
-                                        onDismissRequest = { dropdownExpanded = false },
-                                        modifier = Modifier
-                                            .width(320.dp)
-                                            .background(MaterialTheme.colorScheme.surface)
-                                    ) {
-                                        availableModels.forEach { model ->
-                                            val isProModel = model.apiValue == "gemini-3.1-pro"
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Icon(
+                                        imageVector = Icons.Default.ArrowDropDown,
+                                        contentDescription = "Pilih Provider & Model",
+                                        tint = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                }
+                                
+                                DropdownMenu(
+                                    expanded = dropdownExpanded,
+                                    onDismissRequest = { dropdownExpanded = false },
+                                    modifier = Modifier
+                                        .width(320.dp)
+                                        .background(MaterialTheme.colorScheme.surface)
+                                ) {
+                                    val groupedModels = availableModels.groupBy { it.provider }
+                                    groupedModels.forEach { (provider, models) ->
+                                        Text(
+                                            text = provider.uppercase(),
+                                            style = MaterialTheme.typography.labelSmall.copy(
+                                                fontWeight = FontWeight.Bold,
+                                                letterSpacing = 1.sp
+                                            ),
+                                            color = MaterialTheme.colorScheme.primary,
+                                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)
+                                        )
+                                        models.forEach { model ->
+                                            val isSelected = model == uiState.selectedModel
+                                            val isPro = model.isPro
                                             DropdownMenuItem(
                                                 text = {
-                                                    Column(modifier = Modifier.padding(vertical = 4.dp)) {
-                                                        Row(
-                                                            verticalAlignment = Alignment.CenterVertically,
-                                                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                                        ) {
+                                                    Row(
+                                                        verticalAlignment = Alignment.CenterVertically,
+                                                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                                        modifier = Modifier.fillMaxWidth()
+                                                    ) {
+                                                        Column(modifier = Modifier.weight(1f)) {
                                                             Text(
                                                                 text = model.displayName,
                                                                 style = MaterialTheme.typography.bodyLarge.copy(
-                                                                    fontWeight = if (model == uiState.selectedModel) FontWeight.Bold else FontWeight.SemiBold
+                                                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.SemiBold
                                                                 ),
-                                                                color = if (model == uiState.selectedModel) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+                                                                color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
                                                             )
-                                                            if (isProModel) {
-                                                                Surface(
-                                                                    color = if (uiState.isSubscribed) MaterialTheme.colorScheme.primary else Color(0xFFFFB100),
-                                                                    shape = RoundedCornerShape(4.dp)
-                                                                ) {
-                                                                    Text(
-                                                                        text = "PRO",
-                                                                        color = Color.White,
-                                                                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp, fontWeight = FontWeight.Bold),
-                                                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                                                                    )
-                                                                }
+                                                            Text(
+                                                                text = model.subtitle,
+                                                                style = MaterialTheme.typography.labelSmall,
+                                                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
+                                                                lineHeight = 13.sp
+                                                            )
+                                                        }
+                                                        if (isPro) {
+                                                            Surface(
+                                                                color = if (uiState.isSubscribed) MaterialTheme.colorScheme.primary else Color(0xFFFFB100),
+                                                                shape = RoundedCornerShape(4.dp)
+                                                            ) {
+                                                                Text(
+                                                                    text = "PRO",
+                                                                    color = Color.White,
+                                                                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 8.sp, fontWeight = FontWeight.Bold),
+                                                                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
+                                                                )
                                                             }
                                                         }
-                                                        Spacer(modifier = Modifier.height(4.dp))
-                                                        Text(
-                                                            text = model.subtitle,
-                                                            style = MaterialTheme.typography.labelSmall,
-                                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                                            lineHeight = 15.sp
-                                                        )
                                                     }
                                                 },
                                                 onClick = {
-                                                    if (isProModel && !uiState.isSubscribed) {
+                                                    if (isPro && !uiState.isSubscribed) {
                                                         showSubscriptionDialog = true
-                                                        Toast.makeText(context, "Model Eddie Pro memerlukan langganan Premium aktif.", Toast.LENGTH_LONG).show()
+                                                        Toast.makeText(context, "Model ${model.displayName} memerlukan langganan Premium aktif.", Toast.LENGTH_LONG).show()
                                                     } else {
                                                         viewModel.selectModel(model)
                                                     }
@@ -756,11 +907,11 @@ fun ChatScreen(
                                                 contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
                                             )
                                         }
+                                        HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
                                     }
                                 }
                             }
                         },
-                        title = {},
                         colors = TopAppBarDefaults.topAppBarColors(
                             containerColor = MaterialTheme.colorScheme.background,
                             titleContentColor = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -781,6 +932,7 @@ fun ChatScreen(
                             modifier = Modifier
                                 .weight(1f)
                                 .fillMaxWidth()
+                                .verticalScroll(rememberScrollState())
                                 .padding(24.dp),
                             contentAlignment = Alignment.Center
                         ) {
@@ -802,7 +954,7 @@ fun ChatScreen(
                                 )
                                 Spacer(modifier = Modifier.height(8.dp))
                                 Text(
-                                    text = "Ketik pesan di bawah dan pilih model terbaik yang sesuai kebutuhan Anda.",
+                                    text = "Ketik pesan di bawah untuk memulai obrolan cerdas bersama asisten AI.",
                                     style = MaterialTheme.typography.bodyMedium,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     modifier = Modifier.widthIn(max = 280.dp),
@@ -871,6 +1023,12 @@ fun ChatScreen(
                     },
                     onSaveEditedImage = { originalId, prompt, style, ratio, editedUrl ->
                         viewModel.saveEditedImage(originalId, prompt, style, ratio, editedUrl)
+                    },
+                    onProviderChange = { provider ->
+                        viewModel.selectImageProvider(provider)
+                    },
+                    onModelChange = { model ->
+                        viewModel.selectImageModel(model)
                     }
                 )
             } else if (activeTab == "video_gen") {
@@ -889,6 +1047,15 @@ fun ChatScreen(
                     },
                     onSaveEditedVideo = { originalId, prompt, style, ratio, res, dur, editedUrl ->
                         viewModel.saveEditedVideo(originalId, prompt, style, ratio, res, dur, editedUrl)
+                    },
+                    onModeChange = { mode ->
+                        viewModel.selectVideoMode(mode)
+                    },
+                    onProviderChange = { provider ->
+                        viewModel.selectVideoProvider(provider)
+                    },
+                    onModelChange = { model ->
+                        viewModel.selectVideoModel(model)
                     }
                 )
             } else if (activeTab == "ai_code") {
@@ -925,7 +1092,50 @@ fun ChatScreen(
                     },
                     onSaveEditedMusic = { originalId, prompt, genre, dur, tempo, editedUrl ->
                         viewModel.saveEditedMusic(originalId, prompt, genre, dur, tempo, editedUrl)
+                    },
+                    onProviderChange = { provider ->
+                        viewModel.selectMusicProvider(provider)
+                    },
+                    onModelChange = { model ->
+                        viewModel.selectMusicModel(model)
                     }
+                )
+            } else if (activeTab == "voice_ai") {
+                EddieConversationalVoiceView(
+                    uiState = uiState,
+                    paddingValues = paddingValues,
+                    onMicClick = { startSpeechToText() },
+                    onClearChat = { viewModel.clearVoiceChat() },
+                    onStopTts = { ttsUser?.stop() }
+                )
+            } else if (activeTab == "ai_vision") {
+                EddieVisionAnalyzerView(
+                    uiState = uiState,
+                    paddingValues = paddingValues,
+                    onImageSelected = { uri, bitmap ->
+                        viewModel.selectVisionImage(uri, bitmap)
+                    },
+                    onAnalyzeClick = { mode, prompt ->
+                        viewModel.analyzeVisionImage(mode, prompt)
+                    },
+                    onCopyText = { text -> copyToClipboard(text) },
+                    onShareText = { text -> shareMessage(text) }
+                )
+            } else if (activeTab == "doc_intelligence") {
+                EddieDocumentIntelligenceView(
+                    uiState = uiState,
+                    paddingValues = paddingValues,
+                    onDocumentLoaded = { uri, name, content ->
+                        viewModel.selectDocument(uri, name, content)
+                    },
+                    onSummarizeClick = { style ->
+                        viewModel.summarizeDocument(style)
+                    },
+                    onAskQuestionClick = { q ->
+                        viewModel.askDocumentQuestion(q)
+                    },
+                    onCopyText = { text -> copyToClipboard(text) },
+                    onShareText = { text -> shareMessage(text) }
                 )
             }
         }
@@ -980,44 +1190,135 @@ fun ChatScreen(
 
     // 2. Dialog API Key Manager
     if (showApiKeyDialog) {
-        var tempApiKey by remember { mutableStateOf(uiState.customApiKey) }
+        var tempGeminiKey by remember { mutableStateOf(uiState.geminiApiKey) }
+        var tempOpenaiKey by remember { mutableStateOf(uiState.openaiApiKey) }
+        var tempDeepseekKey by remember { mutableStateOf(uiState.deepseekApiKey) }
+        var tempClaudeKey by remember { mutableStateOf(uiState.claudeApiKey) }
+        var tempXaiKey by remember { mutableStateOf(uiState.xaiApiKey) }
+
         AlertDialog(
             onDismissRequest = { showApiKeyDialog = false },
             title = {
                 Text(
-                    text = "API Key Manager",
+                    text = "🔑 Multi-Provider API Key Manager",
                     style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
                 )
             },
             text = {
-                Column(modifier = Modifier.fillMaxWidth()) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = 400.dp)
+                        .verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
                     Text(
-                        text = "Jika Anda ingin menggunakan API Key Eddie pribadi Anda, masukkan di sini:",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(bottom = 12.dp)
-                    )
-                    OutlinedTextField(
-                        value = tempApiKey,
-                        onValueChange = { tempApiKey = it },
-                        modifier = Modifier.fillMaxWidth(),
-                        placeholder = { Text("Masukkan API Key pribadi Anda") },
-                        singleLine = true,
-                        textStyle = MaterialTheme.typography.bodyMedium
-                    )
-                    Spacer(modifier = Modifier.height(12.dp))
-                    Text(
-                        text = "Catatan: Jika dikosongkan, chat akan kembali menggunakan API Key bawaan aman yang dideploy di server Google AI Studio.",
-                        style = MaterialTheme.typography.labelSmall,
+                        text = "Masukkan API Key kustom Anda di bawah. Jika dikosongkan (untuk OpenAI & DeepSeek), aplikasi akan mengalihkan koneksi ke server bebas biaya secara otomatis.",
+                        style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
+
+                    // Gemini Key
+                    Column {
+                        Text(
+                            text = "Google Gemini API Key",
+                            style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        OutlinedTextField(
+                            value = tempGeminiKey,
+                            onValueChange = { tempGeminiKey = it },
+                            modifier = Modifier.fillMaxWidth(),
+                            placeholder = { Text("Bawaan Aktif (Kunci AI Studio)") },
+                            singleLine = true,
+                            textStyle = MaterialTheme.typography.bodySmall
+                        )
+                    }
+
+                    // OpenAI Key
+                    Column {
+                        Text(
+                            text = "OpenAI API Key (Gpt-4o & Gpt 5.5)",
+                            style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                            color = Color(0xFF10A37F)
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        OutlinedTextField(
+                            value = tempOpenaiKey,
+                            onValueChange = { tempOpenaiKey = it },
+                            modifier = Modifier.fillMaxWidth(),
+                            placeholder = { Text("Isi Kunci API OpenAI Anda") },
+                            singleLine = true,
+                            textStyle = MaterialTheme.typography.bodySmall
+                        )
+                    }
+
+                    // DeepSeek Key
+                    Column {
+                        Text(
+                            text = "DeepSeek API Key (Deepseek Chat)",
+                            style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                            color = Color(0xFF0066FF)
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        OutlinedTextField(
+                            value = tempDeepseekKey,
+                            onValueChange = { tempDeepseekKey = it },
+                            modifier = Modifier.fillMaxWidth(),
+                            placeholder = { Text("Isi Kunci API DeepSeek Anda") },
+                            singleLine = true,
+                            textStyle = MaterialTheme.typography.bodySmall
+                        )
+                    }
+
+                    // Claude Key
+                    Column {
+                        Text(
+                            text = "Anthropic Claude API Key (Claude Sonet & Haiku)",
+                            style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                            color = Color(0xFFD97706)
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        OutlinedTextField(
+                            value = tempClaudeKey,
+                            onValueChange = { tempClaudeKey = it },
+                            modifier = Modifier.fillMaxWidth(),
+                            placeholder = { Text("Isi Kunci API Anthropic Anda") },
+                            singleLine = true,
+                            textStyle = MaterialTheme.typography.bodySmall
+                        )
+                    }
+
+                    // XAI Key
+                    Column {
+                        Text(
+                            text = "xAI Grok API Key (Grok 4)",
+                            style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        OutlinedTextField(
+                            value = tempXaiKey,
+                            onValueChange = { tempXaiKey = it },
+                            modifier = Modifier.fillMaxWidth(),
+                            placeholder = { Text("Isi Kunci API xAI Grok Anda") },
+                            singleLine = true,
+                            textStyle = MaterialTheme.typography.bodySmall
+                        )
+                    }
                 }
             },
             confirmButton = {
                 Button(
                     onClick = {
-                        viewModel.updateApiKey(tempApiKey)
+                        viewModel.updateProviderApiKey("Gemini", tempGeminiKey)
+                        viewModel.updateProviderApiKey("OpenAI", tempOpenaiKey)
+                        viewModel.updateProviderApiKey("DeepSeek", tempDeepseekKey)
+                        viewModel.updateProviderApiKey("Claude", tempClaudeKey)
+                        viewModel.updateProviderApiKey("XAI", tempXaiKey)
                         showApiKeyDialog = false
+                        Toast.makeText(context, "Semua API Key berhasil disimpan!", Toast.LENGTH_SHORT).show()
                     }
                 ) {
                     Text("Simpan")
@@ -1703,13 +2004,16 @@ fun MarkdownText(
     )
 }
 
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
 fun EddieImageGeneratorView(
     uiState: ChatUiState,
     paddingValues: PaddingValues,
     onGenerate: (String, String, String) -> Unit,
     onDeleteImage: (String) -> Unit,
-    onSaveEditedImage: (String, String, String, String, String) -> Unit
+    onSaveEditedImage: (String, String, String, String, String) -> Unit,
+    onProviderChange: (String) -> Unit,
+    onModelChange: (String) -> Unit
 ) {
     val context = LocalContext.current
     var prompt by remember { mutableStateOf("") }
@@ -1744,8 +2048,9 @@ fun EddieImageGeneratorView(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(16.dp)
-            .verticalScroll(rememberScrollState()),
+            .padding(paddingValues)
+            .verticalScroll(rememberScrollState())
+            .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         // Hero Header
@@ -1820,6 +2125,138 @@ fun EddieImageGeneratorView(
                                 color = MaterialTheme.colorScheme.primary
                             )
                         }
+                    }
+                }
+            }
+        }
+
+        // Provider & Model Selection Card
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f)),
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                // Header of the selection
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Info, // A descriptive, present icon
+                        contentDescription = "Settings Icon",
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Text(
+                        text = "Pilih Provider & Model Gambar",
+                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                // Provider Selection label
+                Text(
+                    text = "Provider AI:",
+                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+
+                Spacer(modifier = Modifier.height(6.dp))
+
+                // Horizontal row of provider chips
+                Row(
+                    modifier = Modifier.horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    val providers = listOf("OpenAI", "Stable Diffusion", "FalAI")
+                    providers.forEach { provider ->
+                        val isSelected = uiState.selectedImageProvider == provider
+                        FilterChip(
+                            selected = isSelected,
+                            onClick = { onProviderChange(provider) },
+                            label = { Text(provider) },
+                            leadingIcon = {
+                                val icon = when (provider) {
+                                    "OpenAI" -> Icons.Default.CheckCircle
+                                    "Stable Diffusion" -> Icons.Default.Face
+                                    else -> Icons.Default.Person
+                                }
+                                Icon(
+                                    imageVector = icon,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                            },
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+                                selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                                selectedLeadingIconColor = MaterialTheme.colorScheme.onPrimaryContainer
+                            )
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                // Model Selection label
+                Text(
+                    text = "Model:",
+                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+
+                Spacer(modifier = Modifier.height(6.dp))
+
+                // Horizontal row of model chips based on the selected provider
+                val models = when (uiState.selectedImageProvider) {
+                    "OpenAI" -> listOf("GPT Image 1.5", "GPT Image 2")
+                    "Stable Diffusion" -> listOf("Stable Diffusion", "Core Diffusion", "Ultra Diffusion")
+                    "FalAI" -> listOf("Flux Pro", "Flux Realism")
+                    else -> emptyList()
+                }
+
+                Row(
+                    modifier = Modifier.horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    models.forEach { model ->
+                        val isSelected = uiState.selectedImageModel == model
+                        val isPro = model in listOf("GPT Image 2", "Ultra Diffusion", "Flux Realism")
+                        val badgeColor = if (uiState.isSubscribed) MaterialTheme.colorScheme.primary else Color(0xFFFFB100)
+
+                        FilterChip(
+                            selected = isSelected,
+                            onClick = { onModelChange(model) },
+                            label = {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    Text(model)
+                                    if (isPro) {
+                                        Surface(
+                                            color = badgeColor,
+                                            shape = RoundedCornerShape(4.dp)
+                                        ) {
+                                            Text(
+                                                text = "PRO",
+                                                color = Color.White,
+                                                fontSize = 8.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                                            )
+                                        }
+                                    }
+                                }
+                            },
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = MaterialTheme.colorScheme.secondaryContainer,
+                                selectedLabelColor = MaterialTheme.colorScheme.onSecondaryContainer
+                            )
+                        )
                     }
                 }
             }
@@ -2491,13 +2928,17 @@ fun VideoPlayerDialog(
     )
 }
 
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
 fun EddieVideoGeneratorView(
     uiState: ChatUiState,
     paddingValues: PaddingValues,
     onGenerateVideo: (String, String, String, String, String) -> Unit,
     onDeleteVideo: (String) -> Unit,
-    onSaveEditedVideo: (String, String, String, String, String, String, String) -> Unit
+    onSaveEditedVideo: (String, String, String, String, String, String, String) -> Unit,
+    onModeChange: (String) -> Unit,
+    onProviderChange: (String) -> Unit,
+    onModelChange: (String) -> Unit
 ) {
     val context = LocalContext.current
     var prompt by remember { mutableStateOf("") }
@@ -2505,6 +2946,7 @@ fun EddieVideoGeneratorView(
     var selectedAspectRatio by remember { mutableStateOf("16:9") }
     var selectedResolution by remember { mutableStateOf("720p") }
     var selectedDuration by remember { mutableStateOf("5 detik") }
+    var selectedImageId by remember { mutableStateOf("") }
 
     var selectedVideoForPlay by remember { mutableStateOf<com.example.data.db.GeneratedVideoEntity?>(null) }
     var editingVideoItem by remember { mutableStateOf<com.example.data.db.GeneratedVideoEntity?>(null) }
@@ -2540,8 +2982,9 @@ fun EddieVideoGeneratorView(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(16.dp)
-            .verticalScroll(rememberScrollState()),
+            .padding(paddingValues)
+            .verticalScroll(rememberScrollState())
+            .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         Column {
@@ -2556,6 +2999,264 @@ fun EddieVideoGeneratorView(
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
+        }
+
+        // Provider & Model Selection Card for Video Generator
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f)),
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                // Header of the selection
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Info,
+                        contentDescription = "Settings Icon",
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Text(
+                        text = "Konfigurasi Studio Video AI",
+                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                // Mode Selection
+                Text(
+                    text = "Mode Generasi:",
+                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(modifier = Modifier.height(6.dp))
+                Row(
+                    modifier = Modifier.horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    val modes = listOf("Text to Video", "Image to Video")
+                    modes.forEach { mode ->
+                        val isSelected = uiState.selectedVideoMode == mode
+                        FilterChip(
+                            selected = isSelected,
+                            onClick = { onModeChange(mode) },
+                            label = { Text(mode) },
+                            leadingIcon = {
+                                val icon = if (mode == "Text to Video") Icons.Default.Edit else Icons.Default.Face
+                                Icon(
+                                    imageVector = icon,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                            },
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+                                selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                                selectedLeadingIconColor = MaterialTheme.colorScheme.onPrimaryContainer
+                            )
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                // Provider Selection
+                Text(
+                    text = "Provider Video AI:",
+                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(modifier = Modifier.height(6.dp))
+                Row(
+                    modifier = Modifier.horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    val providers = when (uiState.selectedVideoMode) {
+                        "Text to Video" -> listOf("OpenAI", "Gemini", "FalAI")
+                        else -> listOf("Gemini", "FalAI") // Image to Video
+                    }
+                    providers.forEach { provider ->
+                        val isSelected = uiState.selectedVideoProvider == provider
+                        FilterChip(
+                            selected = isSelected,
+                            onClick = { onProviderChange(provider) },
+                            label = { Text(provider) },
+                            leadingIcon = {
+                                val icon = when (provider) {
+                                    "OpenAI" -> Icons.Default.CheckCircle
+                                    "Gemini" -> Icons.Default.Person
+                                    else -> Icons.Default.Menu
+                                }
+                                Icon(
+                                    imageVector = icon,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                            },
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = MaterialTheme.colorScheme.secondaryContainer,
+                                selectedLabelColor = MaterialTheme.colorScheme.onSecondaryContainer,
+                                selectedLeadingIconColor = MaterialTheme.colorScheme.onSecondaryContainer
+                            )
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                // Model Selection
+                Text(
+                    text = "Model Video AI:",
+                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(modifier = Modifier.height(6.dp))
+                Row(
+                    modifier = Modifier.horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    val models = when (uiState.selectedVideoMode) {
+                        "Text to Video" -> {
+                            when (uiState.selectedVideoProvider) {
+                                "OpenAI" -> listOf("Sora 2", "Sora 2 pro")
+                                "Gemini" -> listOf("Veo 3", "Veo 3.1")
+                                "FalAI" -> listOf("Kling v2.6", "Kling v3")
+                                else -> emptyList()
+                            }
+                        }
+                        else -> { // Image to Video
+                            when (uiState.selectedVideoProvider) {
+                                "Gemini" -> listOf("veo 3.1", "Fast veo 3.1")
+                                "FalAI" -> listOf("Kling v2.6 pro", "Kling v2.6 standard", "Kling v3 pro", "Kling v3 standard")
+                                else -> emptyList()
+                            }
+                        }
+                    }
+
+                    models.forEach { model ->
+                        val isSelected = uiState.selectedVideoModel == model
+                        val isPro = model in listOf("Sora 2 pro", "Veo 3.1", "Kling v3", "Kling v2.6 pro", "Kling v3 pro")
+                        val badgeColor = if (uiState.isSubscribed) MaterialTheme.colorScheme.primary else Color(0xFFFFB100)
+
+                        FilterChip(
+                            selected = isSelected,
+                            onClick = { onModelChange(model) },
+                            label = {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    Text(model)
+                                    if (isPro) {
+                                        Surface(
+                                            color = badgeColor,
+                                            shape = RoundedCornerShape(4.dp)
+                                        ) {
+                                            Text(
+                                                text = "PRO",
+                                                color = Color.White,
+                                                fontSize = 8.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                                            )
+                                        }
+                                    }
+                                }
+                            },
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = MaterialTheme.colorScheme.secondaryContainer,
+                                selectedLabelColor = MaterialTheme.colorScheme.onSecondaryContainer
+                            )
+                        )
+                    }
+                }
+            }
+        }
+
+        // Image Selection for Image to Video mode
+        if (uiState.selectedVideoMode == "Image to Video") {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f)),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Face,
+                            contentDescription = "Image Selector",
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Text(
+                            text = "Pilih Gambar Referensi:",
+                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    if (uiState.generatedImages.isEmpty()) {
+                        Text(
+                            text = "Pustaka foto Anda kosong. Buat gambar terlebih dahulu di tab 'Gambar AI' agar bisa menggunakannya sebagai referensi di sini.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    } else {
+                        Row(
+                            modifier = Modifier.horizontalScroll(rememberScrollState()),
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            uiState.generatedImages.forEach { img ->
+                                val isImgSelected = selectedImageId == img.id
+                                Box(
+                                    modifier = Modifier
+                                        .size(100.dp)
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .border(
+                                            width = if (isImgSelected) 3.dp else 1.dp,
+                                            color = if (isImgSelected) MaterialTheme.colorScheme.primary else Color.Gray,
+                                            shape = RoundedCornerShape(8.dp)
+                                        )
+                                        .clickable { selectedImageId = img.id }
+                                ) {
+                                    coil.compose.AsyncImage(
+                                        model = img.imageUrl,
+                                        contentDescription = img.prompt,
+                                        modifier = Modifier.fillMaxSize(),
+                                        contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                                        error = androidx.compose.ui.res.painterResource(id = android.R.drawable.ic_menu_gallery)
+                                    )
+                                    if (isImgSelected) {
+                                        Box(
+                                            modifier = Modifier
+                                                .fillMaxSize()
+                                                .background(Color.Black.copy(alpha = 0.3f)),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.CheckCircle,
+                                                contentDescription = "Selected",
+                                                tint = Color.White,
+                                                modifier = Modifier.size(24.dp)
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
         }
 
         Card(
@@ -3093,7 +3794,9 @@ fun EddieMusicGeneratorView(
     paddingValues: PaddingValues,
     onGenerateMusic: (String, String, String, String) -> Unit,
     onDeleteMusic: (String) -> Unit,
-    onSaveEditedMusic: (String, String, String, String, String, String) -> Unit
+    onSaveEditedMusic: (String, String, String, String, String, String) -> Unit,
+    onProviderChange: (String) -> Unit,
+    onModelChange: (String) -> Unit
 ) {
     val context = LocalContext.current
     var prompt by remember { mutableStateOf("") }
@@ -3109,10 +3812,14 @@ fun EddieMusicGeneratorView(
 
     var editingMusicItem by remember { mutableStateOf<com.example.data.db.GeneratedMusicEntity?>(null) }
 
-    // Disposable effect to release media player when com.example.ui.chat is disposed
-    DisposableEffect(Unit) {
+    // Disposable effect to release media player when composable is disposed or player instance changes
+    DisposableEffect(mediaPlayer) {
         onDispose {
-            mediaPlayer?.release()
+            try {
+                mediaPlayer?.release()
+            } catch (e: Exception) {
+                // Ignore
+            }
         }
     }
 
@@ -3121,17 +3828,17 @@ fun EddieMusicGeneratorView(
         if (playingMusicId != null && isAudioPlaying) {
             while (true) {
                 val mp = mediaPlayer
-                if (mp != null && mp.isPlaying) {
-                    val durationMs = mp.duration.toFloat()
-                    if (durationMs > 0) {
-                        playPercent = mp.currentPosition.toFloat() / durationMs
-                    }
-                }
                 try {
-                    kotlinx.coroutines.delay(250)
+                    if (mp != null && mp.isPlaying) {
+                        val durationMs = mp.duration.toFloat()
+                        if (durationMs > 0) {
+                            playPercent = mp.currentPosition.toFloat() / durationMs
+                        }
+                    }
                 } catch (e: Exception) {
-                    // ignore
+                    // ignore mp exceptions
                 }
+                kotlinx.coroutines.delay(250)
             }
         } else {
             playPercent = 0f
@@ -3154,8 +3861,16 @@ fun EddieMusicGeneratorView(
             }
         } else {
             // Stop and release previous
-            mediaPlayer?.stop()
-            mediaPlayer?.release()
+            try {
+                mediaPlayer?.stop()
+            } catch (e: Exception) {
+                // Ignore exception if already stopped/uninitialized
+            }
+            try {
+                mediaPlayer?.release()
+            } catch (e: Exception) {
+                // Ignore
+            }
             mediaPlayer = null
             playingMusicId = null
             isAudioPlaying = false
@@ -3219,8 +3934,9 @@ fun EddieMusicGeneratorView(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(16.dp)
-            .verticalScroll(rememberScrollState()),
+            .padding(paddingValues)
+            .verticalScroll(rememberScrollState())
+            .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         Column {
@@ -3235,6 +3951,129 @@ fun EddieMusicGeneratorView(
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
+        }
+
+        // Provider & Model Selection Card for Music Generator
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f)),
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                // Header of the selection
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Info,
+                        contentDescription = "Settings Icon",
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Text(
+                        text = "Konfigurasi Studio Musik AI",
+                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                // Provider Selection
+                Text(
+                    text = "Provider Musik AI:",
+                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(modifier = Modifier.height(6.dp))
+                Row(
+                    modifier = Modifier.horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    val providers = listOf("Gemini", "Suno AI")
+                    providers.forEach { provider ->
+                        val isSelected = uiState.selectedMusicProvider == provider
+                        FilterChip(
+                            selected = isSelected,
+                            onClick = { onProviderChange(provider) },
+                            label = { Text(provider) },
+                            leadingIcon = {
+                                val icon = when (provider) {
+                                    "Gemini" -> Icons.Default.Person
+                                    else -> Icons.Default.Menu
+                                }
+                                Icon(
+                                    imageVector = icon,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                            },
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = MaterialTheme.colorScheme.secondaryContainer,
+                                selectedLabelColor = MaterialTheme.colorScheme.onSecondaryContainer,
+                                selectedLeadingIconColor = MaterialTheme.colorScheme.onSecondaryContainer
+                            )
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                // Model Selection
+                Text(
+                    text = "Model Musik AI:",
+                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(modifier = Modifier.height(6.dp))
+                Row(
+                    modifier = Modifier.horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    val models = when (uiState.selectedMusicProvider) {
+                        "Gemini" -> listOf("Lyria 3 pro", "Lyria 3 clip")
+                        else -> listOf("Suno v3.5", "Suno v4 pro") // Suno AI
+                    }
+
+                    models.forEach { model ->
+                        val isSelected = uiState.selectedMusicModel == model
+                        val isPro = model in listOf("Lyria 3 pro", "Suno v4 pro")
+                        val badgeColor = if (uiState.isSubscribed) MaterialTheme.colorScheme.primary else Color(0xFFFFB100)
+
+                        FilterChip(
+                            selected = isSelected,
+                            onClick = { onModelChange(model) },
+                            label = {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    Text(model)
+                                    if (isPro) {
+                                        Surface(
+                                            color = badgeColor,
+                                            shape = RoundedCornerShape(4.dp)
+                                        ) {
+                                            Text(
+                                                text = "PRO",
+                                                color = Color.White,
+                                                fontSize = 8.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                                            )
+                                        }
+                                    }
+                                }
+                            },
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = MaterialTheme.colorScheme.secondaryContainer,
+                                selectedLabelColor = MaterialTheme.colorScheme.onSecondaryContainer
+                            )
+                        )
+                    }
+                }
+            }
         }
 
         // Prompt Input
