@@ -68,7 +68,7 @@ fun EddieDocumentIntelligenceView(
                     
                     // If it's empty or PDF/DOCX, provide an elegant text converter info
                     if (contentString.isBlank()) {
-                        contentString = "Dokumen: $fileName\n\n(Konten Dokumen berhasil dideteksi dari PDF/DOCX. Struktur teks diekstrak menggunakan asisten interpretasi dokumen: 'Ini adalah proposal resmi, riset industri, atau draf teks yang Anda unggah untuk diringkas dan dieksplorasi.')"
+                        contentString = "Document: $fileName\n\n(Document content successfully detected from PDF/DOCX. Text structure was extracted using document interpretation assistant: 'This is an official proposal, industry research, or draft text uploaded to be summarized and explored.')"
                     }
                     
                     kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
@@ -77,7 +77,7 @@ fun EddieDocumentIntelligenceView(
                     }
                 } catch (e: Exception) {
                     kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
-                        onDocumentLoaded(uri, fileName, "Gagal memuat dokumen: ${e.message}")
+                        onDocumentLoaded(uri, fileName, "Failed to load document: ${e.message}")
                     }
                 }
             }
@@ -116,12 +116,12 @@ fun EddieDocumentIntelligenceView(
                     )
                     Column {
                         Text(
-                            text = "Ringkasan Dokumen & PDF (Intelligence)",
+                            text = "Document & PDF Summarization (Intelligence)",
                             style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
                             color = MaterialTheme.colorScheme.onSurface
                         )
                         Text(
-                            text = "Baca file dokumen (PDF, TXT, DOCX), buat ekstrak ringkasan otomatis, dan ajukan tanya-jawab interaktif berbasis isi dokumen.",
+                            text = "Read document files (PDF, TXT, DOCX), automatically extract summaries, and perform interactive Q&A based on the content of the document.",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -137,7 +137,7 @@ fun EddieDocumentIntelligenceView(
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Text(
-                        text = "Metode Input Dokumen:",
+                        text = "Document Input Method:",
                         style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -153,7 +153,7 @@ fun EddieDocumentIntelligenceView(
                             colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
                             modifier = Modifier.weight(1f)
                         ) {
-                            Text("📂 Pilih File Dokumen", fontSize = 12.sp)
+                            Text("📂 Select Document File", fontSize = 12.sp)
                         }
 
                         Button(
@@ -164,7 +164,7 @@ fun EddieDocumentIntelligenceView(
                             enabled = rawTextContentInput.isNotBlank(),
                             modifier = Modifier.weight(1f)
                         ) {
-                            Text("✍️ Tempel Teks Manual", fontSize = 12.sp)
+                            Text("✍️ Paste Text Manually", fontSize = 12.sp)
                         }
                     }
 
@@ -188,7 +188,7 @@ fun EddieDocumentIntelligenceView(
                                     color = MaterialTheme.colorScheme.primary
                                 )
                                 Text(
-                                    text = "${uiState.docContentText.length} karakter termuat untuk dianalisis.",
+                                    text = "${uiState.docContentText.length} characters loaded for analysis.",
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
@@ -205,7 +205,7 @@ fun EddieDocumentIntelligenceView(
                     OutlinedTextField(
                         value = rawTextContentInput,
                         onValueChange = { rawTextContentInput = it },
-                        placeholder = { Text("Ketik atau tempel teks dokumen panjang Anda di sini secara manual...") },
+                        placeholder = { Text("Type or paste your long document text here manually...") },
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(120.dp),
@@ -219,7 +219,7 @@ fun EddieDocumentIntelligenceView(
             if (uiState.docContentText.isNotBlank()) {
                 Column(modifier = Modifier.fillMaxWidth()) {
                     Text(
-                        text = "Format & Gaya Ringkasan:",
+                        text = "Summary Format & Style:",
                         style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -230,8 +230,8 @@ fun EddieDocumentIntelligenceView(
                     ) {
                         listOf(
                             "bullet" to "📌 Bullet Points",
-                            "concise" to "⚡ Singkat",
-                            "deep" to "🔬 Analisis Mendalam"
+                            "concise" to "⚡ Concise",
+                            "deep" to "🔬 Deep Analysis"
                         ).forEach { (style, label) ->
                             val isSelected = summarizationStyle == style
                             FilterChip(
@@ -258,9 +258,9 @@ fun EddieDocumentIntelligenceView(
                         if (uiState.docIsLoading) {
                             CircularProgressIndicator(modifier = Modifier.size(20.dp), color = MaterialTheme.colorScheme.onPrimary, strokeWidth = 2.dp)
                             Spacer(modifier = Modifier.width(10.dp))
-                            Text("Sedang Menganalisis Dokumen...")
+                            Text("Analyzing Document...")
                         } else {
-                            Text("✨ Buat Ringkasan Otomatis", fontWeight = FontWeight.Bold)
+                            Text("✨ Generate Automatic Summary", fontWeight = FontWeight.Bold)
                         }
                     }
                 }
@@ -280,7 +280,7 @@ fun EddieDocumentIntelligenceView(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Text(
-                                text = "Hasil Ringkasan AI",
+                                text = "AI Summary Result",
                                 style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
                                 color = MaterialTheme.colorScheme.primary
                             )
@@ -323,12 +323,12 @@ fun EddieDocumentIntelligenceView(
                 ) {
                     Column(modifier = Modifier.padding(16.dp)) {
                         Text(
-                            text = "💬 Tanya-Jawab Isu Dokumen",
+                            text = "💬 Document Interactive Q&A",
                             style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
                             color = MaterialTheme.colorScheme.secondary
                         )
                         Text(
-                            text = "Ajukan pertanyaan apa saja tentang isi teks di dalam dokumen ini.",
+                            text = "Ask any question about the text content of this document.",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -338,7 +338,7 @@ fun EddieDocumentIntelligenceView(
                         OutlinedTextField(
                             value = userQaPrompt,
                             onValueChange = { userQaPrompt = it },
-                            placeholder = { Text("Cth: 'Siapa nama pemegang saham terbesar?' atau 'Berapa target omset penjualan di tahun depan?'") },
+                            placeholder = { Text("e.g. 'Who is the largest shareholder?' or 'What is the sales turnover target next year?'") },
                             modifier = Modifier.fillMaxWidth(),
                             shape = RoundedCornerShape(12.dp)
                         )
@@ -355,9 +355,9 @@ fun EddieDocumentIntelligenceView(
                             if (uiState.docQaIsLoading) {
                                 CircularProgressIndicator(modifier = Modifier.size(20.dp), color = MaterialTheme.colorScheme.onSecondary, strokeWidth = 2.dp)
                                 Spacer(modifier = Modifier.width(10.dp))
-                                Text("Sedang Mencari Jawaban...")
+                                Text("Searching for Answer...")
                             } else {
-                                Text("Tanyakan ke AI", fontWeight = FontWeight.Bold)
+                                Text("Ask AI", fontWeight = FontWeight.Bold)
                             }
                         }
 
@@ -371,7 +371,7 @@ fun EddieDocumentIntelligenceView(
                             ) {
                                 Column(modifier = Modifier.padding(12.dp)) {
                                     Text(
-                                        text = "Jawaban AI:",
+                                        text = "AI Answer:",
                                         style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
                                         color = MaterialTheme.colorScheme.secondary
                                     )

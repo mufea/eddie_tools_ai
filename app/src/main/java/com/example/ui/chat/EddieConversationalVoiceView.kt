@@ -101,12 +101,12 @@ fun EddieConversationalVoiceView(
                     )
                     Column {
                         Text(
-                            text = "Asisten Suara Eddie (Voice AI)",
+                            text = "Eddie Voice Assistant (Voice AI)",
                             style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
                             color = MaterialTheme.colorScheme.onSurface
                         )
                         Text(
-                            text = "Komunikasi Voice-to-Voice alami berlatensi rendah. Tekan tombol mikrofon dan bicaralah.",
+                            text = "Natural low-latency Voice-to-Voice communication. Press the microphone button and start speaking.",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -196,7 +196,7 @@ fun EddieConversationalVoiceView(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = "Transkrip Dialog Suara",
+                        text = "Voice Dialogue Transcript",
                         style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -204,7 +204,7 @@ fun EddieConversationalVoiceView(
                     Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                         if (uiState.voiceIsSpeakActive) {
                             TextButton(onClick = onStopTts) {
-                                Text("Hentikan Suara", fontSize = 12.sp, color = MaterialTheme.colorScheme.error)
+                                Text("Stop Voice", fontSize = 12.sp, color = MaterialTheme.colorScheme.error)
                             }
                         }
                         if (uiState.voiceChatLog.isNotEmpty()) {
@@ -231,7 +231,7 @@ fun EddieConversationalVoiceView(
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
-                            text = "Belum ada dialog suara. Silakan tekan mic di atas lalu bicaralah.",
+                            text = "No voice dialogue yet. Please press the mic button above and start speaking.",
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
                             textAlign = TextAlign.Center,
@@ -304,7 +304,7 @@ fun EddieConversationalVoiceView(
                                             .padding(horizontal = 12.dp, vertical = 6.dp)
                                     ) {
                                         CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
-                                        Text("Eddie sedang menganalisis & bersuara...", style = MaterialTheme.typography.bodySmall)
+                                        Text("Eddie is analyzing & speaking...", style = MaterialTheme.typography.bodySmall)
                                     }
                                 }
                             }
@@ -331,7 +331,7 @@ fun EddieConversationalVoiceView(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text("🎙️", fontSize = 20.sp)
-                    Text("Hubungkan & Mulai Bicara", fontWeight = FontWeight.Bold)
+                    Text("Connect & Start Speaking", fontWeight = FontWeight.Bold)
                 }
             }
         }

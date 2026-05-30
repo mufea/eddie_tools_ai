@@ -111,7 +111,7 @@ fun EddieVisionAnalyzerView(
                             color = MaterialTheme.colorScheme.onSurface
                         )
                         Text(
-                            text = "Ditenagai asisten multimodal Gemini. Unggah rancangan UI, foto objek, atau terjemahkan teks.",
+                            text = "Powered by Gemini multimodal assistant. Upload UI designs, object photos, or translate text.",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -158,7 +158,7 @@ fun EddieVisionAnalyzerView(
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
                         Text(
-                            text = "📸 Belum ada foto atau gambar terpilih.",
+                            text = "📸 No photo or image has been selected yet.",
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             textAlign = TextAlign.Center
@@ -174,7 +174,7 @@ fun EddieVisionAnalyzerView(
                                 colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary),
                                 contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp)
                             ) {
-                                Text("Ambil Foto", fontSize = 12.sp)
+                                Text("Take Photo", fontSize = 12.sp)
                             }
                             
                             Button(
@@ -182,7 +182,7 @@ fun EddieVisionAnalyzerView(
                                 colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.tertiary),
                                 contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp)
                             ) {
-                                Text("Pilih Galeri", fontSize = 12.sp)
+                                Text("Select Gallery", fontSize = 12.sp)
                             }
                         }
                     }
@@ -192,7 +192,7 @@ fun EddieVisionAnalyzerView(
             // Choice of Task Mode
             Column(modifier = Modifier.fillMaxWidth()) {
                 Text(
-                    text = "Layanan Analisis AI Multimodal:",
+                    text = "AI Multimodal Analysis Services:",
                     style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -202,9 +202,9 @@ fun EddieVisionAnalyzerView(
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     listOf(
-                        "describe" to "🔍 Deskripsi",
-                        "translate" to "🗣️ Terjemahkan",
-                        "code" to "💻 UI ke Kode"
+                        "describe" to "🔍 Description",
+                        "translate" to "🗣️ Translate",
+                        "code" to "💻 UI to Code"
                     ).forEach { (mode, label) ->
                         val isSelected = selectedTaskMode == mode
                         FilterChip(
@@ -224,8 +224,8 @@ fun EddieVisionAnalyzerView(
             OutlinedTextField(
                 value = customInstructionPrompt,
                 onValueChange = { customInstructionPrompt = it },
-                label = { Text("Instruksi / Detail Tambahan AI (Opsional)") },
-                placeholder = { Text("Cth: 'Ubah kode Compose ini menjadi tema gelap' atau 'Sebutkan benda warna merah saja'") },
+                label = { Text("AI Instructions / Additional Details (Optional)") },
+                placeholder = { Text("e.g. 'Turn this Compose code into dark theme' or 'List red colored objects only'") },
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(12.dp)
             )
@@ -241,9 +241,9 @@ fun EddieVisionAnalyzerView(
                 if (uiState.visionIsLoading) {
                     CircularProgressIndicator(modifier = Modifier.size(20.dp), color = MaterialTheme.colorScheme.onPrimary, strokeWidth = 2.dp)
                     Spacer(modifier = Modifier.width(10.dp))
-                    Text("Sedang Menganalisis Gambar...")
+                    Text("Analyzing Image...")
                 } else {
-                    Text("✨ Analisis Gambar Sekarang", fontWeight = FontWeight.Bold)
+                    Text("✨ Analyze Image Now", fontWeight = FontWeight.Bold)
                 }
             }
 
@@ -263,7 +263,7 @@ fun EddieVisionAnalyzerView(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Text(
-                                text = "Hasil Analisis Vision AI",
+                                text = "Vision AI Analysis Result",
                                 style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
                                 color = MaterialTheme.colorScheme.primary
                             )
@@ -297,7 +297,7 @@ fun EddieVisionAnalyzerView(
                                 verticalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
                                 CircularProgressIndicator()
-                                Text("Membuka mata digital, Eddie melakukan sinkronisasi visual dengan model multimodal...", style = MaterialTheme.typography.bodySmall, textAlign = TextAlign.Center)
+                                Text("Opening digital eyes, Eddie is performing visual synchronization with multimodal model...", style = MaterialTheme.typography.bodySmall, textAlign = TextAlign.Center)
                             }
                         } else {
                             SelectionContainer {

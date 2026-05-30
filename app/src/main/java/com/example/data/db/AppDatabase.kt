@@ -187,9 +187,8 @@ abstract class AppDatabase : RoomDatabase() {
 
         fun getDatabase(context: Context): AppDatabase {
             return INSTANCE ?: synchronized(this) {
-                var db: AppDatabase? = null
-                try {
-                    val tempDb = Room.databaseBuilder(
+                val db = INSTANCE ?: try {
+                    Room.databaseBuilder(
                         context.applicationContext,
                         AppDatabase::class.java,
                         "ai_chat_database"
@@ -197,16 +196,11 @@ abstract class AppDatabase : RoomDatabase() {
                     .allowMainThreadQueries()
                     .fallbackToDestructiveMigration()
                     .build()
-                    // Force database to open and execute schema creation/validation
-                    tempDb.runInTransaction {
-                        tempDb.openHelper.writableDatabase
-                    }
-                    db = tempDb
                 } catch (e: Throwable) {
                     android.util.Log.e("AppDatabase", "Error initializing database, recreating...", e)
                     try {
                         context.applicationContext.deleteDatabase("ai_chat_database")
-                        val backupDb = Room.databaseBuilder(
+                        Room.databaseBuilder(
                             context.applicationContext,
                             AppDatabase::class.java,
                             "ai_chat_database"
@@ -214,14 +208,10 @@ abstract class AppDatabase : RoomDatabase() {
                         .allowMainThreadQueries()
                         .fallbackToDestructiveMigration()
                         .build()
-                        backupDb.runInTransaction {
-                            backupDb.openHelper.writableDatabase
-                        }
-                        db = backupDb
                     } catch (ex: Throwable) {
                         android.util.Log.e("AppDatabase", "Fallback to in-memory database due to persistent error", ex)
                         try {
-                            db = Room.inMemoryDatabaseBuilder(
+                            Room.inMemoryDatabaseBuilder(
                                 context.applicationContext,
                                 AppDatabase::class.java
                             )
@@ -229,14 +219,13 @@ abstract class AppDatabase : RoomDatabase() {
                             .fallbackToDestructiveMigration()
                             .build()
                         } catch (fatal: Throwable) {
-                            // Absolute fallback
+                            android.util.Log.e("AppDatabase", "Fatal error building database", fatal)
+                            throw fatal
                         }
                     }
                 }
-                
-                val finalDb = db ?: INSTANCE ?: throw IllegalStateException("Database initialization collapsed entirely.")
-                INSTANCE = finalDb
-                finalDb
+                INSTANCE = db
+                db
             }
         }
     }

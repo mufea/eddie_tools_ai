@@ -35,6 +35,16 @@ class ChatRepository {
             .build()
     }
 
+    private fun getFallbackKey(activeKey: String, configKey: String, placeholder: String): String? {
+        val trimmedActive = activeKey.trim()
+        if (trimmedActive.isNotBlank()) return trimmedActive
+        val trimmedConfig = configKey.trim()
+        if (trimmedConfig.isNotBlank() && trimmedConfig != placeholder) {
+            return trimmedConfig
+        }
+        return null
+    }
+
     suspend fun sendMessage(
         history: List<ChatMessage>,
         newPrompt: String,
@@ -47,28 +57,41 @@ class ChatRepository {
             val systemText = customSystemInstruction?.ifBlank { null } ?: defaultSystemInstruction
             val activeKey = providerKeys[provider]?.trim() ?: ""
 
+            val resolvedModel = when (model) {
+                "gpt4o" -> "gpt-4o"
+                "gpt5.5" -> "gpt-4o"
+                "gemini-3.5-flash" -> "gemini-1.5-flash"
+                "gemini-3.1-pro-preview" -> "gemini-1.5-pro"
+                "claude-sonnet-4-6" -> "claude-3-5-sonnet-20241022"
+                "claude-haiku-4-5-20251001" -> "claude-3-5-haiku-20241022"
+                "grok-4-0709" -> "grok-beta"
+                else -> model
+            }
+
             when (provider) {
                 "Gemini" -> {
-                    val keyToUse = if (activeKey.isNotBlank()) activeKey else defaultApiKey
-                    callGemini(history, newPrompt, model, systemText, keyToUse)
+                    val keyToUse = getFallbackKey(activeKey, BuildConfig.GEMINI_API_KEY, "PLACEHOLDER_GEMINI_API_KEY") ?: defaultApiKey
+                    callGemini(history, newPrompt, resolvedModel, systemText, keyToUse)
                 }
                 "OpenAI" -> {
-                    if (activeKey.isBlank()) {
+                    val fallbackKey = getFallbackKey(activeKey, BuildConfig.OPENAI_API_KEY, "PLACEHOLDER_OPENAI_API_KEY")
+                    if (fallbackKey == null) {
                         // Free fallback endpoint
                         callPollinations(history, newPrompt, "gpt-4o", systemText)
                     } else {
                         callOpenAiCompatible(
                             history = history,
                             newPrompt = newPrompt,
-                            model = model,
+                            model = resolvedModel,
                             systemText = systemText,
-                            apiKey = activeKey,
+                            apiKey = fallbackKey,
                             baseUrl = "https://api.openai.com/v1/chat/completions"
                         )
                     }
                 }
                 "DeepSeek" -> {
-                    if (activeKey.isBlank()) {
+                    val fallbackKey = getFallbackKey(activeKey, BuildConfig.DEEPSEEK_API_KEY, "PLACEHOLDER_DEEPSEEK_API_KEY")
+                    if (fallbackKey == null) {
                         callPollinations(history, newPrompt, "deepseek", systemText)
                     } else {
                         callOpenAiCompatible(
@@ -76,16 +99,17 @@ class ChatRepository {
                             newPrompt = newPrompt,
                             model = "deepseek-chat",
                             systemText = systemText,
-                            apiKey = activeKey,
+                            apiKey = fallbackKey,
                             baseUrl = "https://api.deepseek.com/v1/chat/completions"
                         )
                     }
                 }
                 "Claude" -> {
-                    if (activeKey.isBlank()) {
+                    val fallbackKey = getFallbackKey(activeKey, BuildConfig.ANTHROPIC_API_KEY, "PLACEHOLDER_ANTHROPIC_API_KEY")
+                    if (fallbackKey == null) {
                         callPollinations(history, newPrompt, "gpt-4o", systemText + " (Sampaikan di awal bahwa Anda adalah asisten bertenaga model Claude, namun berjalan di server alternatif karena Claude API Key belum diisi oleh pengguna.)")
                     } else {
-                        callClaude(history, newPrompt, model, systemText, activeKey)
+                        callClaude(history, newPrompt, resolvedModel, systemText, fallbackKey)
                     }
                 }
                 "XAI" -> {
@@ -95,7 +119,7 @@ class ChatRepository {
                         callOpenAiCompatible(
                             history = history,
                             newPrompt = newPrompt,
-                            model = "grok-beta",
+                            model = resolvedModel,
                             systemText = systemText,
                             apiKey = activeKey,
                             baseUrl = "https://api.x.ai/v1/chat/completions"
@@ -187,9 +211,9 @@ class ChatRepository {
 
             client.newCall(request).execute().use { response ->
                 if (!response.isSuccessful) {
-                    return "HTTP Error ${response.code}: ${response.body?.string() ?: "Gagal terhubung dengan server API."}"
+                    return "HTTP Error ${response.code}: ${response.body?.string() ?: "Failed to connect to the API server."}"
                 }
-                val resStr = response.body?.string() ?: return "Respons kosong dari server API."
+                val resStr = response.body?.string() ?: return "Empty response from API server."
                 val responseJson = JSONObject(resStr)
                 responseJson.getJSONArray("choices")
                     .getJSONObject(0)
@@ -197,7 +221,7 @@ class ChatRepository {
                     .getString("content")
             }
         } catch (e: Exception) {
-            "Gagal melakukan permintaan API: ${e.localizedMessage}"
+            "Failed to make API request: ${e.localizedMessage}"
         }
     }
 
@@ -242,16 +266,16 @@ class ChatRepository {
 
             client.newCall(request).execute().use { response ->
                 if (!response.isSuccessful) {
-                    return "HTTP Claude Error ${response.code}: ${response.body?.string() ?: "Gagal terhubung dengan Anthropic."}"
+                    return "HTTP Claude Error ${response.code}: ${response.body?.string() ?: "Failed to connect with Anthropic."}"
                 }
-                val resStr = response.body?.string() ?: return "Respons Claude kosong."
+                val resStr = response.body?.string() ?: return "Empty Claude response."
                 val responseJson = JSONObject(resStr)
                 responseJson.getJSONArray("content")
                     .getJSONObject(0)
                     .getString("text")
             }
         } catch (e: Exception) {
-            "Gagal melakukan permintaan Claude API: ${e.localizedMessage}"
+            "Failed to make Claude API request: ${e.localizedMessage}"
         }
     }
 
@@ -290,19 +314,19 @@ class ChatRepository {
 
             client.newCall(request).execute().use { response ->
                 if (!response.isSuccessful) {
-                    return "Alternatif offline/gangguan server. Silakan lengkapi API Key Anda di Pengaturan."
+                    return "Offline alternative/server issue. Please complete your API Key in Settings."
                 }
-                val resStr = response.body?.string() ?: return "Respons kosong dari server alternatif."
+                val resStr = response.body?.string() ?: return "Empty response from alternative server."
                 val responseJson = JSONObject(resStr)
                 val rawText = responseJson.getJSONArray("choices")
                     .getJSONObject(0)
                     .getJSONObject("message")
                     .getString("content")
                 
-                rawText + "\n\n---\n*💡 Diberdayakan oleh server uji publik gratis karena API Key ${model.uppercase()} Anda belum diisi di Pengaturan.*"
+                rawText + "\n\n---\n*💡 Powered by a free public test server because your ${model.uppercase()} API Key has not been entered in Settings.*"
             }
         } catch (e: Exception) {
-            "Gagal memproses via server bebas biaya: Kehabisan waktu koneksi. Silakan isi API Key Anda di Pengaturan untuk koneksi premium langsung."
+            "Failed to process via free server: Connection timeout. Please put your API Key in Settings for direct premium connection."
         }
     }
 
@@ -322,8 +346,8 @@ class ChatRepository {
                 systemInstruction = activeSystemInstruction
             )
             try {
-                val response = GeminiClient.service.generateContent("gemini-3.5-flash", keyToUse, request)
-                response.candidates.firstOrNull()?.content?.parts?.firstOrNull()?.text ?: "Tidak ada respons dari Gemini."
+                val response = GeminiClient.service.generateContent("gemini-1.5-flash", keyToUse, request)
+                response.candidates.firstOrNull()?.content?.parts?.firstOrNull()?.text ?: "No response from Gemini."
             } catch (e: Exception) {
                 "Error: ${e.localizedMessage}"
             }
@@ -354,8 +378,8 @@ class ChatRepository {
                 ))
             )
             try {
-                val response = GeminiClient.service.generateContent("gemini-3.5-flash", keyToUse, request)
-                response.candidates.firstOrNull()?.content?.parts?.firstOrNull()?.text ?: "Tidak ada respons dari Gemini."
+                val response = GeminiClient.service.generateContent("gemini-1.5-flash", keyToUse, request)
+                response.candidates.firstOrNull()?.content?.parts?.firstOrNull()?.text ?: "No response from Gemini."
             } catch (e: Exception) {
                 "Error: ${e.localizedMessage}"
             }

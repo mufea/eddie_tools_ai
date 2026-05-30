@@ -36,29 +36,29 @@ val availableModels = listOf(
     GeminiModel(
         displayName = "Gemini 3.5 Flash",
         apiValue = "gemini-3.5-flash",
-        subtitle = "Model andalan Google yang super cepat, serbaguna, dan sangat cerdas.",
+        subtitle = "Google's flagship model, super fast, versatile, and highly intelligent.",
         provider = "Gemini",
         isPro = false
     ),
     GeminiModel(
-        displayName = "Gemini 3.1 Pro",
-        apiValue = "gemini-3.1-pro",
-        subtitle = "Model tingkat lanjut dengan kecerdasan kognitif tinggi untuk tugas kompleks.",
+        displayName = "Gemini 3.1 pro",
+        apiValue = "gemini-3.1-pro-preview",
+        subtitle = "Advanced model with high cognitive intelligence for complex tasks.",
         provider = "Gemini",
         isPro = true
     ),
     // OpenAI
     GeminiModel(
-        displayName = "Gpt-4o",
-        apiValue = "gpt-4o",
-        subtitle = "Model unggulan OpenAI yang legendaris, cepat, dan sangat akurat.",
+        displayName = "GPT 4o",
+        apiValue = "gpt4o",
+        subtitle = "OpenAI's legendary flagship model, fast and highly accurate.",
         provider = "OpenAI",
         isPro = true
     ),
     GeminiModel(
-        displayName = "Gpt 5.5",
-        apiValue = "gpt-5.5-preview",
-        subtitle = "Cicipi masa depan AI dengan pratinjau penalaran mutakhir dari OpenAI.",
+        displayName = "GPT 5.5",
+        apiValue = "gpt5.5",
+        subtitle = "Experience the future of AI with cutting-edge reasoning preview from OpenAI.",
         provider = "OpenAI",
         isPro = true
     ),
@@ -66,30 +66,30 @@ val availableModels = listOf(
     GeminiModel(
         displayName = "Deepseek",
         apiValue = "deepseek-chat",
-        subtitle = "Model efisien berkinerja tinggi, sangat mumpuni untuk coding dan analisis.",
+        subtitle = "Efficient, high-performance model, highly capable for coding and analysis.",
         provider = "DeepSeek",
         isPro = false
     ),
     // Claude
     GeminiModel(
         displayName = "Claude Sonet 4.6",
-        apiValue = "claude-3-5-sonnet-20241022",
-        subtitle = "Model terbaik Anthropic untuk penulisan sastra, koding kreatif, dan logika matang.",
+        apiValue = "claude-sonnet-4-6",
+        subtitle = "Anthropic's best model for literary writing, creative coding, and mature logic.",
         provider = "Claude",
         isPro = true
     ),
     GeminiModel(
         displayName = "Claude Haiku 4.5",
-        apiValue = "claude-3-5-haiku-20241022",
-        subtitle = "Asisten lincah secepat kilat dengan penalaran cerdas yang sangat hemat daya.",
+        apiValue = "claude-haiku-4-5-20251001",
+        subtitle = "Lightning-fast, agile assistant with smart, highly power-efficient reasoning.",
         provider = "Claude",
         isPro = false
     ),
     // XAI
     GeminiModel(
         displayName = "Grok 4",
-        apiValue = "grok-4",
-        subtitle = "Model unik dari xAI dengan pemahaman mendalam dan jawaban informatif.",
+        apiValue = "grok-4-0709",
+        subtitle = "Unique model from xAI with deep understanding and informative answers.",
         provider = "XAI",
         isPro = true
     )
@@ -97,7 +97,7 @@ val availableModels = listOf(
 
 data class ChatSession(
     val id: String = UUID.randomUUID().toString(),
-    val title: String = "Percakapan Baru",
+    val title: String = "New Conversation",
     val messages: List<ChatMessage> = emptyList()
 )
 
@@ -123,6 +123,7 @@ data class ChatUiState(
     val isSubscribed: Boolean = false,
     val activeSubscriptionPlan: String? = null,
     val subscriptionExpiryDate: String? = null,
+    val userTokens: Int = 0,
     val generatedImages: List<com.example.data.db.GeneratedImageEntity> = emptyList(),
     val selectedImageProvider: String = "OpenAI",
     val selectedImageModel: String = "GPT Image 1.5",
@@ -271,45 +272,44 @@ class ChatViewModel(
                     queryFlow
                         .catch { e -> android.util.Log.e("ChatViewModel", "observeSessions error", e) }
                         .collect { sessionEntities ->
-                        val mappedSessions = sessionEntities.map { entity ->
-                            // Keep in-memory loaded chat messages if session matches
-                            val existingMessages = _uiState.value.sessions.find { it.id == entity.id }?.messages ?: emptyList()
-                            ChatSession(
-                                id = entity.id,
-                                title = entity.title,
-                                messages = existingMessages
-                            )
-                        }
-
-                        _uiState.update { state ->
-                            val updatedSessions = if (mappedSessions.isEmpty()) {
-                                // Insert a default initial session if first time or database cleared
+                            if (sessionEntities.isEmpty()) {
                                 val initialSession = ChatSession()
-                                viewModelScope.launch {
+                                try {
                                     chatDao.insertSession(ChatSessionEntity(
                                         id = initialSession.id,
                                         title = initialSession.title,
-                                        modelValue = state.selectedModel.apiValue,
-                                        userEmail = state.currentUserProfile?.email
+                                        modelValue = _uiState.value.selectedModel.apiValue,
+                                        userEmail = _uiState.value.currentUserProfile?.email
                                     ))
+                                } catch (e: Exception) {
+                                    android.util.Log.e("ChatViewModel", "Failed to insert initial session", e)
                                 }
-                                listOf(initialSession)
-                            } else {
-                                mappedSessions
+                                return@collect
                             }
 
-                            val activeSessionId = if (state.currentSessionId.isBlank() || !updatedSessions.any { it.id == state.currentSessionId }) {
-                                updatedSessions.first().id
-                            } else {
-                                state.currentSessionId
+                            val mappedSessions = sessionEntities.map { entity ->
+                                // Keep in-memory loaded chat messages if session matches
+                                val existingMessages = _uiState.value.sessions.find { it.id == entity.id }?.messages ?: emptyList()
+                                ChatSession(
+                                    id = entity.id,
+                                    title = entity.title,
+                                    messages = existingMessages
+                                )
                             }
 
-                            state.copy(
-                                sessions = updatedSessions,
-                                currentSessionId = activeSessionId
-                            )
+                            _uiState.update { state ->
+                                val activeSessionId = if (state.currentSessionId.isBlank() || !mappedSessions.any { it.id == state.currentSessionId }) {
+                                    mappedSessions.first().id
+                                } else {
+                                    state.currentSessionId
+                                }
+
+                                state.copy(
+                                    sessions = mappedSessions,
+                                    currentSessionId = activeSessionId
+                                )
+                            }
                         }
-                    }
                 }
         }
     }
@@ -471,14 +471,14 @@ class ChatViewModel(
     fun signIn(email: String, password: String): String? {
         val emailClean = email.trim().lowercase()
         if (emailClean.isBlank() || password.isBlank()) {
-            return "Email dan password wajib diisi."
+            return "Email and password are required."
         }
         val userPair = registeredUsers[emailClean]
         if (userPair == null) {
-            return "Email tidak terdaftar. Silakan daftar akun baru terlebih dahulu."
+            return "Email is not registered. Please sign up first."
         }
         if (userPair.first != password) {
-            return "Password yang dimasukkan salah."
+            return "Incorrect password."
         }
         _uiState.update { state ->
             state.copy(currentUserProfile = UserProfile(email = emailClean, username = userPair.second))
@@ -490,13 +490,13 @@ class ChatViewModel(
         val emailClean = email.trim().lowercase()
         val usernameClean = username.trim()
         if (emailClean.isBlank() || password.isBlank() || usernameClean.isBlank()) {
-            return "Semua kolom pendaftaran wajib diisi."
+            return "All fields are required."
         }
         if (!emailClean.contains("@")) {
-            return "Format alamat email tidak valid."
+            return "Invalid email address format."
         }
         if (registeredUsers.containsKey(emailClean)) {
-            return "Email tersebut sudah terdaftar. Silakan Masuk."
+            return "Email is already registered. Please sign in."
         }
         registeredUsers[emailClean] = Pair(password, usernameClean)
         _uiState.update { state ->
@@ -511,23 +511,31 @@ class ChatViewModel(
                 currentUserProfile = null,
                 isSubscribed = false,
                 activeSubscriptionPlan = null,
-                subscriptionExpiryDate = null
+                subscriptionExpiryDate = null,
+                userTokens = 0
             )
         }
     }
 
     fun activateSubscription(plan: String) {
         val expiryDate = when (plan) {
-            "Mingguan" -> "7 Hari dari Sekarang"
-            "Bulanan" -> "30 Hari dari Sekarang"
-            "Tahunan" -> "365 Hari dari Sekarang"
-            else -> "Selamanya"
+            "Weekly" -> "7 Days from Now"
+            "Monthly" -> "30 Days from Now"
+            "Yearly" -> "365 Days from Now"
+            else -> "Forever"
+        }
+        val tokensGained = when (plan) {
+            "Weekly" -> 250
+            "Monthly" -> 1200
+            "Yearly" -> 7500
+            else -> 0
         }
         _uiState.update { state ->
             state.copy(
                 isSubscribed = true,
                 activeSubscriptionPlan = plan,
-                subscriptionExpiryDate = expiryDate
+                subscriptionExpiryDate = expiryDate,
+                userTokens = state.userTokens + tokensGained
             )
         }
     }
@@ -537,7 +545,8 @@ class ChatViewModel(
             state.copy(
                 isSubscribed = false,
                 activeSubscriptionPlan = null,
-                subscriptionExpiryDate = null
+                subscriptionExpiryDate = null,
+                userTokens = 0
             )
         }
     }
@@ -755,10 +764,10 @@ class ChatViewModel(
 
             // 3. AI Agentic Web Search (Browsing Mandiri) Detection
             val cleanLower = prompt.lowercase().trim()
-            val autoTriggerSearch = cleanLower.contains("cari") || cleanLower.contains("browsing") ||
-                    cleanLower.contains("berita") || cleanLower.contains("skor") ||
-                    cleanLower.contains("weather") || cleanLower.contains("saham") ||
-                    cleanLower.contains("cuaca") || cleanLower.contains("ihsg")
+            val autoTriggerSearch = cleanLower.contains("search") || cleanLower.contains("browsing") ||
+                    cleanLower.contains("news") || cleanLower.contains("score") ||
+                    cleanLower.contains("weather") || cleanLower.contains("stock") ||
+                    cleanLower.contains("market")
 
             val searchActive = _uiState.value.isWebSearchEnabled || autoTriggerSearch
             var injectedPrompt = prompt
@@ -777,15 +786,15 @@ class ChatViewModel(
                 val snippets = com.example.data.WebSearchService.search(prompt)
                 if (snippets.isNotEmpty()) {
                     searchSummaryText = snippets.joinToString("\n\n") {
-                        "[SUMBER: ${it.source}] - ${it.title} (${it.date})\nLink: ${it.link}\nRingkasan: ${it.snippet}"
+                        "[SOURCE: ${it.source}] - ${it.title} (${it.date})\nLink: ${it.link}\nSummary: ${it.snippet}"
                     }
-                    injectedPrompt = "Berikut adalah hasil pencarian Google real-time terkini (Hari ini: Sabtu, 30 Mei 2026) untuk kueri '${prompt}':\n\n$searchSummaryText\n\nSilakan gunakan data terkini di atas untuk merespons pertanyaan pengguna secara cerdas dan akurat. Harap cantumkan ikon bendera 🌐 dan rujukan pencarian singkat di awal respon Anda agar pengguna tahu Anda telah melakukan penjelajahan Google Search secara real-time!\n\nPertanyaan Pengguna: $prompt"
+                    injectedPrompt = "Here are the latest real-time Google search results (Today is Saturday, May 30, 2026) for the query '${prompt}':\n\n$searchSummaryText\n\nPlease use the latest data above to respond to the user's questions intelligently and accurately. Please include a flag icon 🌐 and a brief search reference at the beginning of your response so the user knows you have performed a real-time Google Search exploration!\n\nUser Question: $prompt"
                 }
 
                 _uiState.update { state ->
                     state.copy(
                         isSearchingWeb = false,
-                        webSearchResultsSummary = "Berhasil menemukan ${snippets.size} hasil pencarian dari Google!"
+                        webSearchResultsSummary = "Successfully found ${snippets.size} search results from Google!"
                     )
                 }
             }
@@ -793,9 +802,9 @@ class ChatViewModel(
             // 4. Smart Memory Context Retrieval (Long-Term Personalization Context)
             val memories = _uiState.value.userMemories
             val memoryInstruct = if (memories.isNotEmpty()) {
-                "\n\n[MEMORI PERSONAL MANDIRI DAN INTIM YANG ANDA INGAT TENTANG PENGGUNA]:\n" +
+                "\n\n[PERSONAL MEMORY SECURE AND PRIVATE THAT YOU REMEMBER ABOUT THE USER]:\n" +
                 memories.joinToString("\n") { "- ${it.key}: ${it.content}" } +
-                "\nGunakan panggilaan akrab atau preferensi di atas untuk merespons secara ramah dan intim."
+                "\nUse the preferences or details above to respond in a friendly and helpful manner."
             } else {
                 ""
             }
@@ -870,10 +879,10 @@ class ChatViewModel(
         val userSpec = _uiState.value.currentUserProfile
         
         // Quick regex and trigger rules
-        if (lowerPrompt.contains("panggil aku") || lowerPrompt.contains("nama saya") || 
-            lowerPrompt.contains("hobi saya") || lowerPrompt.contains("preferensi saya") || 
-            lowerPrompt.contains("pekerjaan saya") || lowerPrompt.contains("tujuan harian") ||
-            lowerPrompt.contains("panggil saya")
+        if (lowerPrompt.contains("call me") || lowerPrompt.contains("my name") || 
+            lowerPrompt.contains("my hobby") || lowerPrompt.contains("my preference") || 
+            lowerPrompt.contains("my job") || lowerPrompt.contains("daily goal") ||
+            lowerPrompt.contains("my goal")
         ) {
             viewModelScope.launch {
                 try {
@@ -881,21 +890,25 @@ class ChatViewModel(
                     var key = "BIO"
                     var content = ""
                     
-                    if (lowerPrompt.contains("panggil aku")) {
-                        key = "NAMA_PANGGILAN"
-                        content = userPrompt.substringAfter("panggil aku").trim()
-                    } else if (lowerPrompt.contains("panggil saya")) {
-                        key = "NAMA_PANGGILAN"
-                        content = userPrompt.substringAfter("panggil saya").trim()
-                    } else if (lowerPrompt.contains("nama saya")) {
-                        key = "NAMA_LENGKAP"
-                        content = userPrompt.substringAfter("nama saya").trim()
-                    } else if (lowerPrompt.contains("hobi saya")) {
-                        key = "HOBI"
-                        content = userPrompt.substringAfter("hobi saya").trim()
-                    } else if (lowerPrompt.contains("tujuan harian") || lowerPrompt.contains("tujuan saya")) {
-                        key = "TUJUAN"
-                        content = userPrompt.substringAfter("tujuan saya").trim()
+                    if (lowerPrompt.contains("call me")) {
+                        key = "NICKNAME"
+                        content = userPrompt.substringAfter("call me").trim()
+                    } else if (lowerPrompt.contains("my name")) {
+                        key = "FULL_NAME"
+                        content = userPrompt.substringAfter("my name").trim()
+                    } else if (lowerPrompt.contains("my hobby")) {
+                        key = "HOBBY"
+                        content = userPrompt.substringAfter("my hobby").trim()
+                    } else if (lowerPrompt.contains("my job")) {
+                        key = "JOB"
+                        content = userPrompt.substringAfter("my job").trim()
+                    } else if (lowerPrompt.contains("daily goal") || lowerPrompt.contains("my goal")) {
+                        key = "GOAL"
+                        content = if (lowerPrompt.contains("my goal")) {
+                            userPrompt.substringAfter("my goal").trim()
+                        } else {
+                            userPrompt.substringAfter("daily goal").trim()
+                        }
                     } else {
                         content = userPrompt
                     }
@@ -925,6 +938,33 @@ class ChatViewModel(
         }
     }
 
+    fun getImageTokenCost(provider: String, model: String): Int {
+        return when (provider) {
+            "OpenAI" -> 10
+            "Stable Diffusion" -> 5
+            "FalAI" -> 6
+            else -> 4
+        }
+    }
+
+    fun getVideoTokenCost(provider: String, model: String): Int {
+        return when (provider) {
+            "OpenAI" -> 50
+            "Runway" -> 40
+            "Luma AI" -> 35
+            else -> 30
+        }
+    }
+
+    fun getMusicTokenCost(provider: String, model: String): Int {
+        return when (provider) {
+            "Gemini" -> 15
+            "Suno" -> 20
+            "Stable Audio" -> 12
+            else -> 10
+        }
+    }
+
     fun deleteGeneratedImage(id: String) {
         viewModelScope.launch {
             chatDao.deleteGeneratedImageById(id)
@@ -940,6 +980,9 @@ class ChatViewModel(
         if (prompt.trim().isBlank()) return
 
         val isSubscribed = _uiState.value.isSubscribed
+        val provider = _uiState.value.selectedImageProvider
+        val model = _uiState.value.selectedImageModel
+        val tokenCost = getImageTokenCost(provider, model)
 
         // Premium restrictions:
         // 1. Pro styles check (Pro styles are: 3D Render, Cinematic, Cyberpunk, Anime, Pixel Art, Watercolor, Oil Painting)
@@ -957,16 +1000,24 @@ class ChatViewModel(
                 onSubscriptionRequired()
                 return
             }
+        } else {
+            if (_uiState.value.userTokens < tokenCost) {
+                onSubscriptionRequired()
+                return
+            }
         }
 
         viewModelScope.launch {
-            val provider = _uiState.value.selectedImageProvider
-            val model = _uiState.value.selectedImageModel
+            if (isSubscribed) {
+                _uiState.update { state ->
+                    state.copy(userTokens = (state.userTokens - tokenCost).coerceAtLeast(0))
+                }
+            }
 
             _uiState.update { state ->
                 state.copy(
                     imageGenIsLoading = true,
-                    imageGenLog = "> Mempersiapkan kueri pemrosesan...\n"
+                    imageGenLog = "> Preparing processing query...\n"
                 )
             }
 
@@ -975,7 +1026,7 @@ class ChatViewModel(
 
             _uiState.update { state ->
                 state.copy(
-                    imageGenLog = state.imageGenLog + "> Menghubungkan ke server $provider ($model)...\n"
+                    imageGenLog = state.imageGenLog + "> Connecting to $provider server ($model)...\n"
                 )
             }
             delay(1000)
@@ -984,46 +1035,46 @@ class ChatViewModel(
             when (provider) {
                 "OpenAI" -> {
                     _uiState.update { state ->
-                        state.copy(imageGenLog = state.imageGenLog + "> Otentikasi gerbang API OpenAI aman...\n")
+                        state.copy(imageGenLog = state.imageGenLog + "> Authenticating with secure OpenAI API gateway...\n")
                     }
                     delay(800)
                     _uiState.update { state ->
-                        state.copy(imageGenLog = state.imageGenLog + "> Menggunakan model premium: $model...\n")
+                        state.copy(imageGenLog = state.imageGenLog + "> Using premium model: $model...\n")
                     }
                     delay(800)
                     _uiState.update { state ->
-                        state.copy(imageGenLog = state.imageGenLog + "> Mengoptimalkan parameter difusi dengan DALL-E engine...\n")
+                        state.copy(imageGenLog = state.imageGenLog + "> Optimizing diffusion parameters with DALL-E engine...\n")
                     }
                 }
                 "Stable Diffusion" -> {
                     _uiState.update { state ->
-                        state.copy(imageGenLog = state.imageGenLog + "> Menghubungi cluster GPU terdistribusi...\n")
+                        state.copy(imageGenLog = state.imageGenLog + "> Reaching out to distributed GPU cluster...\n")
                     }
                     delay(800)
                     _uiState.update { state ->
-                        state.copy(imageGenLog = state.imageGenLog + "> Memuat checkpoint model latent: $model...\n")
+                        state.copy(imageGenLog = state.imageGenLog + "> Loading latent model checkpoint: $model...\n")
                     }
                     delay(800)
                     _uiState.update { state ->
-                        state.copy(imageGenLog = state.imageGenLog + "> Menghitung sampling step scheduler (25 iterasi)...\n")
+                        state.copy(imageGenLog = state.imageGenLog + "> Computing sampling step scheduler (25 iterations)...\n")
                     }
                 }
                 "FalAI" -> {
                     _uiState.update { state ->
-                        state.copy(imageGenLog = state.imageGenLog + "> Menginisialisasi FalAI Serverless endpoint cepat...\n")
+                        state.copy(imageGenLog = state.imageGenLog + "> Initializing FalAI Serverless fast endpoint...\n")
                     }
                     delay(800)
                     _uiState.update { state ->
-                        state.copy(imageGenLog = state.imageGenLog + "> Menghubungkan visual pipeline ke $model...\n")
+                        state.copy(imageGenLog = state.imageGenLog + "> Connecting visual pipeline to $model...\n")
                     }
                     delay(800)
                     _uiState.update { state ->
-                        state.copy(imageGenLog = state.imageGenLog + "> Melakukan sinkronisasi resolusi aspek $aspectRatio secara real-time...\n")
+                        state.copy(imageGenLog = state.imageGenLog + "> Syncing aspect resolution for $aspectRatio in real-time...\n")
                     }
                 }
                 else -> {
                     _uiState.update { state ->
-                        state.copy(imageGenLog = state.imageGenLog + "> Mengaktifkan fallback engine umum...\n")
+                        state.copy(imageGenLog = state.imageGenLog + "> Initializing general fallback engine...\n")
                     }
                     delay(800)
                 }
@@ -1031,7 +1082,7 @@ class ChatViewModel(
             delay(1000)
 
             _uiState.update { state ->
-                state.copy(imageGenLog = state.imageGenLog + "> Mematangkan detail rendering dan warna...\n")
+                state.copy(imageGenLog = state.imageGenLog + "> Refining rendering details and color palette...\n")
             }
             delay(800)
 
@@ -1095,7 +1146,7 @@ class ChatViewModel(
             _uiState.update { state ->
                 state.copy(
                     imageGenIsLoading = false,
-                    imageGenLog = state.imageGenLog + "> GENERASI SUKSES!\n> Gambar Imagen 3 berhasil disimpan ke galeri lokal."
+                    imageGenLog = state.imageGenLog + "> GENERATION SUCCESSFUL!\n> Gemini Imagen 3 artwork has been successfully saved to the local gallery."
                 )
             }
         }
@@ -1118,6 +1169,9 @@ class ChatViewModel(
         if (prompt.trim().isBlank()) return
 
         val isSubscribed = _uiState.value.isSubscribed
+        val provider = _uiState.value.selectedVideoProvider
+        val model = _uiState.value.selectedVideoModel
+        val tokenCost = getVideoTokenCost(provider, model)
 
         // Premium restrictions check:
         val isProRatio = aspectRatio in listOf("9:16", "21:9")
@@ -1132,67 +1186,76 @@ class ChatViewModel(
                 onSubscriptionRequired()
                 return
             }
+        } else {
+            if (_uiState.value.userTokens < tokenCost) {
+                onSubscriptionRequired()
+                return
+            }
         }
 
         viewModelScope.launch {
+            if (isSubscribed) {
+                _uiState.update { state ->
+                    state.copy(userTokens = (state.userTokens - tokenCost).coerceAtLeast(0))
+                }
+            }
+
             val mode = _uiState.value.selectedVideoMode
-            val provider = _uiState.value.selectedVideoProvider
-            val model = _uiState.value.selectedVideoModel
 
             _uiState.update { state ->
                 state.copy(
                     videoGenIsLoading = true,
-                    videoGenLog = "> Mempersiapkan engine render video untuk mode $mode...\n"
+                    videoGenLog = "> Preparing video render engine for $mode mode...\n"
                 )
             }
 
             delay(1000)
             _uiState.update { state ->
-                state.copy(videoGenLog = state.videoGenLog + "> Menghubungkan ke Cluster GPU $provider ($model)...\n")
+                state.copy(videoGenLog = state.videoGenLog + "> Connecting to $provider GPU cluster ($model)...\n")
             }
             delay(1000)
             _uiState.update { state ->
-                state.copy(videoGenLog = state.videoGenLog + "> Mengirim parameter pergerakan alur cerita...\n")
+                state.copy(videoGenLog = state.videoGenLog + "> Sending storytelling movement parameters...\n")
             }
             delay(1000)
 
             when (provider) {
                 "OpenAI" -> {
                     _uiState.update { state ->
-                        state.copy(videoGenLog = state.videoGenLog + "> Otentikasi aman API OpenAI Sora...\n")
+                        state.copy(videoGenLog = state.videoGenLog + "> Authenticating secure OpenAI Sora API...\n")
                     }
                     delay(800)
                     _uiState.update { state ->
-                        state.copy(videoGenLog = state.videoGenLog + "> Menyiapkan latents visual 3D temporal dengan model $model...\n")
+                        state.copy(videoGenLog = state.videoGenLog + "> Setting up temporal 3D visual latents with model $model...\n")
                     }
                 }
                 "Gemini" -> {
                     _uiState.update { state ->
-                        state.copy(videoGenLog = state.videoGenLog + "> Menginisialisasi model video Google Veo ($model)...\n")
+                        state.copy(videoGenLog = state.videoGenLog + "> Initializing Google Veo video model ($model)...\n")
                     }
                     delay(800)
                     _uiState.update { state ->
-                        state.copy(videoGenLog = state.videoGenLog + "> Mengoptimalkan parameter resolusi super dengan Google Cloud TPU...\n")
+                        state.copy(videoGenLog = state.videoGenLog + "> Optimizing super-resolution parameters with Google Cloud TPU...\n")
                     }
                 }
                 "FalAI" -> {
                     _uiState.update { state ->
-                        state.copy(videoGenLog = state.videoGenLog + "> Menyambungkan ke pipeline serverless FalAI Kling ($model)...\n")
+                        state.copy(videoGenLog = state.videoGenLog + "> Connecting to FalAI Kling serverless pipeline ($model)...\n")
                     }
                     delay(800)
                     _uiState.update { state ->
-                        state.copy(videoGenLog = state.videoGenLog + "> Mengatur sampling steps scheduler & motion guidance...\n")
+                        state.copy(videoGenLog = state.videoGenLog + "> Configuring sampling steps scheduler and motion guidance...\n")
                     }
                 }
             }
             delay(1000)
 
             _uiState.update { state ->
-                state.copy(videoGenLog = state.videoGenLog + "> Mengatur resolusi [$resolution], rasio aspek [$aspectRatio], durasi [$duration]...\n")
+                state.copy(videoGenLog = state.videoGenLog + "> Configuring resolution [$resolution], aspect ratio [$aspectRatio], and duration [$duration]...\n")
             }
             delay(1200)
             _uiState.update { state ->
-                state.copy(videoGenLog = state.videoGenLog + "> Sedang merender frame demi frame (proses interpolasi temporal AI)...\n")
+                state.copy(videoGenLog = state.videoGenLog + "> Rendering frame-by-frame (performing temporal AI interpolation)...\n")
             }
             delay(1500)
 
@@ -1222,7 +1285,7 @@ class ChatViewModel(
             _uiState.update { state ->
                 state.copy(
                     videoGenIsLoading = false,
-                    videoGenLog = state.videoGenLog + "> GENERASI SUKSES!\n> File video render model $model berhasil disimpan ke pustaka lokal."
+                    videoGenLog = state.videoGenLog + "> GENERATION SUCCESSFUL!\n> Rendered video for model $model has been successfully saved to the local library."
                 )
             }
         }
@@ -1244,6 +1307,9 @@ class ChatViewModel(
         if (prompt.trim().isBlank()) return
 
         val isSubscribed = _uiState.value.isSubscribed
+        val provider = _uiState.value.selectedMusicProvider
+        val model = _uiState.value.selectedMusicModel
+        val tokenCost = getMusicTokenCost(provider, model)
 
         // Subscription validation rules:
         val isProGenre = genre in listOf("Lo-Fi", "Jazz", "Classical", "EDM", "Ambient", "Hip-Hop")
@@ -1257,61 +1323,69 @@ class ChatViewModel(
                 onSubscriptionRequired()
                 return
             }
+        } else {
+            if (_uiState.value.userTokens < tokenCost) {
+                onSubscriptionRequired()
+                return
+            }
         }
 
         viewModelScope.launch {
-            val provider = _uiState.value.selectedMusicProvider
-            val model = _uiState.value.selectedMusicModel
+            if (isSubscribed) {
+                _uiState.update { state ->
+                    state.copy(userTokens = (state.userTokens - tokenCost).coerceAtLeast(0))
+                }
+            }
 
             _uiState.update { state ->
                 state.copy(
                     musicGenIsLoading = true,
-                    musicGenLog = "> Menghubungkan ke AI Music Synthesizer Engine ditenagai oleh $provider...\n"
+                    musicGenLog = "> Connecting to AI Music Synthesizer Engine powered by $provider...\n"
                 )
             }
 
             delay(1000)
             _uiState.update { state ->
-                state.copy(musicGenLog = state.musicGenLog + "> Otentikasi aman API $provider ($model) berhasil...\n")
+                state.copy(musicGenLog = state.musicGenLog + "> Secure authentication with $provider API ($model) completed successfully...\n")
             }
             delay(1000)
             _uiState.update { state ->
-                state.copy(musicGenLog = state.musicGenLog + "> Menganalisis ketukan & mood: '${prompt.trim()}'...\n")
+                state.copy(musicGenLog = state.musicGenLog + "> Analyzing beats and mood: '${prompt.trim()}'...\n")
             }
             delay(1200)
 
             when (provider) {
                 "Gemini" -> {
                     _uiState.update { state ->
-                        state.copy(musicGenLog = state.musicGenLog + "> Menginisialisasi sistem Google Lyria ($model)...\n")
+                        state.copy(musicGenLog = state.musicGenLog + "> Initializing Google Lyria system ($model)...\n")
                     }
                     delay(800)
                     _uiState.update { state ->
-                        state.copy(musicGenLog = state.musicGenLog + "> Mengaktifkan temporal audio latent model untuk transisi frasa...\n")
+                        state.copy(musicGenLog = state.musicGenLog + "> Activating temporal audio latent model for phrase transitions...\n")
                     }
                 }
                 "Suno AI" -> {
                     _uiState.update { state ->
-                        state.copy(musicGenLog = state.musicGenLog + "> Menyambungkan ke pipeline Suno AI ($model) Music Synthesizer...\n")
+                        state.copy(musicGenLog = state.musicGenLog + "> Connecting to Suno AI ($model) Music Synthesizer pipeline...\n")
                     }
                     delay(800)
                     _uiState.update { state ->
-                        state.copy(musicGenLog = state.musicGenLog + "> Menginisialisasi generator vokal multibahasa premium...\n")
+                        state.copy(musicGenLog = state.musicGenLog + "> Initializing premium multilingual vocal generator...\n")
                     }
                 }
             }
             delay(1000)
 
             _uiState.update { state ->
-                state.copy(musicGenLog = state.musicGenLog + "> Menyusun harmoni instrumen untuk genre '$genre'...\n")
+                state.copy(musicGenLog = state.musicGenLog + "> Arranging instrument harmonies for the genre '$genre'...\n")
             }
             delay(1000)
             _uiState.update { state ->
-                state.copy(musicGenLog = state.musicGenLog + "> Mengatur tempo [$tempo] dan menyelaraskan sampler ($duration)...\n")
+                state.copy(musicGenLog = state.musicGenLog + "> Setting tempo [$tempo] and aligning sampler ($duration)...\n")
             }
             delay(1200)
             _uiState.update { state ->
-                state.copy(musicGenLog = state.musicGenLog + "> Merender audio master stereo hifi (sintesis frekuensi multi-track)...\n")
+                state.copy(musicGenLog = state.musicGenLog + "> Rendering hi-fi stereo master audio (multi-track frequency synthesis)...\n")
             }
             delay(1500)
 
@@ -1340,7 +1414,7 @@ class ChatViewModel(
             _uiState.update { state ->
                 state.copy(
                     musicGenIsLoading = false,
-                    musicGenLog = state.musicGenLog + "> GENERASI MUSIK SUKSES!\n> File audio model $model berhasil disimpan ke pustaka lagu lokal."
+                    musicGenLog = state.musicGenLog + "> MUSIC GENERATION SUCCESSFUL!\n> Audio file for model $model has been successfully saved to the local library."
                 )
             }
         }
@@ -1386,30 +1460,30 @@ class ChatViewModel(
                 You are Eddie, an expert elite Software Architect, Senior Security Engineer, and Master Programmer. 
                 Your job is to provide clean, production-ready, highly optimized code or deep analysis for the user.
                 Always wrap code blocks inside standard Markdown backticks (e.g. ```$language ... ``` or ```python ... ```) so that the UI can detect and format them properly.
-                Keep explanations/analyses concise, accurate, professional, and well-structured, written in Indonesian.
+                Keep explanations/analyses concise, accurate, professional, and well-structured, written in English (US).
             """.trimIndent()
 
             val customPrompt = when (task) {
-                "Generasi Kode" -> """
-                    Tuliskan kode pemrograman lengkap dan terstruktur dalam bahasa: $language.
-                    Kebutuhan Pengguna: $input
-                    Pastikan kode yang dihasilkan bersih, memiliki komentar penjelasan yang relevan, mutakhir, aman dari kerentanan, dan siap dijalankan.
+                "Code Generation" -> """
+                    Write a complete and structured programming code in: $language.
+                    User Requirement: $input
+                    Make sure the generated code is clean, has relevant explanatory comments, up-to-date, secure from vulnerabilities, and ready to compile and run.
                 """.trimIndent()
                 "Bug Finder & Debugger" -> """
-                    Tolong analisis potongan kode $language ini:
+                    Please analyze this $language code snippet:
                     $input
-                    Temukan bug, kesalahan logika, kebocoran memori, atau masalah performa. Jelaskan letak kesalahannya secara terperinci menggunakan Bahasa Indonesia, lalu tuliskan solusi perbaikannya yang benar secara utuh.
+                    Find bugs, logic errors, memory leaks, or performance bottlenecks. Explain where the errors are in detail, and then write the complete corrected solution.
                 """.trimIndent()
-                "Refactor & Optimasi" -> """
-                    Lakukan refactoring dan optimasi performa pada kode $language berikut:
+                "Refactor & Optimization" -> """
+                    Perform refactoring and performance optimization on the following $language code:
                     $input
-                    Fokus pada efisiensi waktu (time complexity), ruang (space complexity), keterbacaan (clean code), dan fitur-fitur modern dari bahasa $language. Jelaskan peningkatan yang Anda lakukan dalam Bahasa Indonesia sebelum menyertakan potongan kode yang telah dioptimasi.
+                    Focus on execution time efficiency (time complexity), space complexity, readability (clean code), and modern idiomatic features of $language. Explain your improvements in English (US) before writing the optimized code.
                 """.trimIndent()
-                "Konverter Bahasa" -> """
-                    Konversikan kode sumber berikut dari bahasa $language menjadi bahasa target $targetLanguage secara fungsional setara.
-                    Kode Asal ($language):
+                "Language Converter" -> """
+                    Convert the following source code functionally from $language to the target language $targetLanguage.
+                    Original Code ($language):
                     $input
-                    Gunakan kaidah sintaks, struktur, koleksi, dan library modern yang umum digunakan di bahasa sasaran ($targetLanguage) agar kodenya idiomatik.
+                    Use idioms, syntax, structures, collections, and modern libraries standard in the target language ($targetLanguage) so that the code is highly idiomatic.
                 """.trimIndent()
                 else -> input
             }
@@ -1441,7 +1515,7 @@ class ChatViewModel(
             } catch (e: Exception) {
                 _uiState.update { state ->
                     state.copy(
-                        codeOutput = "Terjadi kesalahan saat memproses kode: ${e.localizedMessage}",
+                        codeOutput = "An error occurred during code processing: ${e.localizedMessage}",
                         codeIsLoading = false
                     )
                 }
@@ -1542,7 +1616,7 @@ class ChatViewModel(
             
             val response = repository.sendSimpleRequest(
                 prompt = text,
-                systemText = "Anda adalah Eddie, seorang asisten cerdas asisten suara yang berbicara langsung dengan pengguna. Berikan jawaban yang ringkas, interaktif, hangat, dan alami (hindari format markdown jika memungkinkan karena akan dibaca dengan suara). Maksimum 2-3 kalimat saja dalam bahasa Indonesia.",
+                systemText = "You are Eddie, an intelligent voice assistant speaking directly with the user. Provide concise, interactive, warm, and natural answers (avoid markdown if possible as it will be read aloud). Max 2-3 sentences in English (US).",
                 providerKeys = keysMap
             )
             
@@ -1582,7 +1656,7 @@ class ChatViewModel(
     fun analyzeVisionImage(taskMode: String, promptText: String) {
         val bitmap = _uiState.value.visionSelectedBitmap
         if (bitmap == null) {
-            _uiState.update { it.copy(visionResult = "Peringatan: Silakan ambil foto atau unggah gambar terlebih dahulu!") }
+            _uiState.update { it.copy(visionResult = "Warning: Please take a photo or upload an image first!") }
             return
         }
         
@@ -1590,13 +1664,13 @@ class ChatViewModel(
             _uiState.update { it.copy(visionIsLoading = true, visionResult = "") }
             
             val promptPrefix = when (taskMode) {
-                "describe" -> "Deskripsikan objek, detail, warna, komposisi, atau nuansa dalam gambar ini secara detail."
-                "translate" -> "Temukan semua teks yang tertulis di dalam gambar ini, transkripsikan, lalu terjemahkan ke dalam bahasa Indonesia jika teks tersebut dalam bahasa asing."
-                "code" -> "Analisis rancangan UI, layout, wireframe, atau coretan desain dalam gambar ini. Ubah rancangan visual tersebut menjadi kode Jetpack Compose (Kotlin) yang lengkap, rapi, responsif, dan siap digunakan."
-                else -> "Analisis gambar ini."
+                "describe" -> "Describe the objects, details, colors, composition, or nuances in this image in detail."
+                "translate" -> "Find all written text in this image, transcribe it, and translate it to English (US) if the text is in a foreign language."
+                "code" -> "Analyze the UI design, layout, wireframe, or design sketch in this image. Convert the visual design into complete, neat, responsive, and ready-to-use Jetpack Compose (Kotlin) code."
+                else -> "Analyze this image."
             }
             
-            val finalPrompt = if (promptText.isNotBlank()) "$promptPrefix Instruksi tambahan: $promptText" else promptPrefix
+            val finalPrompt = if (promptText.isNotBlank()) "$promptPrefix Additional instructions: $promptText" else promptPrefix
             
             val keysMap = mapOf(
                 "Gemini" to _uiState.value.geminiApiKey
@@ -1629,7 +1703,7 @@ class ChatViewModel(
     fun summarizeDocument(style: String) {
         val content = _uiState.value.docContentText
         if (content.isBlank()) {
-            _uiState.update { it.copy(docSummaryResult = "Peringatan: Tidak ada konten dokumen yang dapat dianalisis. Pastikan file dibaca dengan benar atau isi teks tidak kosong.") }
+            _uiState.update { it.copy(docSummaryResult = "Warning: No document content available for analysis. Make sure the file was read correctly or contains text.") }
             return
         }
         
@@ -1637,13 +1711,13 @@ class ChatViewModel(
             _uiState.update { it.copy(docIsLoading = true, docSummaryResult = "") }
             
             val promptStyle = when (style) {
-                "bullet" -> "Poin-poin penting (Bullet Points)"
-                "concise" -> "Ringkasan Eksekutif Singkat"
-                "deep" -> "Analisis Mendalam & Komprehensif"
-                else -> "Ringkasan Standar"
+                "bullet" -> "Key Bullet Points"
+                "concise" -> "Executive Summary"
+                "deep" -> "In-Depth & Comprehensive Analysis"
+                else -> "Standard Summary"
             }
             
-            val prompt = "Silakan ringkas konten dokumen berikut ke dalam bahasa Indonesia menggunakan format gaya: $promptStyle.\n\nKonten Dokumen:\n$content"
+            val prompt = "Please summarize the following document content in English (US) using the style format: $promptStyle.\n\nDocument Content:\n$content"
             
             val keysMap = mapOf(
                 "Gemini" to _uiState.value.geminiApiKey
@@ -1651,7 +1725,7 @@ class ChatViewModel(
             
             val result = repository.sendSimpleRequest(
                 prompt = prompt,
-                systemText = "Anda adalah Eddie, pakar Document Intelligence dan analis teks cerdas. Berikan ringkasan yang akurat, informatif, dan terstruktur dengan baik sesuai gaya yang diminta.",
+                systemText = "You are Eddie, a Document Intelligence expert and smart text analyst. Provide an accurate, informative, and well-structured summary matching the requested style in English (US).",
                 providerKeys = keysMap
             )
             
@@ -1665,7 +1739,7 @@ class ChatViewModel(
     fun askDocumentQuestion(question: String) {
         val content = _uiState.value.docContentText
         if (content.isBlank()) {
-            _uiState.update { it.copy(docQaAnswer = "Peringatan: Silakan baca file dokumen terlebih dahulu.") }
+            _uiState.update { it.copy(docQaAnswer = "Warning: Please load a document file first.") }
             return
         }
         if (question.isBlank()) return
@@ -1673,7 +1747,7 @@ class ChatViewModel(
         viewModelScope.launch {
             _uiState.update { it.copy(docQaIsLoading = true, docQaAnswer = "") }
             
-            val prompt = "Berdasarkan isi dokumen berikut, jawablah pertanyaan pengguna dengan tepat, objektif, dan jujur berdasarkan data di dalam dokumen.\nPertanyaan: $question\n\nIsi Dokumen:\n$content"
+            val prompt = "Based on the following document content, please answer the user's question accurately, objectively, and honestly based on the data in the document.\nQuestion: $question\n\nDocument Content:\n$content"
             
             val keysMap = mapOf(
                 "Gemini" to _uiState.value.geminiApiKey
@@ -1681,7 +1755,7 @@ class ChatViewModel(
             
             val result = repository.sendSimpleRequest(
                 prompt = prompt,
-                systemText = "Anda adalah Eddie, asisten tanya jawab dokumen interaktif. Jawablah secara ramah, detail, akurat, dan merujuk hanya pada isi dokumen yang diberikan.",
+                systemText = "You are Eddie, an interactive document Q&A assistant. Answer in a friendly, detailed, and accurate manner in English (US), referring only to the provided document content.",
                 providerKeys = keysMap
             )
             

@@ -151,7 +151,7 @@ fun ChatScreen(
                 tts.speak(cleanText, TextToSpeech.QUEUE_FLUSH, null, messageId)
             }
         } else {
-            Toast.makeText(context, "Text-to-Speech tidak siap.", Toast.LENGTH_SHORT).show()
+            Toast.makeText(context, "Text-to-Speech is not ready.", Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -159,7 +159,7 @@ fun ChatScreen(
     val clipboardManager = LocalClipboardManager.current
     val copyToClipboard: (String) -> Unit = { text ->
         clipboardManager.setText(AnnotatedString(text))
-        Toast.makeText(context, "Teks berhasil disalin ke papan klip.", Toast.LENGTH_SHORT).show()
+        Toast.makeText(context, "Text copied to clipboard.", Toast.LENGTH_SHORT).show()
     }
 
     val shareMessage: (String) -> Unit = { text ->
@@ -168,7 +168,7 @@ fun ChatScreen(
             putExtra(Intent.EXTRA_TEXT, text)
             type = "text/plain"
         }
-        val shareIntent = Intent.createChooser(sendIntent, "Bagikan Pesan:")
+        val shareIntent = Intent.createChooser(sendIntent, "Share Message:")
         context.startActivity(shareIntent)
     }
 
@@ -191,13 +191,13 @@ fun ChatScreen(
     val startSpeechToText = {
         val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
             putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-            putExtra(RecognizerIntent.EXTRA_LANGUAGE, "id-ID")
-            putExtra(RecognizerIntent.EXTRA_PROMPT, "Silakan bicara sekarang...")
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE, "en-US")
+            putExtra(RecognizerIntent.EXTRA_PROMPT, "Please speak now...")
         }
         try {
             speechRecognizerLauncher.launch(intent)
         } catch (e: Exception) {
-            Toast.makeText(context, "Fitur pengenalan suara tidak didukung di perangkat ini.", Toast.LENGTH_LONG).show()
+            Toast.makeText(context, "Speech recognition is not supported on this device.", Toast.LENGTH_LONG).show()
         }
     }
 
@@ -240,7 +240,7 @@ fun ChatScreen(
                         color = MaterialTheme.colorScheme.onSurface
                     )
                     Text(
-                        text = "Asisten didukung local database & kustomisasi",
+                        text = "Local database & customized assistant",
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -255,7 +255,7 @@ fun ChatScreen(
                 ) {
                     NavigationDrawerItem(
                         icon = { Icon(Icons.Default.Add, contentDescription = null) },
-                        label = { Text("Percakapan Baru", fontWeight = FontWeight.SemiBold) },
+                        label = { Text("New Conversation", fontWeight = FontWeight.SemiBold) },
                         selected = false,
                         onClick = {
                             activeTab = "chat"
@@ -271,7 +271,7 @@ fun ChatScreen(
 
                     Spacer(modifier = Modifier.height(12.dp))
                     Text(
-                        text = "NAVIGASI UTAMA",
+                        text = "MAIN NAVIGATION",
                         style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold, letterSpacing = 1.sp),
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
@@ -279,7 +279,7 @@ fun ChatScreen(
 
                     NavigationDrawerItem(
                         icon = { Text("💬", style = TextStyle(fontSize = 16.sp)) },
-                        label = { Text("Asisten Chat Eddie", fontWeight = FontWeight.SemiBold) },
+                        label = { Text("Eddie Chat Assistant", fontWeight = FontWeight.SemiBold) },
                         selected = activeTab == "chat",
                         onClick = {
                             activeTab = "chat"
@@ -289,7 +289,7 @@ fun ChatScreen(
 
                     NavigationDrawerItem(
                         icon = { Text("🎨", style = TextStyle(fontSize = 16.sp)) },
-                        label = { Text("Studio Gambar Eddie", fontWeight = FontWeight.SemiBold) },
+                        label = { Text("Eddie Image Studio", fontWeight = FontWeight.SemiBold) },
                         selected = activeTab == "image_gen",
                         onClick = {
                             activeTab = "image_gen"
@@ -337,7 +337,7 @@ fun ChatScreen(
 
                     NavigationDrawerItem(
                         icon = { Text("🎙️", style = TextStyle(fontSize = 16.sp)) },
-                        label = { Text("Asisten Suara Eddie", fontWeight = FontWeight.SemiBold) },
+                        label = { Text("Eddie Voice Assistant", fontWeight = FontWeight.SemiBold) },
                         selected = activeTab == "voice_ai",
                         onClick = {
                             activeTab = "voice_ai"
@@ -357,7 +357,7 @@ fun ChatScreen(
 
                     NavigationDrawerItem(
                         icon = { Text("📄", style = TextStyle(fontSize = 16.sp)) },
-                        label = { Text("Ringkasan Dokumen & PDF", fontWeight = FontWeight.SemiBold) },
+                        label = { Text("Document & PDF Summary", fontWeight = FontWeight.SemiBold) },
                         selected = activeTab == "doc_intelligence",
                         onClick = {
                             activeTab = "doc_intelligence"
@@ -367,7 +367,7 @@ fun ChatScreen(
 
                     Spacer(modifier = Modifier.height(16.dp))
                     Text(
-                        text = "RIWAYAT CHAT",
+                        text = "CHAT HISTORY",
                         style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold, letterSpacing = 1.sp),
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
@@ -375,7 +375,7 @@ fun ChatScreen(
 
                     if (uiState.sessions.isEmpty()) {
                         Text(
-                            text = "Belum ada percakapan",
+                            text = "No conversations yet",
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
@@ -416,7 +416,7 @@ fun ChatScreen(
 
                     Spacer(modifier = Modifier.height(16.dp))
                     Text(
-                        text = "KUSTOMISASI & SETTING",
+                        text = "CUSTOMIZATION & SETTINGS",
                         style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold, letterSpacing = 1.sp),
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
@@ -430,7 +430,7 @@ fun ChatScreen(
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Text("Tema Gelap")
+                                Text("Dark Theme")
                                 Switch(
                                     checked = uiState.isDarkTheme,
                                     onCheckedChange = { viewModel.toggleTheme() },
@@ -444,7 +444,7 @@ fun ChatScreen(
 
                     NavigationDrawerItem(
                         icon = { Text("🤖", style = TextStyle(fontSize = 16.sp)) },
-                        label = { Text("Sistem Instruksi (Custom)") },
+                        label = { Text("System Instructions (Custom)") },
                         selected = false,
                         onClick = {
                             showInstructionDialog = true
@@ -454,7 +454,7 @@ fun ChatScreen(
 
                     NavigationDrawerItem(
                         icon = { Text("🧠", style = TextStyle(fontSize = 16.sp)) },
-                        label = { Text("Memori Pintar Eddie") },
+                        label = { Text("Eddie Smart Memory") },
                         selected = false,
                         onClick = {
                             showMemoriesDialog = true
@@ -474,7 +474,7 @@ fun ChatScreen(
 
                     NavigationDrawerItem(
                         icon = { Text("❤️", style = TextStyle(fontSize = 16.sp)) },
-                        label = { Text("Pesan Favorit (Bookmark)") },
+                        label = { Text("Saved Messages (Bookmarks)") },
                         selected = false,
                         onClick = {
                             showBookmarksDialog = true
@@ -491,7 +491,7 @@ fun ChatScreen(
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Text(
-                                    text = if (uiState.isSubscribed) "Kelola Premium" else "Langganan Premium",
+                                    text = if (uiState.isSubscribed) "Manage Premium" else "Subscribe Premium",
                                     fontWeight = FontWeight.Bold,
                                     color = if (uiState.isSubscribed) MaterialTheme.colorScheme.primary else Color(0xFFFFB100)
                                 )
@@ -522,7 +522,7 @@ fun ChatScreen(
                             icon = { Text("❌", style = TextStyle(fontSize = 16.sp)) },
                             label = {
                                 Text(
-                                    text = "Berhenti Berlangganan",
+                                    text = "Cancel Subscription",
                                     color = MaterialTheme.colorScheme.error,
                                     fontWeight = FontWeight.Bold
                                 )
@@ -531,14 +531,14 @@ fun ChatScreen(
                             onClick = {
                                 scope.launch { drawerState.close() }
                                 viewModel.cancelSubscription()
-                                Toast.makeText(context, "Berhasil berhenti berlangganan. Status Anda kembali ke akun Uji Coba Gratis.", Toast.LENGTH_LONG).show()
+                                Toast.makeText(context, "Successfully canceled subscription. Your status has returned to a Free Trial.", Toast.LENGTH_LONG).show()
                             }
                         )
                     }
 
                     Spacer(modifier = Modifier.height(16.dp))
                     Text(
-                        text = "LAINNYA",
+                        text = "OTHERS",
                         style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold, letterSpacing = 1.sp),
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
@@ -546,7 +546,7 @@ fun ChatScreen(
 
                     NavigationDrawerItem(
                         icon = { Text("ℹ️", style = TextStyle(fontSize = 16.sp)) },
-                        label = { Text("Bantuan & Info") },
+                        label = { Text("Help & Info") },
                         selected = false,
                         onClick = {
                             showHelpDialog = true
@@ -556,7 +556,7 @@ fun ChatScreen(
 
                     Spacer(modifier = Modifier.height(16.dp))
                     Text(
-                        text = "AKUN SAYA",
+                        text = "MY ACCOUNT",
                         style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold, letterSpacing = 1.sp),
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
@@ -579,13 +579,13 @@ fun ChatScreen(
                                     .padding(12.dp)
                             ) {
                                 Text(
-                                    text = "Buka Fitur Penuh",
+                                    text = "Unlock Full Features",
                                     style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
                                     color = MaterialTheme.colorScheme.primary
                                 )
                                 Spacer(modifier = Modifier.height(4.dp))
                                 Text(
-                                    text = "Masuk atau daftar untuk mempersonalisasi asisten cerdas Anda, menyimpan sesi, dan kustom instruksi.",
+                                    text = "Sign in or sign up to personalize your smart assistant, save sessions, and customize instructions.",
                                     style = MaterialTheme.typography.labelSmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     lineHeight = 14.sp
@@ -605,7 +605,7 @@ fun ChatScreen(
                                         modifier = Modifier.size(16.dp)
                                     )
                                     Spacer(modifier = Modifier.width(6.dp))
-                                    Text("Masuk / Daftar", style = MaterialTheme.typography.labelMedium)
+                                    Text("Sign In / Sign Up", style = MaterialTheme.typography.labelMedium)
                                 }
                             }
                         }
@@ -661,7 +661,7 @@ fun ChatScreen(
                                 ) {
                                     Icon(
                                         imageVector = Icons.AutoMirrored.Filled.ExitToApp,
-                                        contentDescription = "Keluar Akun",
+                                        contentDescription = "Sign Out Account",
                                         modifier = Modifier.size(20.dp)
                                     )
                                 }
@@ -684,7 +684,7 @@ fun ChatScreen(
                             ) {
                                 Icon(
                                     imageVector = Icons.Default.Menu,
-                                    contentDescription = "Membuka Menu Samping"
+                                    contentDescription = "Open Navigation Drawer"
                                 )
                             }
                         },
@@ -713,7 +713,7 @@ fun ChatScreen(
                                     Spacer(modifier = Modifier.width(4.dp))
                                     Icon(
                                         imageVector = Icons.Default.ArrowDropDown,
-                                        contentDescription = "Pilih Provider & Model",
+                                        contentDescription = "Select Provider & Model",
                                         tint = MaterialTheme.colorScheme.primary,
                                         modifier = Modifier.size(18.dp)
                                     )
@@ -780,7 +780,7 @@ fun ChatScreen(
                                                 onClick = {
                                                     if (isPro && !uiState.isSubscribed) {
                                                         showSubscriptionDialog = true
-                                                        Toast.makeText(context, "Model ${model.displayName} memerlukan langganan Premium aktif.", Toast.LENGTH_LONG).show()
+                                                        Toast.makeText(context, "Model ${model.displayName} requires an active Premium subscription.", Toast.LENGTH_LONG).show()
                                                     } else {
                                                         viewModel.selectModel(model)
                                                     }
@@ -830,13 +830,13 @@ fun ChatScreen(
                                 )
                                 Spacer(modifier = Modifier.height(16.dp))
                                 Text(
-                                    text = "Mulai Percakapan Baru",
+                                    text = "Start a New Conversation",
                                     style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
                                     color = MaterialTheme.colorScheme.onSurface
                                 )
                                 Spacer(modifier = Modifier.height(8.dp))
                                 Text(
-                                    text = "Ketik pesan di bawah untuk memulai obrolan cerdas bersama asisten AI.",
+                                    text = "Type a message below to start a smart conversation with the AI assistant.",
                                     style = MaterialTheme.typography.bodyMedium,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     modifier = Modifier.widthIn(max = 280.dp),
@@ -864,7 +864,7 @@ fun ChatScreen(
                                     onBookmarkClick = {
                                         val newBookmarkState = !message.isBookmarked
                                         viewModel.toggleBookmark(message.id, newBookmarkState)
-                                        val feedbackMsg = if (newBookmarkState) "Pesan ditambahkan ke favorit." else "Pesan dihapus dari favorit."
+                                        val feedbackMsg = if (newBookmarkState) "Message saved to bookmarks." else "Message removed from bookmarks."
                                         Toast.makeText(context, feedbackMsg, Toast.LENGTH_SHORT).show()
                                     }
                                 )
@@ -971,9 +971,9 @@ fun ChatScreen(
                                                     addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                                                 }
                                                 try {
-                                                    context.startActivity(Intent.createChooser(intent, "Kirim Draf via..."))
+                                                    context.startActivity(Intent.createChooser(intent, "Send draft via..."))
                                                 } catch (e: Exception) {
-                                                    Toast.makeText(context, "Tidak ada aplikasi email.", Toast.LENGTH_SHORT).show()
+                                                    Toast.makeText(context, "No email client found.", Toast.LENGTH_SHORT).show()
                                                 }
                                             } else if (actType == "WHATSAPP") {
                                                 val intent = Intent(Intent.ACTION_SEND).apply {
@@ -989,7 +989,7 @@ fun ChatScreen(
                                                         type = "text/plain"
                                                         putExtra(Intent.EXTRA_TEXT, actPayload)
                                                     }
-                                                    context.startActivity(Intent.createChooser(shareIntent, "Kirim via..."))
+                                                    context.startActivity(Intent.createChooser(shareIntent, "Send via..."))
                                                 }
                                             }
                                             viewModel.dismissAutomation()
@@ -1008,7 +1008,7 @@ fun ChatScreen(
                                         )
                                         Spacer(modifier = Modifier.width(6.dp))
                                         Text(
-                                            text = if (actType == "EMAIL") "Buka Draf di Email" else "Kirim ke WhatsApp",
+                                            text = if (actType == "EMAIL") "Open Email Draft" else "Send to WhatsApp",
                                             style = MaterialTheme.typography.labelMedium
                                         )
                                     }
@@ -1019,7 +1019,7 @@ fun ChatScreen(
                                         shape = RoundedCornerShape(8.dp),
                                         contentPadding = PaddingValues(vertical = 4.dp)
                                     ) {
-                                        Text("Batal", style = MaterialTheme.typography.labelMedium)
+                                        Text("Cancel", style = MaterialTheme.typography.labelMedium)
                                     }
                                 }
                             }
@@ -1046,12 +1046,12 @@ fun ChatScreen(
                     onGenerate = { prompt, style, ratio ->
                         viewModel.generateImage(prompt, style, ratio, onSubscriptionRequired = {
                             showSubscriptionDialog = true
-                            Toast.makeText(context, "Mencapai batas gratis (maks 3) atau memerlukan Eddie Premium untuk model gaya & rasio ini!", Toast.LENGTH_LONG).show()
+                            Toast.makeText(context, "Free limit reached (max 3) or Eddie Premium is required for this style and ratio!", Toast.LENGTH_LONG).show()
                         })
                     },
                     onDeleteImage = { id ->
                         viewModel.deleteGeneratedImage(id)
-                        Toast.makeText(context, "Gambar berhasil dihilangkan dari koleksi lokal.", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(context, "Image successfully removed from local collection.", Toast.LENGTH_SHORT).show()
                     },
                     onSaveEditedImage = { originalId, prompt, style, ratio, editedUrl ->
                         viewModel.saveEditedImage(originalId, prompt, style, ratio, editedUrl)
@@ -1070,12 +1070,12 @@ fun ChatScreen(
                     onGenerateVideo = { prompt, style, ratio, res, dur ->
                         viewModel.generateVideo(prompt, style, ratio, res, dur, onSubscriptionRequired = {
                             showSubscriptionDialog = true
-                            Toast.makeText(context, "Mencapai batas gratis (maks 2) atau memerlukan Eddie Premium untuk durasi, resolusi, atau rasio aspek ini!", Toast.LENGTH_LONG).show()
+                            Toast.makeText(context, "Free limit reached (max 2) or Eddie Premium is required for this duration, resolution, or aspect ratio!", Toast.LENGTH_LONG).show()
                         })
                     },
                     onDeleteVideo = { id ->
                         viewModel.deleteGeneratedVideo(id)
-                        Toast.makeText(context, "Video berhasil dihilangkan dari koleksi lokal.", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(context, "Video successfully removed from local collection.", Toast.LENGTH_SHORT).show()
                     },
                     onSaveEditedVideo = { originalId, prompt, style, ratio, res, dur, editedUrl ->
                         viewModel.saveEditedVideo(originalId, prompt, style, ratio, res, dur, editedUrl)
@@ -1097,13 +1097,13 @@ fun ChatScreen(
                     onGenerateCode = { language, task, targetLanguage, input ->
                         viewModel.generateAiCode(language, task, targetLanguage, input, onSubscriptionRequired = {
                             showSubscriptionDialog = true
-                            Toast.makeText(context, "Tugas tingkat lanjut atau opsi bahasa premium memerlukan langganan Eddie Premium aktif!", Toast.LENGTH_LONG).show()
+                            Toast.makeText(context, "Advanced tasks or premium language options require an active Eddie Premium subscription!", Toast.LENGTH_LONG).show()
                         })
                     },
                     onClearOutput = { viewModel.clearCodeOutput() },
                     onSubscriptionRequired = {
                         showSubscriptionDialog = true
-                        Toast.makeText(context, "Pilihan bahasa atau tugas ini memerlukan langganan Eddie Premium aktif!", Toast.LENGTH_LONG).show()
+                        Toast.makeText(context, "This language option or task requires an active Eddie Premium subscription!", Toast.LENGTH_LONG).show()
                     },
                     onCopyText = { codeText -> copyToClipboard(codeText) },
                     onShareText = { codeText -> shareMessage(codeText) }
@@ -1115,12 +1115,12 @@ fun ChatScreen(
                     onGenerateMusic = { prompt, genre, duration, tempo ->
                         viewModel.generateMusic(prompt, genre, duration, tempo, onSubscriptionRequired = {
                             showSubscriptionDialog = true
-                            Toast.makeText(context, "Mencapai batas gratis (maks 2) atau memerlukan Eddie Premium untuk genre atau durasi premium ini!", Toast.LENGTH_LONG).show()
+                            Toast.makeText(context, "Free limit reached (max 2) or Eddie Premium is required for this premium genre or duration!", Toast.LENGTH_LONG).show()
                         })
                     },
                     onDeleteMusic = { id ->
                         viewModel.deleteGeneratedMusic(id)
-                        Toast.makeText(context, "Musik berhasil dihilangkan dari koleksi lokal.", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(context, "Music successfully removed from local collection.", Toast.LENGTH_SHORT).show()
                     },
                     onSaveEditedMusic = { originalId, prompt, genre, dur, tempo, editedUrl ->
                         viewModel.saveEditedMusic(originalId, prompt, genre, dur, tempo, editedUrl)
@@ -1180,14 +1180,14 @@ fun ChatScreen(
             onDismissRequest = { showInstructionDialog = false },
             title = {
                 Text(
-                    text = "Kustomisasi Sistem Instruksi",
+                    text = "Customize System Instructions",
                     style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
                 )
             },
             text = {
                 Column(modifier = Modifier.fillMaxWidth()) {
                     Text(
-                        text = "Ubah kepribadian atau instruksi dasar sistem chatbot ini:",
+                        text = "Modify the personality or base instructions of this chatbot system:",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(bottom = 12.dp)
@@ -1196,7 +1196,7 @@ fun ChatScreen(
                         value = tempInstruction,
                         onValueChange = { tempInstruction = it },
                         modifier = Modifier.fillMaxWidth().height(160.dp),
-                        placeholder = { Text("Masukkan sistem instruksi...") },
+                        placeholder = { Text("Enter system instructions...") },
                         maxLines = 8,
                         textStyle = MaterialTheme.typography.bodyMedium
                     )
@@ -1209,12 +1209,12 @@ fun ChatScreen(
                         showInstructionDialog = false
                     }
                 ) {
-                    Text("Simpan")
+                    Text("Save")
                 }
             },
             dismissButton = {
                 TextButton(onClick = { showInstructionDialog = false }) {
-                    Text("Batal")
+                    Text("Cancel")
                 }
             }
         )
@@ -1233,7 +1233,7 @@ fun ChatScreen(
                 ) {
                     Text("🧠", fontSize = 24.sp)
                     Text(
-                        text = "Memori Pintar Eddie",
+                        text = "Eddie Smart Memory",
                         style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
                     )
                 }
@@ -1241,12 +1241,11 @@ fun ChatScreen(
             text = {
                 Column(
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .heightIn(max = 400.dp),
+                        .fillMaxWidth(),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     Text(
-                        text = "Eddie secara otomatis mengingat rincian personal Anda dari percakapan untuk memberi respons terbaik. Anda juga bisa menambah atau menghapusnya di sini.",
+                        text = "Eddie automatically remembers your personal details from conversations to provide the best responses. You can also add or delete them here.",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -1264,7 +1263,7 @@ fun ChatScreen(
                             verticalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
                             Text(
-                                text = "Tambah Memori Baru",
+                                text = "Add New Memory",
                                 style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
                                 color = MaterialTheme.colorScheme.primary
                             )
@@ -1275,7 +1274,7 @@ fun ChatScreen(
                                 OutlinedTextField(
                                     value = newKey,
                                     onValueChange = { newKey = it },
-                                    label = { Text("Kategori", style = MaterialTheme.typography.bodySmall) },
+                                    label = { Text("Category", style = MaterialTheme.typography.bodySmall) },
                                     modifier = Modifier.weight(1f),
                                     singleLine = true,
                                     textStyle = MaterialTheme.typography.bodySmall
@@ -1283,7 +1282,7 @@ fun ChatScreen(
                                 OutlinedTextField(
                                     value = newVal,
                                     onValueChange = { newVal = it },
-                                    label = { Text("Isi Memori", style = MaterialTheme.typography.bodySmall) },
+                                    label = { Text("Memory Content", style = MaterialTheme.typography.bodySmall) },
                                     modifier = Modifier.weight(1.5f),
                                     singleLine = true,
                                     textStyle = MaterialTheme.typography.bodySmall
@@ -1301,7 +1300,7 @@ fun ChatScreen(
                                 shape = RoundedCornerShape(8.dp),
                                 contentPadding = PaddingValues(vertical = 4.dp)
                             ) {
-                                Text("Simpan Memori", style = MaterialTheme.typography.labelSmall)
+                                Text("Save Memory", style = MaterialTheme.typography.labelSmall)
                             }
                         }
                     }
@@ -1316,51 +1315,55 @@ fun ChatScreen(
                             contentAlignment = Alignment.Center
                         ) {
                             Text(
-                                "Belum ada memori tersimpan untuk profil Anda.",
+                                "No saved memories for your profile yet.",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
                                 textAlign = TextAlign.Center
                             )
                         }
                     } else {
-                        LazyColumn(
+                        Box(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .weight(1f),
-                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                                .heightIn(max = 180.dp)
                         ) {
-                            items(uiState.userMemories) { memory ->
-                                Card(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    colors = CardDefaults.cardColors(
-                                        containerColor = MaterialTheme.colorScheme.surface
-                                    ),
-                                    border = BorderStroke(0.5.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
-                                ) {
-                                    Row(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .padding(10.dp),
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.SpaceBetween
+                            LazyColumn(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                items(uiState.userMemories) { memory ->
+                                    Card(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        colors = CardDefaults.cardColors(
+                                            containerColor = MaterialTheme.colorScheme.surface
+                                        ),
+                                        border = BorderStroke(0.5.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
                                     ) {
-                                        Column(modifier = Modifier.weight(1f)) {
-                                            Text(
-                                                text = memory.key,
-                                                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-                                                color = MaterialTheme.colorScheme.primary
-                                            )
-                                            Text(
-                                                text = memory.content,
-                                                style = MaterialTheme.typography.bodySmall,
-                                                color = MaterialTheme.colorScheme.onSurface
-                                            )
-                                        }
-                                        IconButton(
-                                            onClick = { viewModel.deleteMemory(memory.id) },
-                                            modifier = Modifier.size(24.dp)
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(10.dp),
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.SpaceBetween
                                         ) {
-                                            Text("🗑️", fontSize = 12.sp)
+                                            Column(modifier = Modifier.weight(1f)) {
+                                                Text(
+                                                    text = memory.key,
+                                                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                                                    color = MaterialTheme.colorScheme.primary
+                                                )
+                                                Text(
+                                                    text = memory.content,
+                                                    style = MaterialTheme.typography.bodySmall,
+                                                    color = MaterialTheme.colorScheme.onSurface
+                                                )
+                                            }
+                                            IconButton(
+                                                onClick = { viewModel.deleteMemory(memory.id) },
+                                                modifier = Modifier.size(24.dp)
+                                            ) {
+                                                Text("🗑️", fontSize = 12.sp)
+                                            }
                                         }
                                     }
                                 }
@@ -1371,7 +1374,7 @@ fun ChatScreen(
             },
             confirmButton = {
                 Button(onClick = { showMemoriesDialog = false }) {
-                    Text("Tutup")
+                    Text("Close")
                 }
             }
         )
@@ -1402,7 +1405,7 @@ fun ChatScreen(
                     verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
                     Text(
-                        text = "Masukkan API Key kustom Anda di bawah. Jika dikosongkan (untuk OpenAI & DeepSeek), aplikasi akan mengalihkan koneksi ke server bebas biaya secara otomatis.",
+                        text = "Enter your custom API Keys below. If left blank (for OpenAI & DeepSeek), the application will automatically route connections to our free server tiers.",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -1419,7 +1422,7 @@ fun ChatScreen(
                             value = tempGeminiKey,
                             onValueChange = { tempGeminiKey = it },
                             modifier = Modifier.fillMaxWidth(),
-                            placeholder = { Text("Bawaan Aktif (Kunci AI Studio)") },
+                            placeholder = { Text("Default Active (AI Studio Key)") },
                             singleLine = true,
                             textStyle = MaterialTheme.typography.bodySmall
                         )
@@ -1428,7 +1431,7 @@ fun ChatScreen(
                     // OpenAI Key
                     Column {
                         Text(
-                            text = "OpenAI API Key (Gpt-4o & Gpt 5.5)",
+                            text = "OpenAI API Key (GPT 4o & GPT 5.5)",
                             style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
                             color = Color(0xFF10A37F)
                         )
@@ -1437,7 +1440,7 @@ fun ChatScreen(
                             value = tempOpenaiKey,
                             onValueChange = { tempOpenaiKey = it },
                             modifier = Modifier.fillMaxWidth(),
-                            placeholder = { Text("Isi Kunci API OpenAI Anda") },
+                            placeholder = { Text("Enter your OpenAI API Key") },
                             singleLine = true,
                             textStyle = MaterialTheme.typography.bodySmall
                         )
@@ -1455,7 +1458,7 @@ fun ChatScreen(
                             value = tempDeepseekKey,
                             onValueChange = { tempDeepseekKey = it },
                             modifier = Modifier.fillMaxWidth(),
-                            placeholder = { Text("Isi Kunci API DeepSeek Anda") },
+                            placeholder = { Text("Enter your DeepSeek API Key") },
                             singleLine = true,
                             textStyle = MaterialTheme.typography.bodySmall
                         )
@@ -1473,7 +1476,7 @@ fun ChatScreen(
                             value = tempClaudeKey,
                             onValueChange = { tempClaudeKey = it },
                             modifier = Modifier.fillMaxWidth(),
-                            placeholder = { Text("Isi Kunci API Anthropic Anda") },
+                            placeholder = { Text("Enter your Anthropic Claude API Key") },
                             singleLine = true,
                             textStyle = MaterialTheme.typography.bodySmall
                         )
@@ -1491,7 +1494,7 @@ fun ChatScreen(
                             value = tempXaiKey,
                             onValueChange = { tempXaiKey = it },
                             modifier = Modifier.fillMaxWidth(),
-                            placeholder = { Text("Isi Kunci API xAI Grok Anda") },
+                            placeholder = { Text("Enter your xAI Grok API Key") },
                             singleLine = true,
                             textStyle = MaterialTheme.typography.bodySmall
                         )
@@ -1507,15 +1510,15 @@ fun ChatScreen(
                         viewModel.updateProviderApiKey("Claude", tempClaudeKey)
                         viewModel.updateProviderApiKey("XAI", tempXaiKey)
                         showApiKeyDialog = false
-                        Toast.makeText(context, "Semua API Key berhasil disimpan!", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(context, "All API Keys saved successfully!", Toast.LENGTH_SHORT).show()
                     }
                 ) {
-                    Text("Simpan")
+                    Text("Save")
                 }
             },
             dismissButton = {
                 TextButton(onClick = { showApiKeyDialog = false }) {
-                    Text("Batal")
+                    Text("Cancel")
                 }
             }
         )
@@ -1527,7 +1530,7 @@ fun ChatScreen(
             onDismissRequest = { showHelpDialog = false },
             title = {
                 Text(
-                    text = "Bantuan & Info",
+                    text = "Help & Info",
                     style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
                 )
             },
@@ -1544,28 +1547,28 @@ fun ChatScreen(
                     )
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
-                        text = "Aplikasi asisten cerdas ini dibangun menggunakan teknologi mutakhir Google Gemini API (model 3.5 Flash & 3.1 Pro).",
+                        text = "This smart assistant application is built using cutting-edge Google Gemini API technology (model 3.5 Flash & 3.1 Pro).",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurface
                     )
                     Spacer(modifier = Modifier.height(16.dp))
                     Text(
-                        text = "Fitur Utama:",
+                        text = "Key Features:",
                         style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold)
                     )
                     Text(
-                        text = "• Room Database: Riwayat sesi obrolan Anda tersimpan aman dan tidak akan hilang.\n" +
-                               "• Speech-to-Text: Ketik tanpa mengetik langsung dengan merekam suara obrolan.\n" +
-                               "• Text-to-Speech: Mintalah chatbot membaca responnya dengan audio yang natural.\n" +
-                               "• Sesi Obrolan Tanpa Batas: Hapus atau tambah ruang percakapan dengan mudah.\n" +
-                               "• Pesan Favorit: Tandai balasan AI terbaik dan kumpulkan di penyimpanan favorit khusus.\n" +
-                               "• Kustomisasi Sistem: Persona kustom & ketersediaan opsi API Key pribadi.",
+                        text = "• Room Database: Your chat session history is securely saved and will not be lost.\n" +
+                               "• Speech-to-Text: Write messages hands-free by recording your voice.\n" +
+                               "• Text-to-Speech: Let the chatbot read out its responses with natural audio.\n" +
+                               "• Unlimited Chat Sessions: Easily delete or create conversation sessions.\n" +
+                               "• Favorite Messages: Bookmark the best AI responses and save them to a dedicated favorite tab.\n" +
+                               "• System Customization: Supports custom persona prompts and personal API key options.",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Spacer(modifier = Modifier.height(16.dp))
                     Text(
-                        text = "Disclaimer: AI dapat membuat kesalahan. Harap verifikasi fakta penting secara berkala.",
+                        text = "Disclaimer: AI may produce errors. Please verify important facts periodically.",
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -1573,7 +1576,7 @@ fun ChatScreen(
             },
             confirmButton = {
                 Button(onClick = { showHelpDialog = false }) {
-                    Text("Tutup")
+                    Text("Close")
                 }
             }
         )
@@ -1609,7 +1612,7 @@ fun ChatScreen(
                     )
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
-                        text = if (isRegisterMode) "Daftar Akun Baru" else "Masuk ke Akun Anda",
+                        text = if (isRegisterMode) "Register New Account" else "Sign In to Your Account",
                         style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold)
                     )
                 }
@@ -1643,7 +1646,7 @@ fun ChatScreen(
                             contentPadding = PaddingValues(vertical = 8.dp),
                             shape = RoundedCornerShape(6.dp)
                         ) {
-                            Text("Masuk", style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold))
+                            Text("Sign In", style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold))
                         }
 
                         Button(
@@ -1661,7 +1664,7 @@ fun ChatScreen(
                             contentPadding = PaddingValues(vertical = 8.dp),
                             shape = RoundedCornerShape(6.dp)
                         ) {
-                            Text("Daftar", style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold))
+                            Text("Register", style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold))
                         }
                     }
 
@@ -1715,7 +1718,7 @@ fun ChatScreen(
                                 usernameInput = it
                                 authErrorMessage = null
                             },
-                            label = { Text("Nama Pengguna") },
+                            label = { Text("Username") },
                             leadingIcon = {
                                 Icon(Icons.Default.Person, contentDescription = null, modifier = Modifier.size(20.dp))
                             },
@@ -1731,7 +1734,7 @@ fun ChatScreen(
                             emailInput = it
                             authErrorMessage = null
                         },
-                        label = { Text("Alamat Email") },
+                        label = { Text("Email Address") },
                         leadingIcon = {
                             Icon(Icons.Default.Email, contentDescription = null, modifier = Modifier.size(20.dp))
                         },
@@ -1746,7 +1749,7 @@ fun ChatScreen(
                             passwordInput = it
                             authErrorMessage = null
                         },
-                        label = { Text("Kata Sandi") },
+                        label = { Text("Password") },
                         leadingIcon = {
                             Icon(Icons.Default.Lock, contentDescription = null, modifier = Modifier.size(20.dp))
                         },
@@ -1756,7 +1759,7 @@ fun ChatScreen(
                                 contentPadding = PaddingValues(horizontal = 8.dp)
                             ) {
                                 Text(
-                                    text = if (passwordVisible) "SEMBUNYI" else "LIHAT",
+                                    text = if (passwordVisible) "HIDE" else "SHOW",
                                     style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold)
                                 )
                             }
@@ -1766,6 +1769,36 @@ fun ChatScreen(
                         modifier = Modifier.fillMaxWidth(),
                         textStyle = MaterialTheme.typography.bodyMedium
                     )
+
+                    if (!isRegisterMode) {
+                        Box(
+                            modifier = Modifier.fillMaxWidth(),
+                            contentAlignment = Alignment.CenterEnd
+                        ) {
+                            TextButton(
+                                onClick = {
+                                    val emailClean = emailInput.trim()
+                                    if (emailClean.isBlank()) {
+                                        authErrorMessage = "Please type your email address first so we know where to send the reset link."
+                                    } else if (!emailClean.contains("@")) {
+                                        authErrorMessage = "Invalid email address format."
+                                    } else {
+                                        authErrorMessage = null
+                                        authSuccessMessage = "Reset link successfully sent to $emailClean! Please check your inbox."
+                                    }
+                                },
+                                contentPadding = PaddingValues(0.dp)
+                            ) {
+                                Text(
+                                    text = "Forgot Password?",
+                                    style = MaterialTheme.typography.labelLarge.copy(
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.primary
+                                    )
+                                )
+                            }
+                        }
+                    }
                 }
             },
             confirmButton = {
@@ -1776,7 +1809,7 @@ fun ChatScreen(
                             if (err != null) {
                                 authErrorMessage = err
                             } else {
-                                authSuccessMessage = "Daftar akun berhasil! Selamat datang."
+                                authSuccessMessage = "Account registered successfully! Welcome."
                                 scope.launch {
                                     kotlinx.coroutines.delay(1200)
                                     showAuthDialog = false
@@ -1791,7 +1824,7 @@ fun ChatScreen(
                             if (err != null) {
                                 authErrorMessage = err
                             } else {
-                                authSuccessMessage = "Berhasil masuk akun!"
+                                authSuccessMessage = "Successfully signed in!"
                                 scope.launch {
                                     kotlinx.coroutines.delay(1200)
                                     showAuthDialog = false
@@ -1804,7 +1837,7 @@ fun ChatScreen(
                     },
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Text(if (isRegisterMode) "Daftar Akun" else "Masuk")
+                    Text(if (isRegisterMode) "Sign Up" else "Sign In")
                 }
             },
             dismissButton = {
@@ -1816,7 +1849,7 @@ fun ChatScreen(
                     },
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Text("Batal")
+                    Text("Cancel")
                 }
             }
         )
@@ -1829,7 +1862,7 @@ fun ChatScreen(
             onDismissRequest = { showBookmarksDialog = false },
             title = {
                 Text(
-                    text = "Pesan Favorit",
+                    text = "Saved Bookmarks",
                     style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
                 )
             },
@@ -1850,12 +1883,12 @@ fun ChatScreen(
                             Text("❤️", fontSize = 36.sp)
                             Spacer(modifier = Modifier.height(12.dp))
                             Text(
-                                text = "Belum Ada Favorit",
+                                text = "No Bookmarks Yet",
                                 style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold)
                             )
                             Spacer(modifier = Modifier.height(6.dp))
                             Text(
-                                text = "Tandai pesan asisten terbaik dengan menekan tombo ❤️ 'SIMPAN' didalam percakapan.",
+                                text = "Mark the best assistant messages by pressing the option ❤️ 'Save' inside the chat.",
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 textAlign = TextAlign.Center
@@ -1886,7 +1919,7 @@ fun ChatScreen(
                                             verticalAlignment = Alignment.CenterVertically
                                         ) {
                                             Text(
-                                                text = "Simpanan",
+                                                text = "Bookmark",
                                                 style = MaterialTheme.typography.labelSmall,
                                                 color = MaterialTheme.colorScheme.primary,
                                                 fontWeight = FontWeight.Bold
@@ -1896,13 +1929,13 @@ fun ChatScreen(
                                                     onClick = { copyToClipboard(bookmark.text) },
                                                     contentPadding = PaddingValues(horizontal = 8.dp)
                                                 ) {
-                                                    Text("SALIN", style = MaterialTheme.typography.labelSmall)
+                                                    Text("COPY", style = MaterialTheme.typography.labelSmall)
                                                 }
                                                 TextButton(
                                                     onClick = { viewModel.toggleBookmark(bookmark.id, false) },
                                                     contentPadding = PaddingValues(horizontal = 8.dp)
                                                 ) {
-                                                    Text("HAPUS", style = MaterialTheme.typography.labelSmall, color = Color.Red)
+                                                    Text("DELETE", style = MaterialTheme.typography.labelSmall, color = Color.Red)
                                                 }
                                             }
                                         }
@@ -1915,7 +1948,7 @@ fun ChatScreen(
             },
             confirmButton = {
                 Button(onClick = { showBookmarksDialog = false }) {
-                    Text("Tutup")
+                    Text("Close")
                 }
             }
         )
@@ -1926,7 +1959,11 @@ fun ChatScreen(
             uiState = uiState,
             onDismiss = { showSubscriptionDialog = false },
             onActivate = { plan -> viewModel.activateSubscription(plan) },
-            onCancel = { viewModel.cancelSubscription() }
+            onCancel = { viewModel.cancelSubscription() },
+            onRequireAuth = {
+                showSubscriptionDialog = false
+                showAuthDialog = true
+            }
         )
     }
 }
@@ -1999,7 +2036,7 @@ fun ChatMessageBubble(
                     modifier = Modifier.height(28.dp)
                 ) {
                     Text(
-                        text = if (isSpeaking) "■ BERHENTI" else "🔊 DENGAR",
+                        text = if (isSpeaking) "■ STOP" else "🔊 SPEAK",
                         style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
                         color = if (isSpeaking) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
                     )
@@ -2011,7 +2048,7 @@ fun ChatMessageBubble(
                     modifier = Modifier.height(28.dp)
                 ) {
                     Text(
-                        text = "📋 SALIN",
+                        text = "📋 COPY",
                         style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold)
                     )
                 }
@@ -2033,7 +2070,7 @@ fun ChatMessageBubble(
                     modifier = Modifier.height(28.dp)
                 ) {
                     Text(
-                        text = if (message.isBookmarked) "❤️ TERSIMPAN" else "🤍 SIMPAN",
+                        text = if (message.isBookmarked) "❤️ SAVED" else "🤍 SAVE",
                         style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
                         color = if (message.isBookmarked) Color.Red else MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -2138,7 +2175,7 @@ fun ChatInputBar(
                     modifier = Modifier.weight(1f),
                     placeholder = {
                         Text(
-                            text = if (isWebSearchEnabled) "Tanya Google real-time..." else "Ketik pesan...",
+                            text = if (isWebSearchEnabled) "Ask Google in real-time..." else "Type a message...",
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             style = MaterialTheme.typography.bodyMedium
                         )
@@ -2165,7 +2202,7 @@ fun ChatInputBar(
                 ) {
                     Icon(
                         imageVector = Icons.AutoMirrored.Filled.Send,
-                        contentDescription = "Kirim Pesan",
+                        contentDescription = "Send Message",
                         modifier = Modifier.size(18.dp)
                     )
                 }
@@ -2179,12 +2216,12 @@ fun ChatInputBar(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = if (isWebSearchEnabled) "🌐 Pencarian Web Real-Time Aktif (Google Search)" else "⚡ Eddie AI Smart Assistant v3.0",
+                    text = if (isWebSearchEnabled) "🌐 Real-Time Web Search Active (Google Search)" else "⚡ Eddie AI Smart Assistant v3.0",
                     color = if (isWebSearchEnabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
                     style = MaterialTheme.typography.labelSmall
                 )
                 Text(
-                    text = "Eddie dapat berbuat salah",
+                    text = "Eddie can make mistakes",
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     style = MaterialTheme.typography.labelSmall
                 )
@@ -2282,11 +2319,33 @@ fun EddieImageGeneratorView(
                 color = MaterialTheme.colorScheme.primary
             )
             Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                text = "Ubah kata-kata deskriptif menjadi mahakarya lukisan digital yang menakjubkan secara real-time.",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Transform descriptive words into stunning digital masterpieces in real-time.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.weight(1f)
+                )
+                if (uiState.isSubscribed) {
+                    Surface(
+                        color = Color(0xFFFFB100).copy(alpha = 0.15f),
+                        border = BorderStroke(1.dp, Color(0xFFFFB100)),
+                        shape = RoundedCornerShape(8.dp),
+                        modifier = Modifier.padding(start = 8.dp)
+                    ) {
+                        Text(
+                            text = "🪙 ${uiState.userTokens} Tokens",
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                            style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                            color = Color(0xFFFFB100)
+                        )
+                    }
+                }
+            }
         }
 
         // Input prompt card
@@ -2297,7 +2356,7 @@ fun EddieImageGeneratorView(
         ) {
             Column(modifier = Modifier.padding(16.dp)) {
                 Text(
-                    text = "Deskripsikan Gambar Impian Anda",
+                    text = "Describe Your Dream Image",
                     style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
                     color = MaterialTheme.colorScheme.onSurface,
                     modifier = Modifier.padding(bottom = 8.dp)
@@ -2306,7 +2365,7 @@ fun EddieImageGeneratorView(
                 OutlinedTextField(
                     value = prompt,
                     onValueChange = { prompt = it },
-                    placeholder = { Text("Contoh: Kota cyberpunk di bawah rintik hujan neon, detail tinggi...") },
+                    placeholder = { Text("Example: A cyberpunk city under neon rain, high detail...") },
                     modifier = Modifier.fillMaxWidth().height(100.dp),
                     shape = RoundedCornerShape(12.dp)
                 )
@@ -2315,7 +2374,7 @@ fun EddieImageGeneratorView(
 
                 // Sample Prompts pill row
                 Text(
-                    text = "Inspirasi Cepat:",
+                    text = "Quick Inspiration:",
                     style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(bottom = 6.dp)
@@ -2326,10 +2385,10 @@ fun EddieImageGeneratorView(
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     val quickPrompts = listOf(
-                        "Astronot menunggang kuda putih di planet Mars, lukisan minyak dramatis",
-                        "Kombinasi desa fantasi terapung penuh awan lembut, gaya cat air",
-                        "Kucing lucu bertopi penyihir membaca buku mantra sihir tua, render 3D",
-                        "Hutan mistis di malam penuh kunang-kunang bersinar keemasan"
+                        "An astronaut riding a white horse on Mars, dramatic oil painting",
+                        "A floating fantasy village surrounded by soft clouds, watercolor style",
+                        "A cute cat wearing a wizard hat reading an old magic spell book, 3D render",
+                        "A mystical forest at night filled with glowing golden fireflies"
                     )
                     quickPrompts.forEach { text ->
                         Surface(
@@ -2370,7 +2429,7 @@ fun EddieImageGeneratorView(
                         modifier = Modifier.size(20.dp)
                     )
                     Text(
-                        text = "Pilih Provider & Model Gambar",
+                        text = "Select Provider & Image Model",
                         style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
                         color = MaterialTheme.colorScheme.onSurface
                     )
@@ -2486,7 +2545,7 @@ fun EddieImageGeneratorView(
         // Styles Section
         Column {
             Text(
-                text = "Pilih Gaya Artistik",
+                text = "Select Artistic Style",
                 style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
                 color = MaterialTheme.colorScheme.onSurface,
                 modifier = Modifier.padding(bottom = 8.dp)
@@ -2542,7 +2601,7 @@ fun EddieImageGeneratorView(
         // Aspect Ratio Section
         Column {
             Text(
-                text = "Tentukan Rasio Aspek Gambar",
+                text = "Define Image Aspect Ratio",
                 style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
                 color = MaterialTheme.colorScheme.onSurface,
                 modifier = Modifier.padding(bottom = 8.dp)
@@ -2620,7 +2679,7 @@ fun EddieImageGeneratorView(
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Text(
-                        text = "Eddie Art Studio - Memproses Gambar...",
+                        text = "Eddie Art Studio - Processing Image...",
                         color = Color.Green,
                         style = TextStyle(fontFamily = FontFamily.Monospace, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                     )
@@ -2646,7 +2705,7 @@ fun EddieImageGeneratorView(
                 shape = RoundedCornerShape(12.dp)
             ) {
                 Text(
-                    text = "Mulai Melukis Gambar ✨",
+                    text = "Start Painting Image ✨",
                     style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
                 )
             }
@@ -2656,7 +2715,7 @@ fun EddieImageGeneratorView(
 
         // History Gallery Section
         Text(
-            text = "Koleksi Galeri Mahakarya Anda",
+            text = "Your Masterpiece Gallery Collection",
             style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
             color = MaterialTheme.colorScheme.onSurface
         )
@@ -2678,13 +2737,13 @@ fun EddieImageGeneratorView(
                     )
                     Spacer(modifier = Modifier.height(12.dp))
                     Text(
-                        text = "Belum Ada Mahakarya Seni",
+                        text = "No Art Masterpieces Yet",
                         style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
-                        text = "Deskripsikan visual impian Anda di atas untuk memulai galeri pertama Anda.",
+                        text = "Describe your dream visuals above to start your first gallery.",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         textAlign = TextAlign.Center,
@@ -2744,7 +2803,7 @@ fun EddieImageGeneratorView(
                                     )
                                     Spacer(modifier = Modifier.height(4.dp))
                                     Text(
-                                        text = "Rasio: " + imageItem.aspectRatio,
+                                        text = "Ratio: " + imageItem.aspectRatio,
                                         style = MaterialTheme.typography.labelSmall,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
@@ -2762,7 +2821,7 @@ fun EddieImageGeneratorView(
             onDismissRequest = { selectedImageForZoom = null },
             title = {
                 Text(
-                    text = "Detail Lukisan AI Anda",
+                    text = "Your AI Artwork Details",
                     style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
                 )
             },
@@ -2787,7 +2846,7 @@ fun EddieImageGeneratorView(
                     }
                     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                         Text(
-                            text = "Deskripsi Visual:",
+                            text = "Visual Description:",
                             style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -2803,7 +2862,7 @@ fun EddieImageGeneratorView(
                     ) {
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
-                                text = "Gaya Artistik",
+                                text = "Artistic Style",
                                 style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -2815,7 +2874,7 @@ fun EddieImageGeneratorView(
                         }
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
-                                text = "Rasio Gambar",
+                                text = "Image Ratio",
                                 style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -2839,19 +2898,19 @@ fun EddieImageGeneratorView(
                             selectedImageForZoom = null
                         }
                     ) {
-                        Text("Edit Gambar 🎨")
+                        Text("Edit Image 🎨")
                     }
                     Button(
                         onClick = {
                             val shareIntent = Intent(Intent.ACTION_SEND).apply {
                                 type = "text/plain"
-                                putExtra(Intent.EXTRA_SUBJECT, "Mahakarya Eddie AI")
-                                putExtra(Intent.EXTRA_TEXT, "Lihat gambar yang saya buat di Eddie Art Studio:\n\nPrompt: ${imageItem.prompt}\nLink: ${imageItem.imageUrl}")
+                                putExtra(Intent.EXTRA_SUBJECT, "Eddie AI Masterpiece")
+                                putExtra(Intent.EXTRA_TEXT, "Look at this image I created in Eddie Art Studio:\n\nPrompt: ${imageItem.prompt}\nLink: ${imageItem.imageUrl}")
                             }
-                            context.startActivity(Intent.createChooser(shareIntent, "Bagikan Gambar"))
+                            context.startActivity(Intent.createChooser(shareIntent, "Share Image"))
                         }
                     ) {
-                        Text("Bagikan")
+                        Text("Share")
                     }
                 }
             },
@@ -2862,7 +2921,7 @@ fun EddieImageGeneratorView(
                         selectedImageForZoom = null
                     }
                 ) {
-                    Text("Hapus", color = MaterialTheme.colorScheme.error)
+                    Text("Delete", color = MaterialTheme.colorScheme.error)
                 }
             }
         )
@@ -2920,11 +2979,11 @@ fun VideoPlayerDialog(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = "Pemutar Video Eddie AI 🎬",
+                    text = "Eddie AI Video Player 🎬",
                     style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
                 )
                 IconButton(onClick = onDismissRequest) {
-                    Icon(Icons.Default.Close, contentDescription = "Tutup")
+                    Icon(Icons.Default.Close, contentDescription = "Close")
                 }
             }
         },
@@ -2974,7 +3033,7 @@ fun VideoPlayerDialog(
                         }
                         Spacer(modifier = Modifier.height(12.dp))
                         Text(
-                            text = if (isPlaying) "Memutar Video..." else "Diberhentikan",
+                            text = if (isPlaying) "Playing Video..." else "Stopped",
                             color = Color.Green,
                             style = TextStyle(fontFamily = FontFamily.Monospace, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                         )
@@ -3035,7 +3094,7 @@ fun VideoPlayerDialog(
                 // Metadata Section
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Text(
-                        text = "Deskripsi Video:",
+                        text = "Video Description:",
                         style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -3052,7 +3111,7 @@ fun VideoPlayerDialog(
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            text = "Gaya Video",
+                            text = "Video Style",
                             style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -3064,7 +3123,7 @@ fun VideoPlayerDialog(
                     }
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            text = "Rasio Video",
+                            text = "Video Ratio",
                             style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -3082,7 +3141,7 @@ fun VideoPlayerDialog(
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            text = "Resolusi",
+                            text = "Resolution",
                             style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -3094,7 +3153,7 @@ fun VideoPlayerDialog(
                     }
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            text = "Durasi Kontrak",
+                            text = "Duration",
                             style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -3126,13 +3185,13 @@ fun VideoPlayerDialog(
                     onClick = {
                         val shareIntent = Intent(Intent.ACTION_SEND).apply {
                             type = "text/plain"
-                            putExtra(Intent.EXTRA_SUBJECT, "Render Sinematik Eddie AI")
-                            putExtra(Intent.EXTRA_TEXT, "Lihat video AI sinematik yang baru saya buat:\n\nPrompt: ${videoItem.prompt}\nSpek: Style: ${videoItem.style}, Rasio: ${videoItem.aspectRatio}, Resolusi: ${videoItem.resolution}, Durasi: ${videoItem.duration}\nLink Video: ${videoItem.videoUrl}")
+                            putExtra(Intent.EXTRA_SUBJECT, "Eddie AI Cinematic Render")
+                            putExtra(Intent.EXTRA_TEXT, "Look at this cinematic AI video I created:\n\nPrompt: ${videoItem.prompt}\nSpecs: Style: ${videoItem.style}, Ratio: ${videoItem.aspectRatio}, Resolution: ${videoItem.resolution}, Duration: ${videoItem.duration}\nVideo Link: ${videoItem.videoUrl}")
                         }
-                        context.startActivity(Intent.createChooser(shareIntent, "Bagikan Video"))
+                        context.startActivity(Intent.createChooser(shareIntent, "Share Video"))
                     }
                 ) {
-                    Text("Bagikan")
+                    Text("Share")
                 }
             }
         },
@@ -3143,7 +3202,7 @@ fun VideoPlayerDialog(
                     onDismissRequest()
                 }
             ) {
-                Text("Hapus", color = MaterialTheme.colorScheme.error)
+                Text("Delete", color = MaterialTheme.colorScheme.error)
             }
         }
     )
@@ -3166,7 +3225,7 @@ fun EddieVideoGeneratorView(
     var selectedStyle by remember { mutableStateOf("Realistic Drone") }
     var selectedAspectRatio by remember { mutableStateOf("16:9") }
     var selectedResolution by remember { mutableStateOf("720p") }
-    var selectedDuration by remember { mutableStateOf("5 detik") }
+    var selectedDuration by remember { mutableStateOf("5 seconds") }
     var selectedImageId by remember { mutableStateOf("") }
 
     var selectedVideoForPlay by remember { mutableStateOf<com.example.data.db.GeneratedVideoEntity?>(null) }
@@ -3194,10 +3253,10 @@ fun EddieVideoGeneratorView(
     )
 
     val durations = listOf(
-        "3 detik" to false to "Short Loop",
-        "5 detik" to false to "Medium Loop",
-        "10 detik" to true to "Extended HD",
-        "30 detik" to true to "Max Cinematic"
+        "3 seconds" to false to "Short Loop",
+        "5 seconds" to false to "Medium Loop",
+        "10 seconds" to true to "Extended HD",
+        "30 seconds" to true to "Max Cinematic"
     )
 
     Column(
@@ -3215,11 +3274,33 @@ fun EddieVideoGeneratorView(
                 color = MaterialTheme.colorScheme.primary
             )
             Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                text = "Ubah kata-kata deskriptif Anda menjadi video klip sinematik beresolusi tinggi yang ditenagai oleh performa server visual AI terbaik.",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Transform your descriptive words into high-resolution cinematic video clips powered by state-of-the-art AI servers.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.weight(1f)
+                )
+                if (uiState.isSubscribed) {
+                    Surface(
+                        color = Color(0xFFFFB100).copy(alpha = 0.15f),
+                        border = BorderStroke(1.dp, Color(0xFFFFB100)),
+                        shape = RoundedCornerShape(8.dp),
+                        modifier = Modifier.padding(start = 8.dp)
+                    ) {
+                        Text(
+                            text = "🪙 ${uiState.userTokens} Tokens",
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                            style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                            color = Color(0xFFFFB100)
+                        )
+                    }
+                }
+            }
         }
 
         // Provider & Model Selection Card for Video Generator
@@ -3241,7 +3322,7 @@ fun EddieVideoGeneratorView(
                         modifier = Modifier.size(20.dp)
                     )
                     Text(
-                        text = "Konfigurasi Studio Video AI",
+                        text = "AI Video Studio Configuration",
                         style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
                         color = MaterialTheme.colorScheme.onSurface
                     )
@@ -3251,7 +3332,7 @@ fun EddieVideoGeneratorView(
 
                 // Mode Selection
                 Text(
-                    text = "Mode Generasi:",
+                    text = "Generation Mode:",
                     style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -3288,7 +3369,7 @@ fun EddieVideoGeneratorView(
 
                 // Provider Selection
                 Text(
-                    text = "Provider Video AI:",
+                    text = "AI Video Provider:",
                     style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -3332,7 +3413,7 @@ fun EddieVideoGeneratorView(
 
                 // Model Selection
                 Text(
-                    text = "Model Video AI:",
+                    text = "AI Video Model:",
                     style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -3418,7 +3499,7 @@ fun EddieVideoGeneratorView(
                             modifier = Modifier.size(20.dp)
                         )
                         Text(
-                            text = "Pilih Gambar Referensi:",
+                            text = "Select Reference Image:",
                             style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
                             color = MaterialTheme.colorScheme.onSurface
                         )
@@ -3428,7 +3509,7 @@ fun EddieVideoGeneratorView(
 
                     if (uiState.generatedImages.isEmpty()) {
                         Text(
-                            text = "Pustaka foto Anda kosong. Buat gambar terlebih dahulu di tab 'Gambar AI' agar bisa menggunakannya sebagai referensi di sini.",
+                            text = "Your image library is empty. Please generate an image in the 'Eddie Image Studio' tab first to use it as a reference here.",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -3487,7 +3568,7 @@ fun EddieVideoGeneratorView(
         ) {
             Column(modifier = Modifier.padding(16.dp)) {
                 Text(
-                    text = "Deskripsikan Alur Cerita Video Anda",
+                    text = "Describe Your Video Storyline",
                     style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
                     color = MaterialTheme.colorScheme.onSurface,
                     modifier = Modifier.padding(bottom = 8.dp)
@@ -3496,7 +3577,7 @@ fun EddieVideoGeneratorView(
                 OutlinedTextField(
                     value = prompt,
                     onValueChange = { prompt = it },
-                    placeholder = { Text("Contoh: Kamera drone meluncur lambat di atas ombak pantai pulau tropis saat matahari terbenam fajar emas...") },
+                    placeholder = { Text("Example: Drone camera slowly gliding over tropical beach waves during a golden sunset at dusk...") },
                     modifier = Modifier.fillMaxWidth().height(100.dp),
                     shape = RoundedCornerShape(12.dp)
                 )
@@ -3504,7 +3585,7 @@ fun EddieVideoGeneratorView(
                 Spacer(modifier = Modifier.height(12.dp))
 
                 Text(
-                    text = "Inspirasi Cepat:",
+                    text = "Quick Inspiration:",
                     style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(bottom = 6.dp)
@@ -3515,10 +3596,10 @@ fun EddieVideoGeneratorView(
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     val quickPrompts = listOf(
-                        "Kamera sinematik meluncur lambat melintasi pemandangan katedral klasik tua di bawah rintik hujan",
-                        "Drone merekam pemandangan pegunungan es bersalju megah saat fajar keemasan",
-                        "Karakter anime berjalan di bawah pepohonan sakura berjatuhan dengan efek cahaya latar syahdu",
-                        "Gerakan mobil drift legendaris melintasi sirkuit neon malam kota cyberpunk penuh asap"
+                        "Cinematic camera slowly gliding across an ancient classical cathedral under gentle rainfall",
+                        "Drone capturing majestic snow-capped mountain peaks at golden dawn",
+                        "Anime character walking under falling cherry blossom trees with nostalgic backlighting",
+                        "Legendary car drifting through neon-lit night cyberpunk city streets with thick smoke"
                     )
                     quickPrompts.forEach { text ->
                         Surface(
@@ -3542,7 +3623,7 @@ fun EddieVideoGeneratorView(
 
         Column {
             Text(
-                text = "Pilih Gaya Sinematik",
+                text = "Select Cinematic Style",
                 style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
                 color = MaterialTheme.colorScheme.onSurface,
                 modifier = Modifier.padding(bottom = 8.dp)
@@ -3597,7 +3678,7 @@ fun EddieVideoGeneratorView(
 
         Column {
             Text(
-                text = "Rasio Aspek Video",
+                text = "Video Aspect Ratio",
                 style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
                 color = MaterialTheme.colorScheme.onSurface,
                 modifier = Modifier.padding(bottom = 8.dp)
@@ -3668,7 +3749,7 @@ fun EddieVideoGeneratorView(
 
         Column {
             Text(
-                text = "Resolusi Video",
+                text = "Video Resolution",
                 style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
                 color = MaterialTheme.colorScheme.onSurface,
                 modifier = Modifier.padding(bottom = 8.dp)
@@ -3739,7 +3820,7 @@ fun EddieVideoGeneratorView(
 
         Column {
             Text(
-                text = "Durasi Video",
+                text = "Video Duration",
                 style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
                 color = MaterialTheme.colorScheme.onSurface,
                 modifier = Modifier.padding(bottom = 8.dp)
@@ -3816,7 +3897,7 @@ fun EddieVideoGeneratorView(
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Text(
-                        text = "Eddie Video Studio - Memproses Render API...",
+                        text = "Eddie Video Studio - Processing Render API...",
                         color = Color.Green,
                         style = TextStyle(fontFamily = FontFamily.Monospace, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                     )
@@ -3842,7 +3923,7 @@ fun EddieVideoGeneratorView(
                 shape = RoundedCornerShape(12.dp)
             ) {
                 Text(
-                    text = "Mulai Render Video AI 🚀",
+                    text = "Start AI Video Render 🚀",
                     style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
                 )
             }
@@ -3851,7 +3932,7 @@ fun EddieVideoGeneratorView(
         HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f), modifier = Modifier.padding(vertical = 8.dp))
 
         Text(
-            text = "Koleksi Video AI Anda",
+            text = "Your AI Video Collection",
             style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
             color = MaterialTheme.colorScheme.onSurface
         )
@@ -3871,12 +3952,12 @@ fun EddieVideoGeneratorView(
                     Text("💡", fontSize = 28.sp)
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
-                        text = "Belum ada video yang di-render.",
+                        text = "No videos rendered yet.",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Text(
-                        text = "Ubah kata-kata deskriptif Anda di atas untuk merender video pertama Anda!",
+                        text = "Modify your descriptive words above to render your first video!",
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
                         textAlign = TextAlign.Center,
@@ -3920,7 +4001,7 @@ fun EddieVideoGeneratorView(
                                     Box(contentAlignment = Alignment.Center) {
                                         Icon(
                                             imageVector = Icons.Default.PlayArrow,
-                                            contentDescription = "Mainkan",
+                                            contentDescription = "Play",
                                             tint = Color.White,
                                             modifier = Modifier.size(28.dp)
                                         )
@@ -3958,7 +4039,7 @@ fun EddieVideoGeneratorView(
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     Text(
-                                        text = "Gaya: ${video.style}",
+                                        text = "Style: ${video.style}",
                                         style = MaterialTheme.typography.labelSmall,
                                         color = MaterialTheme.colorScheme.primary
                                     )
@@ -3968,12 +4049,12 @@ fun EddieVideoGeneratorView(
                                     ) {
                                         Icon(
                                             imageVector = Icons.Default.Delete,
-                                            contentDescription = "Hapus",
+                                            contentDescription = "Delete",
                                             tint = MaterialTheme.colorScheme.error,
                                             modifier = Modifier.size(16.dp)
                                         )
                                         Spacer(modifier = Modifier.width(4.dp))
-                                        Text("Hapus", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.labelSmall)
+                                        Text("Delete", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.labelSmall)
                                     }
                                 }
                             }
@@ -4114,7 +4195,7 @@ fun EddieMusicGeneratorView(
                         isAudioPlaying = false
                         playingMusicId = null
                         playPercent = 0f
-                        Toast.makeText(context, "Gagal memutar audio dari server", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(context, "Failed to play audio from server", Toast.LENGTH_SHORT).show()
                         true
                     }
                     prepareAsync()
@@ -4123,33 +4204,33 @@ fun EddieMusicGeneratorView(
                 playingMusicId = id // show buffering state
             } catch (e: Exception) {
                 android.util.Log.e("EddieMusic", "Failed to setup player", e)
-                Toast.makeText(context, "Kesalahan inisialisasi media player", Toast.LENGTH_SHORT).show()
+                Toast.makeText(context, "Media player initialization error", Toast.LENGTH_SHORT).show()
             }
         }
     }
 
     val genres = listOf(
-        "Pop" to false to "Enerjik & Ceria",
-        "Rock" to false to "Distorsi & Ketukan Keras",
-        "Lo-Fi" to true to "Ketukan Santai & Retro",
+        "Pop" to false to "Energetic & Upbeat",
+        "Rock" to false to "Distortion & Heavy Beat",
+        "Lo-Fi" to true to "Relaxing & Retro Beat",
         "Jazz" to true to "Mellow & Swing",
-        "EDM" to true to "Synthesizer & Klub Malam",
-        "Classical" to true to "Symphony & Orkestra",
-        "Ambient" to true to "Suku Luas & Meditasi",
-        "Hip-Hop" to true to "Ketukan Urban & Bass"
+        "EDM" to true to "Synthesizer & Nightclub",
+        "Classical" to true to "Symphony & Orchestra",
+        "Ambient" to true to "Deep Atmospheric & Meditation",
+        "Hip-Hop" to true to "Urban Beat & Bass"
     )
 
     val durations = listOf(
-        "15s" to false to "Intro Singkat",
+        "15s" to false to "Short Intro",
         "30s" to false to "Shorts/Story",
-        "60s" to true to "Lagu Standar",
-        "120s" to true to "Komposisi Panjang"
+        "60s" to true to "Standard Track",
+        "120s" to true to "Full Composition"
     )
 
     val tempos = listOf(
-        "Slow" to "Lambat & Santai",
-        "Medium" to "Sedang & Alami",
-        "Fast" to "Cepat & Menghentak"
+        "Slow" to "Slow & Relaxed",
+        "Medium" to "Moderate & Natural",
+        "Fast" to "Fast & Energetic"
     )
 
     Column(
@@ -4167,11 +4248,33 @@ fun EddieMusicGeneratorView(
                 color = MaterialTheme.colorScheme.primary
             )
             Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                text = "Ubah deskripsi imajinatif Anda menjadi harmoni instrumen hifi hibrida yang ditenagai audio sintesis multi-genre terbaik.",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Transform your imaginative descriptions into hybrid hi-fi instrumental harmony powered by state-of-the-art multi-genre synthetic audio.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.weight(1f)
+                )
+                if (uiState.isSubscribed) {
+                    Surface(
+                        color = Color(0xFFFFB100).copy(alpha = 0.15f),
+                        border = BorderStroke(1.dp, Color(0xFFFFB100)),
+                        shape = RoundedCornerShape(8.dp),
+                        modifier = Modifier.padding(start = 8.dp)
+                    ) {
+                        Text(
+                            text = "🪙 ${uiState.userTokens} Tokens",
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                            style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                            color = Color(0xFFFFB100)
+                        )
+                    }
+                }
+            }
         }
 
         // Provider & Model Selection Card for Music Generator
@@ -4193,7 +4296,7 @@ fun EddieMusicGeneratorView(
                         modifier = Modifier.size(20.dp)
                     )
                     Text(
-                        text = "Konfigurasi Studio Musik AI",
+                        text = "AI Music Studio Configuration",
                         style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
                         color = MaterialTheme.colorScheme.onSurface
                     )
@@ -4203,7 +4306,7 @@ fun EddieMusicGeneratorView(
 
                 // Provider Selection
                 Text(
-                    text = "Provider Musik AI:",
+                    text = "AI Music Provider:",
                     style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -4243,7 +4346,7 @@ fun EddieMusicGeneratorView(
 
                 // Model Selection
                 Text(
-                    text = "Model Musik AI:",
+                    text = "AI Music Model:",
                     style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -4305,7 +4408,7 @@ fun EddieMusicGeneratorView(
         ) {
             Column(modifier = Modifier.padding(16.dp)) {
                 Text(
-                    text = "Deskripsikan Musik atau Mood Lagu",
+                    text = "Describe Music or Song Mood",
                     style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
                     color = MaterialTheme.colorScheme.onSurface,
                     modifier = Modifier.padding(bottom = 8.dp)
@@ -4314,7 +4417,7 @@ fun EddieMusicGeneratorView(
                 OutlinedTextField(
                     value = prompt,
                     onValueChange = { prompt = it },
-                    placeholder = { Text("Contoh: Ketukan keyboard akustik hangat dengan alunan saksofon mellow di malam hari saat hujan...") },
+                    placeholder = { Text("Example: Warm acoustic keyboard beats with mellow saxophone tunes on a rainy night...") },
                     modifier = Modifier.fillMaxWidth().height(100.dp),
                     shape = RoundedCornerShape(12.dp)
                 )
@@ -4322,7 +4425,7 @@ fun EddieMusicGeneratorView(
                 Spacer(modifier = Modifier.height(12.dp))
 
                 Text(
-                    text = "Inspirasi Cepat:",
+                    text = "Quick Inspiration:",
                     style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(bottom = 6.dp)
@@ -4333,10 +4436,10 @@ fun EddieMusicGeneratorView(
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     val quickPrompts = listOf(
-                        "Lagu santai dengan petikan gitar akustik lembut di pinggir api unggun",
-                        "Melodi piano klasik yang damai dengan hembusan angin laut luas",
-                        "Gabungan bass tebal menghentak dengan synth neon retro bersemangat",
-                        "Instrumen hip-hop lo-fi dengan suara vinyl crackle dan rintik hujan di kaca jendela"
+                        "Chill song with soft acoustic guitar strumming by the campfire",
+                        "Peaceful classical piano melody with a gentle oceanic breeze",
+                        "Thumping heavy bass blended with an energetic retro neon synth",
+                        "Lo-fi hip-hop beat with vinyl crackle and cozy window rain sounds"
                     )
                     quickPrompts.forEach { text ->
                         Surface(
@@ -4361,7 +4464,7 @@ fun EddieMusicGeneratorView(
         // 1. Genre selection
         Column {
             Text(
-                text = "Pilih Genre Populer",
+                text = "Select Popular Genre",
                 style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
                 color = MaterialTheme.colorScheme.onSurface,
                 modifier = Modifier.padding(bottom = 8.dp)
@@ -4435,7 +4538,7 @@ fun EddieMusicGeneratorView(
         // 2. Duration selection
         Column {
             Text(
-                text = "Pilih Durasi Trek",
+                text = "Select Track Duration",
                 style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
                 color = MaterialTheme.colorScheme.onSurface,
                 modifier = Modifier.padding(bottom = 8.dp)
@@ -4507,7 +4610,7 @@ fun EddieMusicGeneratorView(
         // 3. Tempo selection
         Column {
             Text(
-                text = "Pilih Tempo Musik",
+                text = "Select Music Tempo",
                 style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
                 color = MaterialTheme.colorScheme.onSurface,
                 modifier = Modifier.padding(bottom = 8.dp)
@@ -4561,7 +4664,7 @@ fun EddieMusicGeneratorView(
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Text(
-                        text = "Eddie Music Studio - Meresonansi Log Sintesis...",
+                        text = "Eddie Music Studio - Resonating Track Synthesis...",
                         color = Color.Green,
                         style = TextStyle(fontFamily = FontFamily.Monospace, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                     )
@@ -4587,7 +4690,7 @@ fun EddieMusicGeneratorView(
                 shape = RoundedCornerShape(12.dp)
             ) {
                 Text(
-                    text = "Mulai Generasi Musik AI 🎵",
+                    text = "Start AI Music Generation 🎵",
                     style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
                 )
             }
@@ -4597,7 +4700,7 @@ fun EddieMusicGeneratorView(
 
         // Tracks collection List
         Text(
-            text = "Pustaka Musik AI Anda",
+            text = "Your AI Music Library",
             style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
             color = MaterialTheme.colorScheme.onSurface
         )
@@ -4622,12 +4725,12 @@ fun EddieMusicGeneratorView(
                     )
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
-                        text = "Belum ada rekaman musik yang dibuat",
+                        text = "No music tracks created yet",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Text(
-                        text = "Buat lagu perdana Anda bermodal imajinasi kata di atas.",
+                        text = "Create your first song with the power of words above.",
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
                     )
@@ -4718,7 +4821,7 @@ fun EddieMusicGeneratorView(
                                     ) {
                                         Icon(
                                             imageVector = Icons.Default.Edit,
-                                            contentDescription = "Edit Musik",
+                                            contentDescription = "Edit Music",
                                             tint = MaterialTheme.colorScheme.primary
                                         )
                                     }
@@ -4727,7 +4830,7 @@ fun EddieMusicGeneratorView(
                                     ) {
                                         Icon(
                                             imageVector = Icons.Default.Delete,
-                                            contentDescription = "Hapus",
+                                            contentDescription = "Delete",
                                             tint = MaterialTheme.colorScheme.error.copy(alpha = 0.8f)
                                         )
                                     }
@@ -4829,7 +4932,7 @@ fun EddieImageEditorDialog(
         onDismissRequest = { if (!isSaving) onDismissRequest() },
         title = {
             Text(
-                text = "Studio Sunting Gambar Eddie AI 🎨",
+                text = "Eddie AI Image Editing Studio 🎨",
                 style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold)
             )
         },
@@ -4921,7 +5024,7 @@ fun EddieImageEditorDialog(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            text = "Kecerahan (Brightness)",
+                            text = "Brightness",
                             style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold)
                         )
                         Text(
@@ -4941,7 +5044,7 @@ fun EddieImageEditorDialog(
                 // Tones/Filters list
                 Column {
                     Text(
-                        text = "Tapis Warna (Tone Filters)",
+                        text = "Tone Filters",
                         style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
                         modifier = Modifier.padding(bottom = 6.dp)
                     )
@@ -4973,13 +5076,13 @@ fun EddieImageEditorDialog(
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     Text(
-                        text = "Sisipkan Teks / Watermark",
+                        text = "Insert Text / Watermark",
                         style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold)
                     )
                     OutlinedTextField(
                         value = customText,
                         onValueChange = { customText = it },
-                        placeholder = { Text("Masukkan watermark...") },
+                        placeholder = { Text("Enter watermark...") },
                         modifier = Modifier.fillMaxWidth(),
                         maxLines = 1,
                         singleLine = true,
@@ -4994,7 +5097,7 @@ fun EddieImageEditorDialog(
                         ) {
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(
-                                    text = "Posisi Teks",
+                                    text = "Text Position",
                                     style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
                                     modifier = Modifier.padding(bottom = 4.dp)
                                 )
@@ -5025,7 +5128,7 @@ fun EddieImageEditorDialog(
 
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(
-                                    text = "Warna Teks",
+                                    text = "Text Color",
                                     style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
                                     modifier = Modifier.padding(bottom = 4.dp)
                                 )
@@ -5067,7 +5170,7 @@ fun EddieImageEditorDialog(
                     ) {
                         Column(modifier = Modifier.padding(10.dp)) {
                             Text(
-                                text = "Progres Penyusunan Lapisan Piksel:",
+                                text = "Pixel Layer Processing Progress:",
                                 color = Color.Green,
                                 style = TextStyle(fontFamily = FontFamily.Monospace, fontSize = 10.sp, fontWeight = FontWeight.Bold)
                             )
@@ -5095,27 +5198,27 @@ fun EddieImageEditorDialog(
                     onClick = {
                         isSaving = true
                         scope.launch {
-                            savingLog = "> Membaca matriks piksel hifi gambar...\n"
+                            savingLog = "> Reading image hifi pixel matrix...\n"
                             savingProgress = 0.1f
                             delay(800)
-                            savingLog += "> Mengkalibrasi kecerahan: ${(brightness * 100).toInt()}%\n"
+                            savingLog += "> Calibrating brightness: ${(brightness * 100).toInt()}%\n"
                             savingProgress = 0.35f
                             delay(850)
-                            savingLog += "> Mengaplikasikan tone filter: $selectedTone\n"
+                            savingLog += "> Applying tone filter: $selectedTone\n"
                             savingProgress = 0.6f
                             delay(900)
                             if (customText.isNotBlank()) {
-                                savingLog += "> Menyisipkan watermark: '$customText' di posisi $textPosition ($selectedTextColor)\n"
+                                savingLog += "> Inserting watermark: '$customText' at position $textPosition ($selectedTextColor)\n"
                                 savingProgress = 0.85f
                                 delay(850)
                             }
-                            savingLog += "> Render hibrida selesai! Menyimpan salinan disunting..."
+                            savingLog += "> Hybrid rendering complete! Saving edited copy..."
                             savingProgress = 1.0f
                             delay(600)
 
                             val styleSuffix = if (selectedTone != "Original") " [$selectedTone]" else ""
-                            val watermarkSuffix = if (customText.isNotBlank()) " | Tertera '$customText'" else ""
-                            val newPrompt = "${imageItem.prompt} (Disunting - Kecerahan ${(brightness * 100).toInt()}%$styleSuffix$watermarkSuffix)"
+                            val watermarkSuffix = if (customText.isNotBlank()) " | Watermarked '$customText'" else ""
+                            val newPrompt = "${imageItem.prompt} (Edited - Brightness ${(brightness * 100).toInt()}%$styleSuffix$watermarkSuffix)"
 
                             onSaveEditedImage(
                                 imageItem.id,
@@ -5126,12 +5229,12 @@ fun EddieImageEditorDialog(
                             )
 
                             isSaving = false
-                            Toast.makeText(context, "Hasil suntingan tersimpan di Galeri Utama!", Toast.LENGTH_SHORT).show()
+                            Toast.makeText(context, "Edited artwork saved to Main Gallery!", Toast.LENGTH_SHORT).show()
                             onDismissRequest()
                         }
                     }
                 ) {
-                    Text("Ekspor & Simpan 🎨")
+                    Text("Export & Save 🎨")
                 }
             }
         },
@@ -5140,7 +5243,7 @@ fun EddieImageEditorDialog(
                 TextButton(
                     onClick = onDismissRequest
                 ) {
-                    Text("Batal")
+                    Text("Cancel")
                 }
             }
         }
@@ -5175,7 +5278,7 @@ fun EddieVideoEditorDialog(
         onDismissRequest = { if (!isSaving) onDismissRequest() },
         title = {
             Text(
-                text = "Studio Sunting Video Eddie AI 🎬",
+                text = "Eddie AI Video Editing Studio 🎬",
                 style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold)
             )
         },
@@ -5203,7 +5306,7 @@ fun EddieVideoEditorDialog(
                         Text("🎬", fontSize = 42.sp)
                         Spacer(modifier = Modifier.height(8.dp))
                         Text(
-                            text = "Sunting: ${videoItem.prompt}",
+                            text = "Edit: ${videoItem.prompt}",
                             color = Color.White,
                             style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.SemiBold),
                             maxLines = 1,
@@ -5211,7 +5314,7 @@ fun EddieVideoEditorDialog(
                             modifier = Modifier.padding(horizontal = 16.dp)
                         )
                         Text(
-                            text = "Rasio: ${videoItem.aspectRatio} • Asli: ${videoItem.duration}",
+                            text = "Ratio: ${videoItem.aspectRatio} • Original: ${videoItem.duration}",
                             color = Color.LightGray,
                             style = MaterialTheme.typography.labelSmall
                         )
@@ -5221,7 +5324,7 @@ fun EddieVideoEditorDialog(
                 // Video Trimming Sliders
                 Column {
                     Text(
-                        text = "Trim Durasi Konten (Detik)",
+                        text = "Trim Content Duration (Seconds)",
                         style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
                         modifier = Modifier.padding(bottom = 6.dp)
                     )
@@ -5231,7 +5334,7 @@ fun EddieVideoEditorDialog(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Column(modifier = Modifier.weight(1f)) {
-                            Text("Mulai: ${String.format("%.1f", startTrim)}s", style = MaterialTheme.typography.labelSmall)
+                            Text("Start: ${String.format("%.1f", startTrim)}s", style = MaterialTheme.typography.labelSmall)
                             Slider(
                                 value = startTrim,
                                 onValueChange = { startTrim = it.coerceAtMost(endTrim - 0.5f) },
@@ -5240,7 +5343,7 @@ fun EddieVideoEditorDialog(
                             )
                         }
                         Column(modifier = Modifier.weight(1f)) {
-                            Text("Selesai: ${String.format("%.1f", endTrim)}s", style = MaterialTheme.typography.labelSmall)
+                            Text("End: ${String.format("%.1f", endTrim)}s", style = MaterialTheme.typography.labelSmall)
                             Slider(
                                 value = endTrim,
                                 onValueChange = { endTrim = it.coerceAtLeast(startTrim + 0.5f) },
@@ -5254,7 +5357,7 @@ fun EddieVideoEditorDialog(
                 // Audio Soundtrack Overlay Selection
                 Column {
                     Text(
-                        text = "Sisipkan Lagu Latar (Audio Overlay)",
+                        text = "Insert Background Audio (Audio Overlay)",
                         style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
                         modifier = Modifier.padding(bottom = 6.dp)
                     )
@@ -5284,7 +5387,7 @@ fun EddieVideoEditorDialog(
                 // Playback speed selection (Speed Multiplier)
                 Column {
                     Text(
-                        text = "Kecepatan Pemutaran (Playback Speed)",
+                        text = "Playback Speed",
                         style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
                         modifier = Modifier.padding(bottom = 6.dp)
                     )
@@ -5320,7 +5423,7 @@ fun EddieVideoEditorDialog(
                 // Transition style
                 Column {
                     Text(
-                        text = "Efek Transisi Gabungan",
+                        text = "Transition Effects",
                         style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
                         modifier = Modifier.padding(bottom = 6.dp)
                     )
@@ -5356,7 +5459,7 @@ fun EddieVideoEditorDialog(
                     ) {
                         Column(modifier = Modifier.padding(10.dp)) {
                             Text(
-                                text = "Terminal Render Audio-Visual Multiplexing:",
+                                text = "Audio-Visual Multiplexing Render Terminal:",
                                 color = Color.Green,
                                 style = TextStyle(fontFamily = FontFamily.Monospace, fontSize = 10.sp, fontWeight = FontWeight.Bold)
                             )
@@ -5384,31 +5487,31 @@ fun EddieVideoEditorDialog(
                     onClick = {
                         isSaving = true
                         scope.launch {
-                            savingLog = "> Mengunduh frame video mentah hifi...\n"
+                            savingLog = "> Downloading raw hifi video frames...\n"
                             savingProgress = 0.12f
                             delay(850)
-                            savingLog += "> Melakukan trim klip: durasi detik ${String.format("%.1f", startTrim)} ke ${String.format("%.1f", endTrim)}...\n"
+                            savingLog += "> Trimming clip: duration seconds ${String.format("%.1f", startTrim)} to ${String.format("%.1f", endTrim)}...\n"
                             savingProgress = 0.38f
                             delay(900)
-                            savingLog += "> Menyusun transisi klip: $selectedTransition\n"
+                            savingLog += "> Constructing clip transition: $selectedTransition\n"
                             savingProgress = 0.55f
                             delay(800)
-                            savingLog += "> Mengatur pengali frame-rate kecepatan: $selectedSpeed\n"
+                            savingLog += "> Adjusting playback speed multiplier: $selectedSpeed\n"
                             savingProgress = 0.72f
                             delay(850)
                             if (selectedSoundtrack != "Mute Sound") {
-                                savingLog += "> Me-muxing audio soundtrack: $selectedSoundtrack ke video...\n"
+                                savingLog += "> Muxing soundtrack audio: $selectedSoundtrack to video...\n"
                                 savingProgress = 0.88f
                                 delay(900)
                             }
-                            savingLog += "> Mengkompresi ke codec H.264 MP4 hifi selesai!"
+                            savingLog += "> Compressing to H.264 MP4 hifi codec finished!"
                             savingProgress = 1.0f
                             delay(600)
 
                             val estimatedDuration = String.format("%.1f", (endTrim - startTrim) / (selectedSpeed.replace("x", "").toFloatOrNull() ?: 1.0f))
                             val trackSuffix = if (selectedSoundtrack != "Mute Sound") { " | Sound: $selectedSoundtrack" } else ""
                             val transSuffix = if (selectedTransition != "None") { " | Transition: $selectedTransition" } else ""
-                            val finalNewPrompt = "${videoItem.prompt} (Disunting - ${selectedSpeed} speed$transSuffix$trackSuffix)"
+                            val finalNewPrompt = "${videoItem.prompt} (Edited - ${selectedSpeed} speed$transSuffix$trackSuffix)"
 
                             onSaveEditedVideo(
                                 videoItem.id,
@@ -5416,17 +5519,17 @@ fun EddieVideoEditorDialog(
                                 videoItem.style,
                                 videoItem.aspectRatio,
                                 "1080p", // HD quality edited output
-                                "$estimatedDuration detik",
+                                "$estimatedDuration seconds",
                                 videoItem.videoUrl
                             )
 
                             isSaving = false
-                            Toast.makeText(context, "Klip video hasil suntingan berhasil disimpan dalam Pustaka!", Toast.LENGTH_SHORT).show()
+                            Toast.makeText(context, "Edited video clip successfully saved to Library!", Toast.LENGTH_SHORT).show()
                             onDismissRequest()
                         }
                     }
                 ) {
-                    Text("Kompilasi & Simpan 🚀")
+                    Text("Compile & Save 🚀")
                 }
             }
         },
@@ -5435,7 +5538,7 @@ fun EddieVideoEditorDialog(
                 TextButton(
                     onClick = onDismissRequest
                 ) {
-                    Text("Batal")
+                    Text("Cancel")
                 }
             }
         }
@@ -5472,7 +5575,7 @@ fun EddieMusicEditorDialog(
         onDismissRequest = { if (!isSaving) onDismissRequest() },
         title = {
             Text(
-                text = "Pencampur Mixer Musik Eddie AI 🎵",
+                text = "Eddie AI Music Mixer & Console 🎵",
                 style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold)
             )
         },
@@ -5536,7 +5639,7 @@ fun EddieMusicEditorDialog(
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     Text(
-                        text = "Kontrol Multi-Track Mixer Stems",
+                        text = "Multi-Track Mixer Stems Control",
                         style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
                         color = MaterialTheme.colorScheme.onSurface
                     )
@@ -5547,7 +5650,7 @@ fun EddieMusicEditorDialog(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
-                            Text("Volume Vokal Utama 🎤", style = MaterialTheme.typography.labelMedium)
+                            Text("Main Vocal Volume 🎤", style = MaterialTheme.typography.labelMedium)
                             Text("${(vocalVolume * 100).toInt()}%", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
                         }
                         Slider(value = vocalVolume, onValueChange = { vocalVolume = it }, valueRange = 0f..1.2f)
@@ -5559,7 +5662,7 @@ fun EddieMusicEditorDialog(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
-                            Text("Drums / Ketukan Perkusi 🥁", style = MaterialTheme.typography.labelMedium)
+                            Text("Drums / Percussion Beats 🥁", style = MaterialTheme.typography.labelMedium)
                             Text("${(beatVolume * 100).toInt()}%", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
                         }
                         Slider(value = beatVolume, onValueChange = { beatVolume = it }, valueRange = 0f..1.2f)
@@ -5571,7 +5674,7 @@ fun EddieMusicEditorDialog(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
-                            Text("Melodi / Komposisi Petikan 🎹", style = MaterialTheme.typography.labelMedium)
+                            Text("Melody / Instrumental Leads 🎹", style = MaterialTheme.typography.labelMedium)
                             Text("${(melodyVolume * 100).toInt()}%", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
                         }
                         Slider(value = melodyVolume, onValueChange = { melodyVolume = it }, valueRange = 0f..1.2f)
@@ -5583,7 +5686,7 @@ fun EddieMusicEditorDialog(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
-                            Text("Ruang Ambience Pad / Fx 🌌", style = MaterialTheme.typography.labelMedium)
+                            Text("Ambience Pads & FX 🌌", style = MaterialTheme.typography.labelMedium)
                             Text("${(ambienceVolume * 100).toInt()}%", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
                         }
                         Slider(value = ambienceVolume, onValueChange = { ambienceVolume = it }, valueRange = 0f..1.2f)
@@ -5593,7 +5696,7 @@ fun EddieMusicEditorDialog(
                 // Equalizer selector
                 Column {
                     Text(
-                        text = "Setelan Equalizer (EQ Profile)",
+                        text = "Equalizer Settings (EQ Profile)",
                         style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
                         modifier = Modifier.padding(bottom = 6.dp)
                     )
@@ -5623,7 +5726,7 @@ fun EddieMusicEditorDialog(
                 // Tempo / BPM adjustment
                 Column {
                     Text(
-                        text = "Modulasi Tempo Musik (BPM)",
+                        text = "Music Tempo Modulation (BPM)",
                         style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
                         modifier = Modifier.padding(bottom = 6.dp)
                     )
@@ -5687,19 +5790,19 @@ fun EddieMusicEditorDialog(
                     onClick = {
                         isSaving = true
                         scope.launch {
-                            savingLog = "> Membaca data trek master audio hifi...\n"
+                            savingLog = "> Reading hifi master audio track data...\n"
                             savingProgress = 0.15f
                             delay(850)
-                            savingLog += "> Mengatur gain stem mixer: Vokal ${(vocalVolume * 100).toInt()}%, Beats ${(beatVolume * 100).toInt()}%...\n"
+                            savingLog += "> Adjusting stem mixer gain: Vocal ${(vocalVolume * 100).toInt()}%, Beats ${(beatVolume * 100).toInt()}%...\n"
                             savingProgress = 0.4f
                             delay(900)
-                            savingLog += "> Mengkonfigurasi Equalization profile: $selectedEq\n"
+                            savingLog += "> Configuring Equalization profile: $selectedEq\n"
                             savingProgress = 0.65f
                             delay(800)
-                            savingLog += "> Membentuk modulasi tempo master: $selectedTempoMultiplier\n"
+                            savingLog += "> Modeling master tempo modulation: $selectedTempoMultiplier\n"
                             savingProgress = 0.85f
                             delay(900)
-                            savingLog += "> Me-remix klip audio stereo multi-channel berhasil!"
+                            savingLog += "> Multi-channel stereo audio clip remixed successfully!"
                             savingProgress = 1.0f
                             delay(600)
 
@@ -5717,12 +5820,12 @@ fun EddieMusicEditorDialog(
                             )
 
                             isSaving = false
-                            Toast.makeText(context, "Karya remix musik berhasil ditambahkan ke Gallery Studio!", Toast.LENGTH_SHORT).show()
+                            Toast.makeText(context, "Remixed music track successfully added to Gallery Studio!", Toast.LENGTH_SHORT).show()
                             onDismissRequest()
                         }
                     }
                 ) {
-                    Text("Remix & Simpan Mentah 🎚️")
+                    Text("Remix & Save Track 🎚️")
                 }
             }
         },
@@ -5731,7 +5834,7 @@ fun EddieMusicEditorDialog(
                 TextButton(
                     onClick = onDismissRequest
                 ) {
-                    Text("Batal")
+                    Text("Cancel")
                 }
             }
         }

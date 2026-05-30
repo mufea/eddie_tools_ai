@@ -30,24 +30,25 @@ fun SubscriptionFlowDialog(
     uiState: ChatUiState,
     onDismiss: () -> Unit,
     onActivate: (String) -> Unit,
-    onCancel: () -> Unit
+    onCancel: () -> Unit,
+    onRequireAuth: () -> Unit
 ) {
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
     
     // UI selection states for flow steps
-    var selectedPlan by remember { mutableStateOf("Bulanan") }
-    var selectedPaymentMethod by remember { mutableStateOf("GoPay") }
+    var selectedPlan by remember { mutableStateOf("Monthly") }
+    var selectedPaymentMethod by remember { mutableStateOf("PayPal") }
     
     // Simulated engine states
     var isSimulating by remember { mutableStateOf(false) }
     var simulationLog by remember { mutableStateOf("") }
     
     val planPrice = when (selectedPlan) {
-        "Mingguan" -> "Rp 15.000"
-        "Bulanan" -> "Rp 49.000"
-        "Tahunan" -> "Rp 299.000"
-        else -> "Rp 0"
+        "Weekly" -> "$0.99"
+        "Monthly" -> "$3.99"
+        "Yearly" -> "$24.99"
+        else -> "$0"
     }
 
     Dialog(
@@ -92,7 +93,7 @@ fun SubscriptionFlowDialog(
                                 color = MaterialTheme.colorScheme.onBackground
                             )
                             Text(
-                                text = "Pro Akses & Simulasi Alur Pembayaran",
+                                text = "Pro Access & Payment Flow Simulation",
                                 style = MaterialTheme.typography.labelSmall,
                                 color = Color(0xFFFFB100),
                                 fontWeight = FontWeight.Bold
@@ -103,7 +104,7 @@ fun SubscriptionFlowDialog(
                         onClick = onDismiss,
                         enabled = !isSimulating
                     ) {
-                        Icon(Icons.Default.Close, contentDescription = "Tutup")
+                        Icon(Icons.Default.Close, contentDescription = "Close")
                     }
                 }
 
@@ -122,16 +123,16 @@ fun SubscriptionFlowDialog(
                             modifier = Modifier.padding(16.dp),
                             horizontalAlignment = Alignment.CenterHorizontally
                         ) {
-                            Text("✨ STATUS LANGGANAN AKTIF ✨", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                            Text("✨ ACTIVE SUBSCRIPTION STATUS ✨", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
                             Spacer(modifier = Modifier.height(8.dp))
                             Text(
-                                text = "Selamat! Anda memiliki paket Premium (${uiState.activeSubscriptionPlan}) aktif.",
+                                text = "Congratulations! You have active Premium (${uiState.activeSubscriptionPlan}) package.",
                                 style = MaterialTheme.typography.bodyMedium,
                                 textAlign = TextAlign.Center
                             )
                             Spacer(modifier = Modifier.height(4.dp))
                             Text(
-                                text = "Masa berlaku hingga: ${uiState.subscriptionExpiryDate}",
+                                text = "Valid until: ${uiState.subscriptionExpiryDate}",
                                 style = MaterialTheme.typography.labelMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -141,7 +142,7 @@ fun SubscriptionFlowDialog(
                             Spacer(modifier = Modifier.height(12.dp))
 
                             Text(
-                                text = "Dengan Premium, Anda telah membuka kekuatan penuh Eddie Pro yang memiliki kecerdasan superior untuk penalaran kompleks, melepas batasan seni di Eddie AI Art Studio (akses tanpa batas ke model gaya Pro dan rasio HD), serta membuka fitur Eddie Video Studio secara penuh (menghilangkan batas maksimal pembuatan 2 video gratis, serta membuka durasi premium 10s - 30s, resolusi Full HD & 4K, serta rasio aspek vertikal 9:16 untuk Reel/Shorts/TikTok dan rasio sinematik 21:9).",
+                                text = "With Premium, you have unlocked the full power of Eddie Pro with superior intelligence for complex reasoning, unlimited art generation in Eddie AI Art Studio (unlimited access to Pro styles and HD ratios), and full access to Eddie Video Studio (no free limits, 10s-30s durations, Full HD & 4K resolution, cinematic shapes and aspect ratios).",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 textAlign = TextAlign.Center
@@ -152,14 +153,14 @@ fun SubscriptionFlowDialog(
                                 onClick = onCancel,
                                 colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
                             ) {
-                                Text("Batalkan Berlangganan (Simulasi)")
+                                Text("Cancel Subscription (Simulation)")
                             }
                         }
                     }
                 } else {
                     // Subscription Flow Scheme
                     Text(
-                        text = "SKEMA DIAGRAM ALUR PEMBAYARAN",
+                        text = "PAYMENT SYSTEM FLOW SCHEME",
                         style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(bottom = 12.dp)
@@ -171,58 +172,58 @@ fun SubscriptionFlowDialog(
                     Spacer(modifier = Modifier.height(20.dp))
 
                     // Step 1: Select Plan
-                    FlowStepHeader(stepNumber = 1, title = "Pilih Paket Langganan Kontrak")
+                    FlowStepHeader(stepNumber = 1, title = "Select Subscription Plan")
                     Spacer(modifier = Modifier.height(8.dp))
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         PlanCard(
-                            planName = "Mingguan",
-                            price = "Rp 15.000",
-                            period = "/ minggu",
-                            description = "Cocok untuk mencoba kemampuan chat Eddie Pro, serta buka akses untuk gambar dan video AI premium.",
-                            isSelected = selectedPlan == "Mingguan",
-                            onSelect = { selectedPlan = "Mingguan" }
+                            planName = "Weekly",
+                            price = "$0.99",
+                            period = "/ week",
+                            description = "Perfect for trying Eddie Pro's chat, artwork, and premium video features.",
+                            isSelected = selectedPlan == "Weekly",
+                            onSelect = { selectedPlan = "Weekly" }
                         )
                         PlanCard(
-                            planName = "Bulanan",
-                            price = "Rp 49.000",
-                            period = "/ bulan",
-                            description = "Pilihan terbaik. Chat prioritas tanpa batas, lukis sepuasnya di Art Studio dengan rasio HD, serta render video Ultra HD tanpa batas.",
-                            badge = "TERAGUNG",
-                            isSelected = selectedPlan == "Bulanan",
-                            onSelect = { selectedPlan = "Bulanan" }
+                            planName = "Monthly",
+                            price = "$3.99",
+                            period = "/ month",
+                            description = "Best choice. Unlimited priority chat, unlimited HD painting in Art Studio, and unlimited Ultra HD video rendering.",
+                            badge = "POPULAR",
+                            isSelected = selectedPlan == "Monthly",
+                            onSelect = { selectedPlan = "Monthly" }
                         )
                         PlanCard(
-                            planName = "Tahunan",
-                            price = "Rp 299.000",
-                            period = "/ tahun",
-                            description = "Sangat hemat. Akses penuh ke semua fitur premium chat, gambar AI artistik, dan studio video AI resolusi tinggi selama satu tahun penuh.",
+                            planName = "Yearly",
+                            price = "$24.99",
+                            period = "/ year",
+                            description = "Best value. Full year of premium chat, artistic AI drawing, and high-resolution video generation.",
                             badge = "SAVER 50%",
-                            isSelected = selectedPlan == "Tahunan",
-                            onSelect = { selectedPlan = "Tahunan" }
+                            isSelected = selectedPlan == "Yearly",
+                            onSelect = { selectedPlan = "Yearly" }
                         )
                     }
 
                     Spacer(modifier = Modifier.height(20.dp))
 
                     // Step 2: Payment Method Selection
-                    FlowStepHeader(stepNumber = 2, title = "Metode Pembayaran (E-Wallet & Bank Transfer)")
+                    FlowStepHeader(stepNumber = 2, title = "Payment Method (Cards & Express Checkout)")
                     Spacer(modifier = Modifier.height(8.dp))
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         PaymentOptionButton(
-                            name = "GoPay",
-                            label = "📱 GoPay",
-                            isSelected = selectedPaymentMethod == "GoPay",
-                            onClick = { selectedPaymentMethod = "GoPay" },
+                            name = "PayPal",
+                            label = "💳 PayPal",
+                            isSelected = selectedPaymentMethod == "PayPal",
+                            onClick = { selectedPaymentMethod = "PayPal" },
                             modifier = Modifier.weight(1f)
                         )
                         PaymentOptionButton(
-                            name = "ShopeePay",
-                            label = "🛍️ ShopeePay",
-                            isSelected = selectedPaymentMethod == "ShopeePay",
-                            onClick = { selectedPaymentMethod = "ShopeePay" },
+                            name = "Credit Card",
+                            label = "💳 Card / Debit",
+                            isSelected = selectedPaymentMethod == "Credit Card",
+                            onClick = { selectedPaymentMethod = "Credit Card" },
                             modifier = Modifier.weight(1f)
                         )
                     }
@@ -232,17 +233,17 @@ fun SubscriptionFlowDialog(
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         PaymentOptionButton(
-                            name = "Dana",
-                            label = "💰 DANA",
-                            isSelected = selectedPaymentMethod == "Dana",
-                            onClick = { selectedPaymentMethod = "Dana" },
+                            name = "Google Pay",
+                            label = "📱 Google Pay",
+                            isSelected = selectedPaymentMethod == "Google Pay",
+                            onClick = { selectedPaymentMethod = "Google Pay" },
                             modifier = Modifier.weight(1f)
                         )
                         PaymentOptionButton(
-                            name = "VA Mandiri",
-                            label = "🏦 Bank VA",
-                            isSelected = selectedPaymentMethod == "VA Mandiri",
-                            onClick = { selectedPaymentMethod = "VA Mandiri" },
+                            name = "Apple Pay",
+                            label = "🍏 Apple Pay",
+                            isSelected = selectedPaymentMethod == "Apple Pay",
+                            onClick = { selectedPaymentMethod = "Apple Pay" },
                             modifier = Modifier.weight(1f)
                         )
                     }
@@ -250,7 +251,7 @@ fun SubscriptionFlowDialog(
                     Spacer(modifier = Modifier.height(20.dp))
 
                     // Step 3: Simulation Engine Console
-                    FlowStepHeader(stepNumber = 3, title = "Simulator Sandbox Pembayaran API & Webhook Check")
+                    FlowStepHeader(stepNumber = 3, title = "API Sandbox & Webhook Handshake Simulation Console")
                     Spacer(modifier = Modifier.height(8.dp))
                     
                     Card(
@@ -289,9 +290,15 @@ fun SubscriptionFlowDialog(
                                     .padding(10.dp)
                             ) {
                                 Text(
-                                    text = if (simulationLog.isEmpty()) "Siap melakukan simulasi checkout aman...\nTekan tombol di bawah untuk memproses." else simulationLog,
+                                    text = if (uiState.currentUserProfile == null) {
+                                        "🔴 ERROR: Authentication Required!\n\n> You must sign in or register an account before purchasing or simulating payment for Eddie Premium."
+                                    } else if (simulationLog.isEmpty()) {
+                                        "Ready for secure sandbox checkout simulation...\nPress the button below to process."
+                                    } else {
+                                        simulationLog
+                                    },
                                     style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
-                                    color = Color(0xFF00FFCC),
+                                    color = if (uiState.currentUserProfile == null) Color(0xFFFF5252) else Color(0xFF00FFCC),
                                     lineHeight = 16.sp,
                                     fontStyle = androidx.compose.ui.text.font.FontStyle.Italic
                                 )
@@ -299,24 +306,37 @@ fun SubscriptionFlowDialog(
 
                             Spacer(modifier = Modifier.height(12.dp))
 
-                            if (!isSimulating) {
+                            if (uiState.currentUserProfile == null) {
+                                Button(
+                                    onClick = onRequireAuth,
+                                    modifier = Modifier.fillMaxWidth(),
+                                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
+                                    elevation = ButtonDefaults.buttonElevation(defaultElevation = 2.dp)
+                                ) {
+                                    Text(
+                                        text = "SIGN IN / SIGN UP TO PROCEED",
+                                        fontWeight = FontWeight.Bold,
+                                        style = MaterialTheme.typography.titleSmall
+                                    )
+                                }
+                            } else if (!isSimulating) {
                                 Button(
                                     onClick = {
                                         isSimulating = true
                                         coroutineScope.launch {
-                                            simulationLog = "> Memulai transaksi untuk paket: $selectedPlan\n> Menghubungkan client ke API Payment Gateway..."
+                                            simulationLog = "> Initiating transaction for: $selectedPlan\n> Opening secure connection to payment gateway client..."
                                             delay(1000)
-                                            simulationLog += "\n> [HTTP POST] Mengirim payload order token ke server gateway..."
+                                            simulationLog += "\n> [HTTP POST] Submitting invoice payload securely config token to server..."
                                             delay(1100)
-                                            simulationLog += "\n> [GATEWAY] Pembuatan invoice pembayaran sukses ($selectedPaymentMethod)\n> Menunggu respon pembayaran user (Callback Webhook)..."
+                                            simulationLog += "\n> [GATEWAY] Created digital checkout invoice successfully ($selectedPaymentMethod)\n> Awaiting user authorization and verification callback..."
                                             delay(1200)
-                                            simulationLog += "\n> [WEBHOOK] Callback transaksi Sukses diterima dari $selectedPaymentMethod!\n> Status Database sinkron: PREMIUM_ACTIVE"
+                                            simulationLog += "\n> [WEBHOOK] Callback received! Transaction cleared and settled via $selectedPaymentMethod."
                                             delay(900)
-                                            simulationLog += "\n> PRO AKTIF! Fitur Eddie Pro Berhasil Terbuka."
+                                            simulationLog += "\n> STATUS RECONCILED: USER_PREMIUM_ACTIVE\n> Synchronizing application local configuration schema states..."
                                             delay(500)
                                             onActivate(selectedPlan)
                                             isSimulating = false
-                                            Toast.makeText(context, "Selamat! Sessi Anda telah ter-upgrade ke Premium.", Toast.LENGTH_LONG).show()
+                                            Toast.makeText(context, "Congratulations! Your account features have been upgraded to Premium.", Toast.LENGTH_LONG).show()
                                             onDismiss()
                                         }
                                     },
@@ -325,7 +345,7 @@ fun SubscriptionFlowDialog(
                                     elevation = ButtonDefaults.buttonElevation(defaultElevation = 2.dp)
                                 ) {
                                     Text(
-                                        text = "SIMULASI BAYAR ${planPrice.uppercase()} VIA ${selectedPaymentMethod.uppercase()}",
+                                        text = "SIMULATE SECURE PAYMENT (${planPrice.uppercase()})",
                                         color = Color.Black,
                                         fontWeight = FontWeight.Bold,
                                         style = MaterialTheme.typography.titleSmall
@@ -343,7 +363,7 @@ fun SubscriptionFlowDialog(
                                         color = MaterialTheme.colorScheme.onPrimary
                                     )
                                     Spacer(modifier = Modifier.width(10.dp))
-                                    Text("Sedang Berjabat Tangan dengan Gateway...")
+                                    Text("Performing Gateway Handshake...")
                                 }
                             }
                         }
@@ -363,7 +383,7 @@ fun SubscriptionFlowDialog(
                         Icon(Icons.Default.Info, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
                         Spacer(modifier = Modifier.width(10.dp))
                         Text(
-                            text = "Aman • Ini adalah sandbox simulasi penuh. Tidak ada saldo asli Anda yang akan digunakan atau dipotong.",
+                            text = "Secure • This is a full sandbox simulation. No real money will be charged.",
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             lineHeight = 14.sp
@@ -520,7 +540,7 @@ fun FlowchartDiagram() {
             .padding(12.dp)
     ) {
         Text(
-            text = "Diagram Skema Transaksi Berlangganan API & Database Call:",
+            text = "API & Database Callback Sequence Flowchart Diagram:",
             style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
             color = MaterialTheme.colorScheme.primary,
             modifier = Modifier.padding(bottom = 8.dp)
@@ -530,13 +550,13 @@ fun FlowchartDiagram() {
         Column(
             verticalArrangement = Arrangement.spacedBy(4.dp)
         ) {
-            FlowDiagramItem(step = "1. PILIH PAKET", detail = "Memilih Durasi Langganan & E-Wallet")
+            FlowDiagramItem(step = "1. CHOOSE PLAN", detail = "Select plan duration and payment method")
             FlowArrow()
-            FlowDiagramItem(step = "2. GATEWAY HANDSHAKE", detail = "App hit API Server & generate secure token")
+            FlowDiagramItem(step = "2. GATEWAY HANDSHAKE", detail = "App hits secure API Server and parses checkout token")
             FlowArrow()
-            FlowDiagramItem(step = "3. CALLBACK WEBHOOK", detail = "Payment Gateway kirim status lunas ke Server")
+            FlowDiagramItem(step = "3. CALLBACK WEBHOOK", detail = "Verified payment confirmation is received by backend server")
             FlowArrow()
-            FlowDiagramItem(step = "4. ROOM DB SYNC", detail = "Membuka model Eddie Pro & badge Premium")
+            FlowDiagramItem(step = "4. ROOM DB SYNC", detail = "Database updates user profile with Premium features unlocked")
         }
     }
 }

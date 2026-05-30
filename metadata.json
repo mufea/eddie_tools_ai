@@ -1,6 +1,6 @@
 {
   "name": "Eddie",
-  "description": "Asisten Personal Eddie dengan Fitur Chat AI dan Generator Gambar AI Premium",
+  "description": "Eddie Personal Assistant with AI Chat and Premium AI Image Generator Features",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

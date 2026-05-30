@@ -34,7 +34,7 @@ fun EddieAiCodeStudioView(
     onShareText: (String) -> Unit
 ) {
     var selectedLanguage by remember { mutableStateOf("Kotlin") }
-    var selectedTask by remember { mutableStateOf("Generasi Kode") }
+    var selectedTask by remember { mutableStateOf("Code Generation") }
     var targetLanguage by remember { mutableStateOf("Python") }
     var inputCodePrompt by remember { mutableStateOf("") }
     
@@ -59,10 +59,10 @@ fun EddieAiCodeStudioView(
 
     // Code Tasks
     val codeActions = listOf(
-        Triple("Generasi Kode", "Tulis kode baru dari penjelasan fungsional Anda.", false),
-        Triple("Bug Finder & Debugger", "Temukan kesalahan, bug keamanan, dan perbaiki kodenya.", false),
-        Triple("Refactor & Optimasi", "Optimalkan efisiensi algoritma, readability, dan kecepatan.", true),
-        Triple("Konverter Bahasa", "Konversikan struktur kode dari satu bahasa ke bahasa lain.", true)
+        Triple("Code Generation", "Write new code from your functional description.", false),
+        Triple("Bug Finder & Debugger", "Find errors, security bugs, and fix their code.", false),
+        Triple("Refactor & Optimization", "Optimize algorithm efficiency, readability, and speed.", true),
+        Triple("Language Converter", "Convert code structure from one language to another.", true)
     )
 
     Column(
@@ -110,7 +110,7 @@ fun EddieAiCodeStudioView(
                             color = MaterialTheme.colorScheme.onSurface
                         )
                         Text(
-                            text = "Asisten cerdas perancangan kode, optimasi performa, dan konverter bahasa pemrograman.",
+                            text = "Intelligent assistant for code design, performance optimization, and programming language conversion.",
                             style = MaterialTheme.typography.labelMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -150,7 +150,7 @@ fun EddieAiCodeStudioView(
                                 modifier = Modifier.padding(end = 8.dp)
                             )
                             Text(
-                                text = if (uiState.isSubscribed) "Status: Eddie Developer PRO" else "Status: Uji Coba Gratis",
+                                text = if (uiState.isSubscribed) "Status: Eddie Developer PRO" else "Status: Free Trial",
                                 style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
                                 color = if (uiState.isSubscribed) MaterialTheme.colorScheme.primary else Color(0xFFD48200)
                             )
@@ -162,7 +162,7 @@ fun EddieAiCodeStudioView(
                                 shape = RoundedCornerShape(4.dp)
                             ) {
                                 Text(
-                                    text = "${uiState.codeFreeQueriesLeft} Kuota Sisa",
+                                    text = "${uiState.codeFreeQueriesLeft} Left",
                                     color = Color.White,
                                     style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
                                     modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
@@ -173,9 +173,9 @@ fun EddieAiCodeStudioView(
                     Spacer(modifier = Modifier.height(6.dp))
                     Text(
                         text = if (uiState.isSubscribed) {
-                            "Akses Tanpa Batas aktif! Anda memiliki kuota tak terhingga untuk memanggil model Gemini 3.5 & 3.1 Pro guna melakukan generasi bahasa apa pun termasuk Rust, Go, C++, dan konverter multi-bahasa kompleks."
+                            "Unlimited Access Active! You have infinite quota to call the Gemini 3.5 & 3.1 Pro models for generating any language including Rust, Go, C++, and complex multi-language converters."
                         } else {
-                            "Skema Berlangganan AI Code: Akun Gratis terbatas pada 3 kueri / hari untuk Kotlin, Python, Java. Buka akses Go, Rust, C++, Refactor, & Konverter Bahasa fungsional dengan berlangganan Eddie Premium!"
+                            "AI Code Subscription Scheme: Free Account is limited to 3 queries / day for Kotlin, Python, and Java. Unlock Go, Rust, C++, Refactoring, & functional Language Converters with Eddie Premium subscription!"
                         },
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -188,7 +188,7 @@ fun EddieAiCodeStudioView(
 
             // STEP 1: PILIH BAHASA PEMROGRAMAN
             Text(
-                text = "1. Pilih Bahasa Pemrograman",
+                text = "1. Choose Programming Language",
                 style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
                 color = MaterialTheme.colorScheme.primary
             )
@@ -252,7 +252,7 @@ fun EddieAiCodeStudioView(
 
             // STEP 2: PILIH KATAGORI TUGAS / ACTION
             Text(
-                text = "2. Pilih Jenis Pekerjaan AI-Code",
+                text = "2. Choose AI-Code Task Type",
                 style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
                 color = MaterialTheme.colorScheme.primary
             )
@@ -330,10 +330,10 @@ fun EddieAiCodeStudioView(
             }
 
             // Target language selection if doing language conversion
-            if (selectedTask == "Konverter Bahasa") {
+            if (selectedTask == "Language Converter") {
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
-                    text = "Pilih Bahasa Sasaran (Target):",
+                    text = "Choose Target Language:",
                     style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
                     color = MaterialTheme.colorScheme.onSurface
                 )
@@ -371,15 +371,15 @@ fun EddieAiCodeStudioView(
 
             // STEP 3: INPUT AREA
             val inputLabelText = when (selectedTask) {
-                "Generasi Kode" -> "Jelaskan program yang ingin Anda buat..."
-                "Bug Finder & Debugger" -> "Tempelkan (paste) kode Anda di sini untuk didebug..."
-                "Refactor & Optimasi" -> "Tempelkan kode Anda yang ingin dioptimalkan..."
-                "Konverter Bahasa" -> "Tempelkan kode $selectedLanguage yang ingin dikoversikan ke $targetLanguage..."
-                else -> "Masukkan teks atau deskripsi..."
+                "Code Generation" -> "Describe the program you want to build..."
+                "Bug Finder & Debugger" -> "Paste your code here to debug..."
+                "Refactor & Optimization" -> "Paste your code to optimize..."
+                "Language Converter" -> "Paste your $selectedLanguage code to convert to $targetLanguage..."
+                else -> "Enter text or description..."
             }
 
             Text(
-                text = "3. Masukkan Deskripsi atau Kode",
+                text = "3. Enter Description or Code",
                 style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
                 color = MaterialTheme.colorScheme.primary
             )
@@ -430,7 +430,7 @@ fun EddieAiCodeStudioView(
                     )
                 } else {
                     Text(
-                        text = "JALANKAN KECERDASAN EDDIE-CODE ⚡",
+                        text = "RUN EDDIE-CODE INTELLIGENCE ⚡",
                         style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold)
                     )
                 }
@@ -446,7 +446,7 @@ fun EddieAiCodeStudioView(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = "💻 Hasil Pemrosesan AI Code",
+                        text = "💻 AI Code Processing Result",
                         style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
                         color = MaterialTheme.colorScheme.primary
                     )
@@ -462,7 +462,7 @@ fun EddieAiCodeStudioView(
                             onClick = { onShareText(uiState.codeOutput) },
                             enabled = uiState.codeOutput.isNotBlank()
                         ) {
-                            Text(" Bagikan", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                            Text(" Share", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
                         }
                         IconButton(
                             onClick = onClearOutput
@@ -489,7 +489,7 @@ fun EddieAiCodeStudioView(
                             CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
                             Spacer(modifier = Modifier.height(16.dp))
                             Text(
-                                text = "Eddie AI sedang memproses nalar program Anda...",
+                                text = "Eddie AI is processing your program logic...",
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 textAlign = TextAlign.Center
