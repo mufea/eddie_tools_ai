@@ -72,6 +72,15 @@ data class GeneratedMusicEntity(
     val userEmail: String? = null
 )
 
+@Entity(tableName = "user_memories")
+data class UserMemoryEntity(
+    @PrimaryKey val id: String,
+    val key: String,
+    val content: String,
+    val timestamp: Long = System.currentTimeMillis(),
+    val userEmail: String? = null
+)
+
 // --- DAO (Data Access Object) ---
 
 @Dao
@@ -136,6 +145,18 @@ interface ChatDao {
     @Query("DELETE FROM generated_music WHERE id = :musicId")
     suspend fun deleteGeneratedMusicById(musicId: String)
 
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertMemory(memory: UserMemoryEntity)
+
+    @Query("SELECT * FROM user_memories ORDER BY timestamp DESC")
+    fun getAllMemories(): Flow<List<UserMemoryEntity>>
+
+    @Query("SELECT * FROM user_memories WHERE userEmail = :email ORDER BY timestamp DESC")
+    fun getMemoriesForUser(email: String): Flow<List<UserMemoryEntity>>
+
+    @Query("DELETE FROM user_memories WHERE id = :id")
+    suspend fun deleteMemoryById(id: String)
+
     @Query("DELETE FROM chat_messages")
     suspend fun deleteAllMessages()
 
@@ -151,9 +172,10 @@ interface ChatDao {
         ChatMessageEntity::class,
         GeneratedImageEntity::class,
         GeneratedVideoEntity::class,
-        GeneratedMusicEntity::class
+        GeneratedMusicEntity::class,
+        UserMemoryEntity::class
     ],
-    version = 4,
+    version = 5,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {

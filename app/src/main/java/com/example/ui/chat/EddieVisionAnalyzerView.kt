@@ -13,7 +13,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.MailOutline
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -51,9 +50,10 @@ fun EddieVisionAnalyzerView(
     ) { uri: Uri? ->
         if (uri != null) {
             try {
-                val inputStream: InputStream? = context.contentResolver.openInputStream(uri)
-                val bitmap = BitmapFactory.decodeStream(inputStream)
-                onImageSelected(uri, bitmap)
+                val bitmap = decodeSampledBitmapFromUri(context, uri, 1024, 1024)
+                if (bitmap != null) {
+                    onImageSelected(uri, bitmap)
+                }
             } catch (e: Exception) {
                 // handle error
             }
@@ -65,7 +65,12 @@ fun EddieVisionAnalyzerView(
         contract = ActivityResultContracts.TakePicturePreview()
     ) { bitmap: Bitmap? ->
         if (bitmap != null) {
-            onImageSelected(null, bitmap)
+            try {
+                val downscaled = resizeBitmapToMax(bitmap, 1024)
+                onImageSelected(null, downscaled)
+            } catch (e: Exception) {
+                onImageSelected(null, bitmap)
+            }
         }
     }
 
@@ -311,4 +316,58 @@ fun EddieVisionAnalyzerView(
             }
         }
     }
+}
+
+// Support functions to safely decode and downsample bitmaps avoiding OutOfMemoryError crashes
+fun resizeBitmapToMax(bitmap: Bitmap, maxDimension: Int): Bitmap {
+    val width = bitmap.width
+    val height = bitmap.height
+    if (width <= maxDimension && height <= maxDimension) return bitmap
+    val ratio = width.toFloat() / height.toFloat()
+    val newWidth: Int
+    val newHeight: Int
+    if (width > height) {
+        newWidth = maxDimension
+        newHeight = (maxDimension / ratio).toInt()
+    } else {
+        newHeight = maxDimension
+        newWidth = (maxDimension * ratio).toInt()
+    }
+    return Bitmap.createScaledBitmap(bitmap, newWidth, newHeight, true)
+}
+
+fun decodeSampledBitmapFromUri(context: android.content.Context, uri: Uri, reqWidth: Int, reqHeight: Int): Bitmap? {
+    try {
+        val options = BitmapFactory.Options().apply {
+            inJustDecodeBounds = true
+        }
+        context.contentResolver.openInputStream(uri)?.use { inputStream ->
+            BitmapFactory.decodeStream(inputStream, null, options)
+        }
+
+        options.inSampleSize = calculateInSampleSize(options, reqWidth, reqHeight)
+        options.inJustDecodeBounds = false
+
+        return context.contentResolver.openInputStream(uri)?.use { inputStream ->
+            BitmapFactory.decodeStream(inputStream, null, options)
+        }
+    } catch (e: Exception) {
+        return null
+    }
+}
+
+fun calculateInSampleSize(options: BitmapFactory.Options, reqWidth: Int, reqHeight: Int): Int {
+    val height = options.outHeight
+    val width = options.outWidth
+    var inSampleSize = 1
+
+    if (height > reqHeight || width > reqWidth) {
+        val halfHeight = height / 2
+        val halfWidth = width / 2
+
+        while (halfHeight / inSampleSize >= reqHeight && halfWidth / inSampleSize >= reqWidth) {
+            inSampleSize *= 2
+        }
+    }
+    return inSampleSize
 }

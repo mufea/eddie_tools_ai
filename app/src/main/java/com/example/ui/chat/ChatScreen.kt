@@ -92,6 +92,7 @@ fun ChatScreen(
     var showAuthDialog by remember { mutableStateOf(false) }
     var showBookmarksDialog by remember { mutableStateOf(false) }
     var showSubscriptionDialog by remember { mutableStateOf(false) }
+    var showMemoriesDialog by remember { mutableStateOf(false) }
 
     // TTS Engine Setup
     var ttsUser by remember { mutableStateOf<TextToSpeech?>(null) }
@@ -108,13 +109,17 @@ fun ChatScreen(
             tempTts.setOnUtteranceProgressListener(object : android.speech.tts.UtteranceProgressListener() {
                 override fun onStart(utteranceId: String?) {}
                 override fun onDone(utteranceId: String?) {
-                    currentlySpeakingMessageId = null
-                    viewModel.setVoiceSpeakActive(false)
+                    android.os.Handler(android.os.Looper.getMainLooper()).post {
+                        currentlySpeakingMessageId = null
+                        viewModel.setVoiceSpeakActive(false)
+                    }
                 }
                 @Deprecated("Deprecated in Java")
                 override fun onError(utteranceId: String?) {
-                    currentlySpeakingMessageId = null
-                    viewModel.setVoiceSpeakActive(false)
+                    android.os.Handler(android.os.Looper.getMainLooper()).post {
+                        currentlySpeakingMessageId = null
+                        viewModel.setVoiceSpeakActive(false)
+                    }
                 }
             })
             tts = tempTts
@@ -284,26 +289,7 @@ fun ChatScreen(
 
                     NavigationDrawerItem(
                         icon = { Text("🎨", style = TextStyle(fontSize = 16.sp)) },
-                        label = {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text("Studio Gambar Eddie", fontWeight = FontWeight.SemiBold)
-                                Surface(
-                                    color = if (uiState.isSubscribed) MaterialTheme.colorScheme.primary else Color(0xFFFFB100),
-                                    shape = RoundedCornerShape(4.dp)
-                                ) {
-                                    Text(
-                                        text = "AI ART",
-                                        color = Color.White,
-                                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 8.sp, fontWeight = FontWeight.Bold),
-                                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
-                                    )
-                                }
-                            }
-                        },
+                        label = { Text("Studio Gambar Eddie", fontWeight = FontWeight.SemiBold) },
                         selected = activeTab == "image_gen",
                         onClick = {
                             activeTab = "image_gen"
@@ -313,26 +299,7 @@ fun ChatScreen(
 
                     NavigationDrawerItem(
                         icon = { Text("🎬", style = TextStyle(fontSize = 16.sp)) },
-                        label = {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text("Eddie Video Studio", fontWeight = FontWeight.SemiBold)
-                                Surface(
-                                    color = if (uiState.isSubscribed) MaterialTheme.colorScheme.primary else Color(0xFFFFB100),
-                                    shape = RoundedCornerShape(4.dp)
-                                ) {
-                                    Text(
-                                        text = "AI VIDEO",
-                                        color = Color.White,
-                                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 8.sp, fontWeight = FontWeight.Bold),
-                                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
-                                    )
-                                }
-                            }
-                        },
+                        label = { Text("Eddie Video Studio", fontWeight = FontWeight.SemiBold) },
                         selected = activeTab == "video_gen",
                         onClick = {
                             activeTab = "video_gen"
@@ -342,26 +309,7 @@ fun ChatScreen(
 
                     NavigationDrawerItem(
                         icon = { Text("💻", style = TextStyle(fontSize = 16.sp)) },
-                        label = {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text("Eddie AI Code Studio", fontWeight = FontWeight.SemiBold)
-                                Surface(
-                                    color = if (uiState.isSubscribed) MaterialTheme.colorScheme.primary else Color(0xFFFFB100),
-                                    shape = RoundedCornerShape(4.dp)
-                                ) {
-                                    Text(
-                                        text = "DEV",
-                                        color = Color.White,
-                                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 8.sp, fontWeight = FontWeight.Bold),
-                                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
-                                    )
-                                }
-                            }
-                        },
+                        label = { Text("Eddie AI Code Studio", fontWeight = FontWeight.SemiBold) },
                         selected = activeTab == "ai_code",
                         onClick = {
                             activeTab = "ai_code"
@@ -371,26 +319,7 @@ fun ChatScreen(
 
                     NavigationDrawerItem(
                         icon = { Text("🎵", style = TextStyle(fontSize = 16.sp)) },
-                        label = {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text("Eddie AI Music Studio", fontWeight = FontWeight.SemiBold)
-                                Surface(
-                                    color = if (uiState.isSubscribed) MaterialTheme.colorScheme.primary else Color(0xFFFFB100),
-                                    shape = RoundedCornerShape(4.dp)
-                                ) {
-                                    Text(
-                                        text = "AI MUSIC",
-                                        color = Color.White,
-                                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 8.sp, fontWeight = FontWeight.Bold),
-                                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
-                                    )
-                                }
-                            }
-                        },
+                        label = { Text("Eddie AI Music Studio", fontWeight = FontWeight.SemiBold) },
                         selected = activeTab == "music_gen",
                         onClick = {
                             activeTab = "music_gen"
@@ -408,26 +337,7 @@ fun ChatScreen(
 
                     NavigationDrawerItem(
                         icon = { Text("🎙️", style = TextStyle(fontSize = 16.sp)) },
-                        label = {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text("Asisten Suara Eddie", fontWeight = FontWeight.SemiBold)
-                                Surface(
-                                    color = MaterialTheme.colorScheme.secondary,
-                                    shape = RoundedCornerShape(4.dp)
-                                ) {
-                                    Text(
-                                        text = "VOICE AI",
-                                        color = Color.White,
-                                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 8.sp, fontWeight = FontWeight.Bold),
-                                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
-                                    )
-                                }
-                            }
-                        },
+                        label = { Text("Asisten Suara Eddie", fontWeight = FontWeight.SemiBold) },
                         selected = activeTab == "voice_ai",
                         onClick = {
                             activeTab = "voice_ai"
@@ -437,26 +347,7 @@ fun ChatScreen(
 
                     NavigationDrawerItem(
                         icon = { Text("📸", style = TextStyle(fontSize = 16.sp)) },
-                        label = {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text("AI Vision Analyzer", fontWeight = FontWeight.SemiBold)
-                                Surface(
-                                    color = MaterialTheme.colorScheme.tertiary,
-                                    shape = RoundedCornerShape(4.dp)
-                                ) {
-                                    Text(
-                                        text = "VISION",
-                                        color = Color.White,
-                                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 8.sp, fontWeight = FontWeight.Bold),
-                                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
-                                    )
-                                }
-                            }
-                        },
+                        label = { Text("AI Vision Analyzer", fontWeight = FontWeight.SemiBold) },
                         selected = activeTab == "ai_vision",
                         onClick = {
                             activeTab = "ai_vision"
@@ -466,26 +357,7 @@ fun ChatScreen(
 
                     NavigationDrawerItem(
                         icon = { Text("📄", style = TextStyle(fontSize = 16.sp)) },
-                        label = {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text("Ringkasan Dokumen & PDF", fontWeight = FontWeight.SemiBold)
-                                Surface(
-                                    color = MaterialTheme.colorScheme.primary,
-                                    shape = RoundedCornerShape(4.dp)
-                                ) {
-                                    Text(
-                                        text = "DOC AI",
-                                        color = Color.White,
-                                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 8.sp, fontWeight = FontWeight.Bold),
-                                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
-                                    )
-                                }
-                            }
-                        },
+                        label = { Text("Ringkasan Dokumen & PDF", fontWeight = FontWeight.SemiBold) },
                         selected = activeTab == "doc_intelligence",
                         onClick = {
                             activeTab = "doc_intelligence"
@@ -576,6 +448,16 @@ fun ChatScreen(
                         selected = false,
                         onClick = {
                             showInstructionDialog = true
+                            scope.launch { drawerState.close() }
+                        }
+                    )
+
+                    NavigationDrawerItem(
+                        icon = { Text("🧠", style = TextStyle(fontSize = 16.sp)) },
+                        label = { Text("Memori Pintar Eddie") },
+                        selected = false,
+                        onClick = {
+                            showMemoriesDialog = true
                             scope.launch { drawerState.close() }
                         }
                     )
@@ -996,6 +878,154 @@ fun ChatScreen(
                         }
                     }
 
+                    if (uiState.isSearchingWeb) {
+                        Card(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp, vertical = 6.dp),
+                            colors = CardDefaults.cardColors(
+                                containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.25f)
+                            ),
+                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.25f)),
+                            shape = RoundedCornerShape(10.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(10.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(14.dp),
+                                    strokeWidth = 2.dp,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                                Text(
+                                    text = "🔍 Eddie sedang menjelajahi Google Search secara real-time...",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = MaterialTheme.colorScheme.onPrimaryContainer
+                                )
+                            }
+                        }
+                    }
+
+                    if (uiState.activeAutomationType != null) {
+                        Card(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp, vertical = 6.dp),
+                            colors = CardDefaults.cardColors(
+                                containerColor = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.95f)
+                            ),
+                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.tertiary.copy(alpha = 0.4f)),
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(12.dp),
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    Text("⚡", fontSize = 16.sp)
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            text = "Otomasi Tindakan Eddie (Action-to-API)",
+                                            style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold),
+                                            color = MaterialTheme.colorScheme.onTertiaryContainer
+                                        )
+                                        Text(
+                                            text = uiState.activeAutomationStatus,
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onTertiaryContainer.copy(alpha = 0.8f)
+                                        )
+                                    }
+                                    IconButton(
+                                        onClick = { viewModel.dismissAutomation() },
+                                        modifier = Modifier.size(20.dp)
+                                    ) {
+                                        Text("❌", fontSize = 10.sp)
+                                    }
+                                }
+
+                                Row(
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    val actPayload = uiState.activeAutomationPayload
+                                    val actType = uiState.activeAutomationType
+                                    Button(
+                                        onClick = {
+                                            if (actType == "EMAIL") {
+                                                val subject = actPayload.substringAfter("subject:").substringBefore("|recipient:")
+                                                val recipient = actPayload.substringAfter("recipient:").substringBefore("|body:")
+                                                val body = actPayload.substringAfter("|body:")
+
+                                                val intent = Intent(Intent.ACTION_SENDTO).apply {
+                                                    data = android.net.Uri.parse("mailto:")
+                                                    if (recipient.isNotEmpty() && !recipient.contains("company.com")) {
+                                                        putExtra(Intent.EXTRA_EMAIL, arrayOf(recipient))
+                                                    }
+                                                    putExtra(Intent.EXTRA_SUBJECT, subject)
+                                                    putExtra(Intent.EXTRA_TEXT, body)
+                                                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                                }
+                                                try {
+                                                    context.startActivity(Intent.createChooser(intent, "Kirim Draf via..."))
+                                                } catch (e: Exception) {
+                                                    Toast.makeText(context, "Tidak ada aplikasi email.", Toast.LENGTH_SHORT).show()
+                                                }
+                                            } else if (actType == "WHATSAPP") {
+                                                val intent = Intent(Intent.ACTION_SEND).apply {
+                                                    type = "text/plain"
+                                                    putExtra(Intent.EXTRA_TEXT, actPayload)
+                                                    `package` = "com.whatsapp"
+                                                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                                }
+                                                try {
+                                                    context.startActivity(intent)
+                                                } catch (e: Exception) {
+                                                    val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                                                        type = "text/plain"
+                                                        putExtra(Intent.EXTRA_TEXT, actPayload)
+                                                    }
+                                                    context.startActivity(Intent.createChooser(shareIntent, "Kirim via..."))
+                                                }
+                                            }
+                                            viewModel.dismissAutomation()
+                                        },
+                                        modifier = Modifier.weight(1f),
+                                        shape = RoundedCornerShape(8.dp),
+                                        colors = ButtonDefaults.buttonColors(
+                                            containerColor = MaterialTheme.colorScheme.primary
+                                        ),
+                                        contentPadding = PaddingValues(vertical = 4.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.CheckCircle,
+                                            contentDescription = null,
+                                            modifier = Modifier.size(14.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Text(
+                                            text = if (actType == "EMAIL") "Buka Draf di Email" else "Kirim ke WhatsApp",
+                                            style = MaterialTheme.typography.labelMedium
+                                        )
+                                    }
+
+                                    OutlinedButton(
+                                        onClick = { viewModel.dismissAutomation() },
+                                        modifier = Modifier.weight(0.4f),
+                                        shape = RoundedCornerShape(8.dp),
+                                        contentPadding = PaddingValues(vertical = 4.dp)
+                                    ) {
+                                        Text("Batal", style = MaterialTheme.typography.labelMedium)
+                                    }
+                                }
+                            }
+                        }
+                    }
+
                     ChatInputBar(
                         inputText = inputText,
                         onTextChange = { inputText = it },
@@ -1004,7 +1034,9 @@ fun ChatScreen(
                             inputText = ""
                         },
                         onMicClick = startSpeechToText,
-                        isLoading = uiState.isLoading
+                        isLoading = uiState.isLoading,
+                        isWebSearchEnabled = uiState.isWebSearchEnabled,
+                        onWebSearchToggle = { viewModel.setWebSearchEnabled(it) }
                     )
                 }
             } else if (activeTab == "image_gen") {
@@ -1183,6 +1215,163 @@ fun ChatScreen(
             dismissButton = {
                 TextButton(onClick = { showInstructionDialog = false }) {
                     Text("Batal")
+                }
+            }
+        )
+    }
+
+    // 1b. Dialog Memori Pintar Eddie
+    if (showMemoriesDialog) {
+        var newKey by remember { mutableStateOf("") }
+        var newVal by remember { mutableStateOf("") }
+        AlertDialog(
+            onDismissRequest = { showMemoriesDialog = false },
+            title = {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text("🧠", fontSize = 24.sp)
+                    Text(
+                        text = "Memori Pintar Eddie",
+                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
+                    )
+                }
+            },
+            text = {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = 400.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Text(
+                        text = "Eddie secara otomatis mengingat rincian personal Anda dari percakapan untuk memberi respons terbaik. Anda juga bisa menambah atau menghapusnya di sini.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+
+                    // Add custom memory form
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                        ),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(12.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Text(
+                                text = "Tambah Memori Baru",
+                                style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                OutlinedTextField(
+                                    value = newKey,
+                                    onValueChange = { newKey = it },
+                                    label = { Text("Kategori", style = MaterialTheme.typography.bodySmall) },
+                                    modifier = Modifier.weight(1f),
+                                    singleLine = true,
+                                    textStyle = MaterialTheme.typography.bodySmall
+                                )
+                                OutlinedTextField(
+                                    value = newVal,
+                                    onValueChange = { newVal = it },
+                                    label = { Text("Isi Memori", style = MaterialTheme.typography.bodySmall) },
+                                    modifier = Modifier.weight(1.5f),
+                                    singleLine = true,
+                                    textStyle = MaterialTheme.typography.bodySmall
+                                )
+                            }
+                            Button(
+                                onClick = {
+                                    if (newKey.isNotBlank() && newVal.isNotBlank()) {
+                                        viewModel.addMemory(newKey, newVal)
+                                        newKey = ""
+                                        newVal = ""
+                                    }
+                                },
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(8.dp),
+                                contentPadding = PaddingValues(vertical = 4.dp)
+                            ) {
+                                Text("Simpan Memori", style = MaterialTheme.typography.labelSmall)
+                            }
+                        }
+                    }
+
+                    HorizontalDivider()
+
+                    if (uiState.userMemories.isEmpty()) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(100.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                "Belum ada memori tersimpan untuk profil Anda.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                                textAlign = TextAlign.Center
+                            )
+                        }
+                    } else {
+                        LazyColumn(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .weight(1f),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            items(uiState.userMemories) { memory ->
+                                Card(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    colors = CardDefaults.cardColors(
+                                        containerColor = MaterialTheme.colorScheme.surface
+                                    ),
+                                    border = BorderStroke(0.5.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
+                                ) {
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(10.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.SpaceBetween
+                                    ) {
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            Text(
+                                                text = memory.key,
+                                                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                                                color = MaterialTheme.colorScheme.primary
+                                            )
+                                            Text(
+                                                text = memory.content,
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = MaterialTheme.colorScheme.onSurface
+                                            )
+                                        }
+                                        IconButton(
+                                            onClick = { viewModel.deleteMemory(memory.id) },
+                                            modifier = Modifier.size(24.dp)
+                                        ) {
+                                            Text("🗑️", fontSize = 12.sp)
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                Button(onClick = { showMemoriesDialog = false }) {
+                    Text("Tutup")
                 }
             }
         )
@@ -1886,7 +2075,9 @@ fun ChatInputBar(
     onTextChange: (String) -> Unit,
     onSend: () -> Unit,
     onMicClick: () -> Unit,
-    isLoading: Boolean
+    isLoading: Boolean,
+    isWebSearchEnabled: Boolean,
+    onWebSearchToggle: (Boolean) -> Unit
 ) {
     Surface(
         color = MaterialTheme.colorScheme.background,
@@ -1907,7 +2098,7 @@ fun ChatInputBar(
                     )
                     .border(
                         width = 1.dp,
-                        color = MaterialTheme.colorScheme.outline,
+                        color = if (isWebSearchEnabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,
                         shape = RoundedCornerShape(16.dp)
                     )
                     .padding(8.dp),
@@ -1922,13 +2113,32 @@ fun ChatInputBar(
                     Text("🎙️", style = TextStyle(fontSize = 18.sp))
                 }
 
+                // Web Search (Browsing Mandiri) button
+                IconButton(
+                    onClick = { onWebSearchToggle(!isWebSearchEnabled) },
+                    modifier = Modifier
+                        .size(40.dp)
+                        .background(
+                            color = if (isWebSearchEnabled) MaterialTheme.colorScheme.primaryContainer else Color.Transparent,
+                            shape = CircleShape
+                        )
+                ) {
+                    Text(
+                        text = "🌐",
+                        style = TextStyle(
+                            fontSize = 18.sp,
+                            color = if (isWebSearchEnabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    )
+                }
+
                 TextField(
                     value = inputText,
                     onValueChange = onTextChange,
                     modifier = Modifier.weight(1f),
                     placeholder = {
                         Text(
-                            "Ketik pesan...",
+                            text = if (isWebSearchEnabled) "Tanya Google real-time..." else "Ketik pesan...",
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             style = MaterialTheme.typography.bodyMedium
                         )
@@ -1960,14 +2170,25 @@ fun ChatInputBar(
                     )
                 }
             }
-            Text(
-                "Eddie dapat menampilkan informasi yang tidak akurat.",
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                style = MaterialTheme.typography.labelSmall,
+            
+            Row(
                 modifier = Modifier
-                    .align(Alignment.CenterHorizontally)
-                    .padding(top = 12.dp)
-            )
+                    .fillMaxWidth()
+                    .padding(top = 12.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = if (isWebSearchEnabled) "🌐 Pencarian Web Real-Time Aktif (Google Search)" else "⚡ Eddie AI Smart Assistant v3.0",
+                    color = if (isWebSearchEnabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MaterialTheme.typography.labelSmall
+                )
+                Text(
+                    text = "Eddie dapat berbuat salah",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MaterialTheme.typography.labelSmall
+                )
+            }
         }
     }
 }

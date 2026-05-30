@@ -23,6 +23,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import java.io.BufferedReader
 import java.io.InputStreamReader
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -36,6 +37,7 @@ fun EddieDocumentIntelligenceView(
     onShareText: (String) -> Unit
 ) {
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     var summarizationStyle by remember { mutableStateOf("bullet") } // "bullet", "concise", "deep"
     var rawTextContentInput by remember { mutableStateOf("") }
     var userQaPrompt by remember { mutableStateOf("") }
@@ -46,32 +48,38 @@ fun EddieDocumentIntelligenceView(
     ) { uri: Uri? ->
         if (uri != null) {
             val fileName = uri.lastPathSegment ?: "document.txt"
-            var contentString = ""
-            try {
-                // If it's a plain text file, read content fully
-                context.contentResolver.openInputStream(uri)?.use { inputStream ->
-                    BufferedReader(InputStreamReader(inputStream)).use { reader ->
-                        val stringBuilder = StringBuilder()
-                        var line: String? = reader.readLine()
-                        var lineCount = 0
-                        while (line != null && lineCount < 2000) { // Safety limit of 2000 lines
-                            stringBuilder.append(line).append("\n")
-                            line = reader.readLine()
-                            lineCount++
+            scope.launch(kotlinx.coroutines.Dispatchers.IO) {
+                var contentString = ""
+                try {
+                    // If it's a plain text file, read content fully
+                    context.contentResolver.openInputStream(uri)?.use { inputStream ->
+                        BufferedReader(InputStreamReader(inputStream)).use { reader ->
+                            val stringBuilder = StringBuilder()
+                            var line: String? = reader.readLine()
+                            var lineCount = 0
+                            while (line != null && lineCount < 2000) { // Safety limit of 2000 lines
+                                stringBuilder.append(line).append("\n")
+                                line = reader.readLine()
+                                lineCount++
+                            }
+                            contentString = stringBuilder.toString()
                         }
-                        contentString = stringBuilder.toString()
+                    }
+                    
+                    // If it's empty or PDF/DOCX, provide an elegant text converter info
+                    if (contentString.isBlank()) {
+                        contentString = "Dokumen: $fileName\n\n(Konten Dokumen berhasil dideteksi dari PDF/DOCX. Struktur teks diekstrak menggunakan asisten interpretasi dokumen: 'Ini adalah proposal resmi, riset industri, atau draf teks yang Anda unggah untuk diringkas dan dieksplorasi.')"
+                    }
+                    
+                    kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                        onDocumentLoaded(uri, fileName, contentString)
+                        rawTextContentInput = contentString
+                    }
+                } catch (e: Exception) {
+                    kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                        onDocumentLoaded(uri, fileName, "Gagal memuat dokumen: ${e.message}")
                     }
                 }
-                
-                // If it's empty or PDF/DOCX, provide an elegant text converter info
-                if (contentString.isBlank()) {
-                    contentString = "Dokumen: $fileName\n\n(Konten Dokumen berhasil dideteksi dari PDF/DOCX. Struktur teks diekstrak menggunakan asisten interpretasi dokumen: 'Ini adalah proposal resmi, riset industri, atau draf teks yang Anda unggah untuk diringkas dan dieksplorasi.')"
-                }
-                
-                onDocumentLoaded(uri, fileName, contentString)
-                rawTextContentInput = contentString
-            } catch (e: Exception) {
-                onDocumentLoaded(uri, fileName, "Gagal memuat dokumen: ${e.message}")
             }
         }
     }

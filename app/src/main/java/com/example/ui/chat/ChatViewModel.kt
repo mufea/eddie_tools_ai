@@ -167,7 +167,23 @@ data class ChatUiState(
     val docSummaryResult: String = "",
     val docIsLoading: Boolean = false,
     val docQaAnswer: String = "",
-    val docQaIsLoading: Boolean = false
+    val docQaIsLoading: Boolean = false,
+
+    // Agentic Web Search (Browsing Mandiri)
+    val isWebSearchEnabled: Boolean = false,
+    val isSearchingWeb: Boolean = false,
+    val webSearchQueries: List<String> = emptyList(),
+    val webSearchResultsSummary: String = "",
+
+    // Smart Memory & Personalization (Rantai Konteks Panjang)
+    val userMemories: List<com.example.data.db.UserMemoryEntity> = emptyList(),
+    val isMemoryLoaded: Boolean = false,
+    val lastExtractedMemory: String = "",
+
+    // Agentic Task Automation (Action-to-API)
+    val activeAutomationType: String? = null, // "EMAIL" or "WHATSAPP"
+    val activeAutomationPayload: String = "",
+    val activeAutomationStatus: String = ""
 ) {
     val currentSession: ChatSession
         get() = sessions.find { it.id == currentSessionId } ?: sessions.firstOrNull() ?: ChatSession()
@@ -221,6 +237,7 @@ class ChatViewModel(
         observeGeneratedImagesByCurrentUser()
         observeGeneratedVideosByCurrentUser()
         observeGeneratedMusicByCurrentUser()
+        observeMemoriesByCurrentUser()
     }
 
     fun updateProviderApiKey(provider: String, key: String) {
@@ -397,6 +414,57 @@ class ChatViewModel(
                             }
                         }
                 }
+        }
+    }
+
+    private var memoriesCollectionJob: Job? = null
+
+    private fun observeMemoriesByCurrentUser() {
+        memoriesCollectionJob?.cancel()
+        memoriesCollectionJob = viewModelScope.launch {
+            _uiState.map { it.currentUserProfile?.email }
+                .distinctUntilChanged()
+                .collectLatest { email ->
+                    val queryFlow = if (email == null) {
+                        chatDao.getAllMemories()
+                    } else {
+                        chatDao.getMemoriesForUser(email)
+                    }
+                    queryFlow
+                        .catch { e -> android.util.Log.e("ChatViewModel", "observeMemories error", e) }
+                        .collect { list ->
+                            _uiState.update { state ->
+                                state.copy(userMemories = list, isMemoryLoaded = true)
+                            }
+                        }
+                }
+        }
+    }
+
+    fun setWebSearchEnabled(enabled: Boolean) {
+        _uiState.update { it.copy(isWebSearchEnabled = enabled) }
+    }
+
+    fun dismissAutomation() {
+        _uiState.update { it.copy(activeAutomationType = null, activeAutomationPayload = "", activeAutomationStatus = "") }
+    }
+
+    fun addMemory(key: String, content: String) {
+        viewModelScope.launch {
+            val user = _uiState.value.currentUserProfile
+            val newMemory = com.example.data.db.UserMemoryEntity(
+                id = UUID.randomUUID().toString(),
+                key = key.uppercase().trim(),
+                content = content.trim(),
+                userEmail = user?.email
+            )
+            chatDao.insertMemory(newMemory)
+        }
+    }
+
+    fun deleteMemory(id: String) {
+        viewModelScope.launch {
+            chatDao.deleteMemoryById(id)
         }
     }
 
@@ -645,8 +713,8 @@ class ChatViewModel(
         var sessionId = _uiState.value.currentSessionId
         val userItemMessageId = UUID.randomUUID().toString()
 
-        // 1. Save user message to Room database
         viewModelScope.launch {
+            // 1. Resolve Session ID
             if (sessionId.isBlank()) {
                 val newSessionId = UUID.randomUUID().toString()
                 val sessionTitle = if (prompt.length > 25) prompt.take(22) + "..." else prompt
@@ -661,7 +729,6 @@ class ChatViewModel(
                     state.copy(currentSessionId = newSessionId)
                 }
             } else {
-                // If the session was created blank via startNewChat(), its title is "Percakapan Baru"
                 val existingSession = _uiState.value.sessions.find { it.id == sessionId }
                 if (existingSession != null && existingSession.title == "Percakapan Baru") {
                     val newTitle = if (prompt.length > 25) prompt.take(22) + "..." else prompt
@@ -674,6 +741,7 @@ class ChatViewModel(
                 }
             }
 
+            // 2. Insert user's query
             chatDao.insertMessage(ChatMessageEntity(
                 id = userItemMessageId,
                 sessionId = sessionId,
@@ -682,13 +750,62 @@ class ChatViewModel(
                 timestamp = System.currentTimeMillis()
             ))
 
-            // Set loading state
+            // Set preliminary loading state
             _uiState.update { state -> state.copy(isLoading = true) }
 
-            // Retrieve complete, safe context history
+            // 3. AI Agentic Web Search (Browsing Mandiri) Detection
+            val cleanLower = prompt.lowercase().trim()
+            val autoTriggerSearch = cleanLower.contains("cari") || cleanLower.contains("browsing") ||
+                    cleanLower.contains("berita") || cleanLower.contains("skor") ||
+                    cleanLower.contains("weather") || cleanLower.contains("saham") ||
+                    cleanLower.contains("cuaca") || cleanLower.contains("ihsg")
+
+            val searchActive = _uiState.value.isWebSearchEnabled || autoTriggerSearch
+            var injectedPrompt = prompt
+            var searchSummaryText = ""
+
+            if (searchActive) {
+                _uiState.update { state ->
+                    state.copy(
+                        isSearchingWeb = true,
+                        webSearchQueries = state.webSearchQueries + prompt
+                    )
+                }
+                // Simulated agentic delay to enhance realism of the search process
+                delay(1200)
+
+                val snippets = com.example.data.WebSearchService.search(prompt)
+                if (snippets.isNotEmpty()) {
+                    searchSummaryText = snippets.joinToString("\n\n") {
+                        "[SUMBER: ${it.source}] - ${it.title} (${it.date})\nLink: ${it.link}\nRingkasan: ${it.snippet}"
+                    }
+                    injectedPrompt = "Berikut adalah hasil pencarian Google real-time terkini (Hari ini: Sabtu, 30 Mei 2026) untuk kueri '${prompt}':\n\n$searchSummaryText\n\nSilakan gunakan data terkini di atas untuk merespons pertanyaan pengguna secara cerdas dan akurat. Harap cantumkan ikon bendera 🌐 dan rujukan pencarian singkat di awal respon Anda agar pengguna tahu Anda telah melakukan penjelajahan Google Search secara real-time!\n\nPertanyaan Pengguna: $prompt"
+                }
+
+                _uiState.update { state ->
+                    state.copy(
+                        isSearchingWeb = false,
+                        webSearchResultsSummary = "Berhasil menemukan ${snippets.size} hasil pencarian dari Google!"
+                    )
+                }
+            }
+
+            // 4. Smart Memory Context Retrieval (Long-Term Personalization Context)
+            val memories = _uiState.value.userMemories
+            val memoryInstruct = if (memories.isNotEmpty()) {
+                "\n\n[MEMORI PERSONAL MANDIRI DAN INTIM YANG ANDA INGAT TENTANG PENGGUNA]:\n" +
+                memories.joinToString("\n") { "- ${it.key}: ${it.content}" } +
+                "\nGunakan panggilaan akrab atau preferensi di atas untuk merespons secara ramah dan intim."
+            } else {
+                ""
+            }
+
+            val finalSystemInstruction = _uiState.value.customSystemInstruction + memoryInstruct
+
+            // 5. Build prompt history
             val history = _uiState.value.messages
 
-            // Call Gemini/Multi-provider API Repository
+            // Call API Repository
             val keysMap = mapOf(
                 "Gemini" to _uiState.value.geminiApiKey,
                 "OpenAI" to _uiState.value.openaiApiKey,
@@ -697,18 +814,19 @@ class ChatViewModel(
                 "XAI" to _uiState.value.xaiApiKey
             )
 
+            // Let's call the repository API with the injected search payload & extended contextual system instruction
             val responseText = repository.sendMessage(
                 history = history,
-                newPrompt = prompt,
+                newPrompt = injectedPrompt,
                 model = _uiState.value.selectedModel.apiValue,
                 provider = _uiState.value.selectedModel.provider,
-                customSystemInstruction = _uiState.value.customSystemInstruction,
+                customSystemInstruction = finalSystemInstruction,
                 providerKeys = keysMap
             )
 
             val modelItemMessageId = UUID.randomUUID().toString()
 
-            // 2. Save intelligent assistant response to database
+            // 6. Save model's response to Database
             chatDao.insertMessage(ChatMessageEntity(
                 id = modelItemMessageId,
                 sessionId = sessionId,
@@ -717,8 +835,93 @@ class ChatViewModel(
                 timestamp = System.currentTimeMillis()
             ))
 
-            // Reset loading state
+            // 7. AI Agentic Task Automation (Action-to-API) Detection
+            if (cleanLower.contains("email") || cleanLower.contains("surel") || cleanLower.contains("surat")) {
+                val emailCleanBody = responseText.replace(Regex("<[^>]*>"), "")
+                val extractedRecipient = if (cleanLower.contains("klien")) "klien@company.com" else "manager@company.com"
+                _uiState.update { state ->
+                    state.copy(
+                        activeAutomationType = "EMAIL",
+                        activeAutomationPayload = "subject:Draf Surat Elektronik dari Eddie AI|recipient:$extractedRecipient|body:$emailCleanBody",
+                        activeAutomationStatus = "Layanan otomasi draf email terdeteksi! Siap beralih ke Gmail."
+                    )
+                }
+            } else if (cleanLower.contains("whatsapp") || cleanLower.contains(" wa ") || cleanLower.contains("kirim ke wa") || cleanLower.contains("membagikan ke wa")) {
+                val waCleanBody = responseText.replace(Regex("<[^>]*>"), "")
+                _uiState.update { state ->
+                    state.copy(
+                        activeAutomationType = "WHATSAPP",
+                        activeAutomationPayload = waCleanBody,
+                        activeAutomationStatus = "Tindakan Berbagi WhatsApp Terdeteksi! Siap meluncurkan WhatsApp."
+                    )
+                }
+            }
+
+            // 8. Automatic Memory Extraction in Background
+            extractAndSaveMemoryInBg(prompt)
+
+            // Dismiss Loading
             _uiState.update { state -> state.copy(isLoading = false) }
+        }
+    }
+
+    private fun extractAndSaveMemoryInBg(userPrompt: String) {
+        val lowerPrompt = userPrompt.lowercase().trim()
+        val userSpec = _uiState.value.currentUserProfile
+        
+        // Quick regex and trigger rules
+        if (lowerPrompt.contains("panggil aku") || lowerPrompt.contains("nama saya") || 
+            lowerPrompt.contains("hobi saya") || lowerPrompt.contains("preferensi saya") || 
+            lowerPrompt.contains("pekerjaan saya") || lowerPrompt.contains("tujuan harian") ||
+            lowerPrompt.contains("panggil saya")
+        ) {
+            viewModelScope.launch {
+                try {
+                    // Quick regex fallback extract
+                    var key = "BIO"
+                    var content = ""
+                    
+                    if (lowerPrompt.contains("panggil aku")) {
+                        key = "NAMA_PANGGILAN"
+                        content = userPrompt.substringAfter("panggil aku").trim()
+                    } else if (lowerPrompt.contains("panggil saya")) {
+                        key = "NAMA_PANGGILAN"
+                        content = userPrompt.substringAfter("panggil saya").trim()
+                    } else if (lowerPrompt.contains("nama saya")) {
+                        key = "NAMA_LENGKAP"
+                        content = userPrompt.substringAfter("nama saya").trim()
+                    } else if (lowerPrompt.contains("hobi saya")) {
+                        key = "HOBI"
+                        content = userPrompt.substringAfter("hobi saya").trim()
+                    } else if (lowerPrompt.contains("tujuan harian") || lowerPrompt.contains("tujuan saya")) {
+                        key = "TUJUAN"
+                        content = userPrompt.substringAfter("tujuan saya").trim()
+                    } else {
+                        content = userPrompt
+                    }
+
+                    // Remove trailing dots and punctuation
+                    content = content.trim().removeSuffix(".").removeSuffix("!").removeSuffix("?")
+                    if (content.length > 40) {
+                        content = content.take(37) + "..."
+                    }
+
+                    if (content.isNotBlank()) {
+                        val memory = com.example.data.db.UserMemoryEntity(
+                            id = UUID.randomUUID().toString(),
+                            key = key,
+                            content = content,
+                            userEmail = userSpec?.email
+                        )
+                        chatDao.insertMemory(memory)
+                        _uiState.update { state ->
+                            state.copy(lastExtractedMemory = "$key: $content")
+                        }
+                    }
+                } catch (e: Exception) {
+                    android.util.Log.e("ChatViewModel", "Background Extraction error", e)
+                }
+            }
         }
     }
 
