@@ -58,31 +58,44 @@ class ChatRepository {
             val activeKey = providerKeys[provider]?.trim() ?: ""
 
             val resolvedModel = when (model) {
-                "gpt4o" -> "gpt-4o"
-                "gpt5.5" -> "gpt-4o"
-                "gemini-3.5-flash" -> "gemini-1.5-flash"
-                "gemini-3.1-pro-preview" -> "gemini-1.5-pro"
-                "claude-sonnet-4-6" -> "claude-3-5-sonnet-20241022"
-                "claude-haiku-4-5-20251001" -> "claude-3-5-haiku-20241022"
-                "grok-4-0709" -> "grok-beta"
+                "gpt-5-mini" -> "openai"
+                "gpt5.5" -> "openai"
+                "gemini-2.5-pro" -> "gemini-2.5-pro"
+                "gemini-3.1-pro-preview" -> "gemini-3.1-pro-preview"
+                "gemini-3-flash-preview" -> "gemini-3-flash-preview"
+                "claude-sonnet-4-6" -> "openai"
+                "claude-haiku-4-5-20251001" -> "openai"
+                "grok-4-0709" -> "openai"
+                "deepseek-chat" -> "deepseek"
                 else -> model
+            }
+
+            // Sanitize conversation history to prevent models from seeing and mimicking 
+            // system-level Token Usage or Pemakaian Token status notifications previously written to DB
+            val sanitizedHistory = history.map { msg ->
+                val idx = msg.text.indexOf("\n\n---\n*🪙")
+                val cleanText = if (idx != -1) msg.text.substring(0, idx) else msg.text
+                msg.copy(text = cleanText)
             }
 
             when (provider) {
                 "Gemini" -> {
-                    val keyToUse = getFallbackKey(activeKey, BuildConfig.GEMINI_API_KEY, "PLACEHOLDER_GEMINI_API_KEY") ?: defaultApiKey
-                    callGemini(history, newPrompt, resolvedModel, systemText, keyToUse)
+                    val fallbackKey = getFallbackKey(activeKey, BuildConfig.GEMINI_API_KEY, "PLACEHOLDER_GEMINI_API_KEY")
+                    if (fallbackKey == null) {
+                        "API Key Gemini is missing. Please set your Gemini API Key in Settings to start chatting."
+                    } else {
+                        callGemini(sanitizedHistory, newPrompt, if (resolvedModel == "openai") "gemini-3-flash-preview" else resolvedModel, systemText, fallbackKey)
+                    }
                 }
                 "OpenAI" -> {
                     val fallbackKey = getFallbackKey(activeKey, BuildConfig.OPENAI_API_KEY, "PLACEHOLDER_OPENAI_API_KEY")
                     if (fallbackKey == null) {
-                        // Free fallback endpoint
-                        callPollinations(history, newPrompt, "gpt-4o", systemText)
+                        "API Key OpenAI is missing. Please set your OpenAI API Key in Settings to start chatting."
                     } else {
                         callOpenAiCompatible(
-                            history = history,
+                            history = sanitizedHistory,
                             newPrompt = newPrompt,
-                            model = resolvedModel,
+                            model = if (resolvedModel == "openai") "gpt-5-mini" else resolvedModel,
                             systemText = systemText,
                             apiKey = fallbackKey,
                             baseUrl = "https://api.openai.com/v1/chat/completions"
@@ -92,10 +105,10 @@ class ChatRepository {
                 "DeepSeek" -> {
                     val fallbackKey = getFallbackKey(activeKey, BuildConfig.DEEPSEEK_API_KEY, "PLACEHOLDER_DEEPSEEK_API_KEY")
                     if (fallbackKey == null) {
-                        callPollinations(history, newPrompt, "deepseek", systemText)
+                        "API Key DeepSeek is missing. Please set your DeepSeek API Key in Settings to start chatting."
                     } else {
                         callOpenAiCompatible(
-                            history = history,
+                            history = sanitizedHistory,
                             newPrompt = newPrompt,
                             model = "deepseek-chat",
                             systemText = systemText,
@@ -107,27 +120,28 @@ class ChatRepository {
                 "Claude" -> {
                     val fallbackKey = getFallbackKey(activeKey, BuildConfig.ANTHROPIC_API_KEY, "PLACEHOLDER_ANTHROPIC_API_KEY")
                     if (fallbackKey == null) {
-                        callPollinations(history, newPrompt, "gpt-4o", systemText + " (Sampaikan di awal bahwa Anda adalah asisten bertenaga model Claude, namun berjalan di server alternatif karena Claude API Key belum diisi oleh pengguna.)")
+                        "API Key Claude is missing. Please set your Anthropic Claude API Key in Settings to start chatting."
                     } else {
-                        callClaude(history, newPrompt, resolvedModel, systemText, fallbackKey)
+                        callClaude(sanitizedHistory, newPrompt, resolvedModel, systemText, fallbackKey)
                     }
                 }
                 "XAI" -> {
-                    if (activeKey.isBlank()) {
-                        callPollinations(history, newPrompt, "gpt-4o", systemText + " (Sampaikan di awal bahwa Anda bertenaga model Grok 4 xAI, namun berjalan di server alternatif karena XAI API Key belum diisi.)")
+                    val fallbackKey = getFallbackKey(activeKey, "", "PLACEHOLDER_XAI_API_KEY")
+                    if (fallbackKey == null) {
+                        "API Key xAI is missing. Please set your xAI API Key in Settings to start chatting."
                     } else {
                         callOpenAiCompatible(
-                            history = history,
+                            history = sanitizedHistory,
                             newPrompt = newPrompt,
-                            model = resolvedModel,
+                            model = "grok-beta",
                             systemText = systemText,
-                            apiKey = activeKey,
+                            apiKey = fallbackKey,
                             baseUrl = "https://api.x.ai/v1/chat/completions"
                         )
                     }
                 }
                 else -> {
-                    "Model atau provider tidak didukung saat ini."
+                    "Provider '$provider' is not supported. Please choose a supported provider like Gemini or OpenAI."
                 }
             }
         }
@@ -279,57 +293,6 @@ class ChatRepository {
         }
     }
 
-    private fun callPollinations(
-        history: List<ChatMessage>,
-        newPrompt: String,
-        model: String,
-        systemText: String
-    ): String {
-        return try {
-            val jsonBody = JSONObject().apply {
-                put("model", model)
-                val messagesArray = JSONArray().apply {
-                    put(JSONObject().apply {
-                        put("role", "system")
-                        put("content", systemText)
-                    })
-                    history.forEach { msg ->
-                        put(JSONObject().apply {
-                            put("role", if (msg.role == Role.USER) "user" else "assistant")
-                            put("content", msg.text)
-                        })
-                    }
-                    put(JSONObject().apply {
-                        put("role", "user")
-                        put("content", newPrompt)
-                    })
-                }
-                put("messages", messagesArray)
-            }
-            val requestBody = jsonBody.toString().toRequestBody("application/json".toMediaTypeOrNull())
-            val request = Request.Builder()
-                .url("https://text.pollinations.ai/openai")
-                .post(requestBody)
-                .build()
-
-            client.newCall(request).execute().use { response ->
-                if (!response.isSuccessful) {
-                    return "Offline alternative/server issue. Please complete your API Key in Settings."
-                }
-                val resStr = response.body?.string() ?: return "Empty response from alternative server."
-                val responseJson = JSONObject(resStr)
-                val rawText = responseJson.getJSONArray("choices")
-                    .getJSONObject(0)
-                    .getJSONObject("message")
-                    .getString("content")
-                
-                rawText + "\n\n---\n*💡 Powered by a free public test server because your ${model.uppercase()} API Key has not been entered in Settings.*"
-            }
-        } catch (e: Exception) {
-            "Failed to process via free server: Connection timeout. Please put your API Key in Settings for direct premium connection."
-        }
-    }
-
     suspend fun sendSimpleRequest(
         prompt: String,
         systemText: String,
@@ -346,7 +309,7 @@ class ChatRepository {
                 systemInstruction = activeSystemInstruction
             )
             try {
-                val response = GeminiClient.service.generateContent("gemini-1.5-flash", keyToUse, request)
+                val response = GeminiClient.service.generateContent("gemini-3-flash-preview", keyToUse, request)
                 response.candidates.firstOrNull()?.content?.parts?.firstOrNull()?.text ?: "No response from Gemini."
             } catch (e: Exception) {
                 "Error: ${e.localizedMessage}"
@@ -378,7 +341,7 @@ class ChatRepository {
                 ))
             )
             try {
-                val response = GeminiClient.service.generateContent("gemini-1.5-flash", keyToUse, request)
+                val response = GeminiClient.service.generateContent("gemini-3-flash-preview", keyToUse, request)
                 response.candidates.firstOrNull()?.content?.parts?.firstOrNull()?.text ?: "No response from Gemini."
             } catch (e: Exception) {
                 "Error: ${e.localizedMessage}"

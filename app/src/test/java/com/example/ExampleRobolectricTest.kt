@@ -5,6 +5,7 @@ import androidx.test.core.app.ApplicationProvider
 import org.junit.Assert.assertEquals
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.robolectric.Robolectric
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 
@@ -26,5 +27,14 @@ class ExampleRobolectricTest {
     val viewModel = com.example.ui.chat.ChatViewModel()
     val state = viewModel.uiState.value
     assert(state.selectedModel.displayName.isNotEmpty())
+  }
+
+  @Test
+  fun testMainActivityLifecycle() {
+    val context = ApplicationProvider.getApplicationContext<Context>()
+    AppContextProvider.init(context)
+    val activityController = Robolectric.buildActivity(MainActivity::class.java)
+    activityController.create().start().resume()
+    assert(activityController.get() != null)
   }
 }

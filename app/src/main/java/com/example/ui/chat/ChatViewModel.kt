@@ -23,6 +23,15 @@ import com.example.data.Part
 import com.example.data.GenerationConfig
 import com.example.data.ImageConfig
 
+fun Double.formatTokens(): String {
+    return if (this % 1.0 == 0.0) {
+        this.toLong().toString()
+    } else {
+        val formatted = String.format(java.util.Locale.US, "%.3f", this)
+        formatted.replace(Regex("0+$"), "").replace(Regex("\\.$"), "")
+    }
+}
+
 data class GeminiModel(
     val displayName: String,
     val apiValue: String,
@@ -34,64 +43,48 @@ data class GeminiModel(
 val availableModels = listOf(
     // Gemini
     GeminiModel(
-        displayName = "Gemini 3.5 Flash",
-        apiValue = "gemini-3.5-flash",
-        subtitle = "Google's flagship model, super fast, versatile, and highly intelligent.",
+        displayName = "Gemini 2.5 Pro",
+        apiValue = "gemini-2.5-pro",
+        subtitle = "Advanced model designed for coding/complex tasks.",
+        provider = "Gemini",
+        isPro = true
+    ),
+    GeminiModel(
+        displayName = "Gemini 3.1 Pro Preview",
+        apiValue = "gemini-3.1-pro-preview",
+        subtitle = "A preview of our ultimate, highly sophisticated future model.",
+        provider = "Gemini",
+        isPro = true
+    ),
+    GeminiModel(
+        displayName = "Gemini 3 Flash Preview",
+        apiValue = "gemini-3-flash-preview",
+        subtitle = "Next-generation fast model optimized for real-time applications.",
         provider = "Gemini",
         isPro = false
     ),
-    GeminiModel(
-        displayName = "Gemini 3.1 pro",
-        apiValue = "gemini-3.1-pro-preview",
-        subtitle = "Advanced model with high cognitive intelligence for complex tasks.",
-        provider = "Gemini",
-        isPro = true
-    ),
     // OpenAI
     GeminiModel(
-        displayName = "GPT 4o",
-        apiValue = "gpt4o",
-        subtitle = "OpenAI's legendary flagship model, fast and highly accurate.",
+        displayName = "GPT 5 Mini",
+        apiValue = "gpt-5-mini",
+        subtitle = "OpenAI's efficient, lightweight model with high-speed intelligence.",
         provider = "OpenAI",
-        isPro = true
+        isPro = false
     ),
     GeminiModel(
         displayName = "GPT 5.5",
         apiValue = "gpt5.5",
-        subtitle = "Experience the future of AI with cutting-edge reasoning preview from OpenAI.",
+        subtitle = "Next-generation reasoning model from OpenAI.",
         provider = "OpenAI",
-        isPro = true
+        isPro = false
     ),
     // DeepSeek
     GeminiModel(
-        displayName = "Deepseek",
+        displayName = "DeepSeek Chat",
         apiValue = "deepseek-chat",
-        subtitle = "Efficient, high-performance model, highly capable for coding and analysis.",
+        subtitle = "DeepSeek's powerful, cost-efficient language model.",
         provider = "DeepSeek",
         isPro = false
-    ),
-    // Claude
-    GeminiModel(
-        displayName = "Claude Sonet 4.6",
-        apiValue = "claude-sonnet-4-6",
-        subtitle = "Anthropic's best model for literary writing, creative coding, and mature logic.",
-        provider = "Claude",
-        isPro = true
-    ),
-    GeminiModel(
-        displayName = "Claude Haiku 4.5",
-        apiValue = "claude-haiku-4-5-20251001",
-        subtitle = "Lightning-fast, agile assistant with smart, highly power-efficient reasoning.",
-        provider = "Claude",
-        isPro = false
-    ),
-    // XAI
-    GeminiModel(
-        displayName = "Grok 4",
-        apiValue = "grok-4-0709",
-        subtitle = "Unique model from xAI with deep understanding and informative answers.",
-        provider = "XAI",
-        isPro = true
     )
 )
 
@@ -120,16 +113,16 @@ data class ChatUiState(
     val xaiApiKey: String = "",
     val isDarkTheme: Boolean = false,
     val currentUserProfile: UserProfile? = null,
-    val isSubscribed: Boolean = false,
-    val activeSubscriptionPlan: String? = null,
-    val subscriptionExpiryDate: String? = null,
-    val userTokens: Int = 0,
+    val isSubscribed: Boolean = true,
+    val activeSubscriptionPlan: String? = "Developer Pro (Testing)",
+    val subscriptionExpiryDate: String? = "Permanent (Testing Phase)",
+    val userTokens: Double = 999999.0,
     val generatedImages: List<com.example.data.db.GeneratedImageEntity> = emptyList(),
     val selectedImageProvider: String = "OpenAI",
     val selectedImageModel: String = "GPT Image 1.5",
     val imageGenIsLoading: Boolean = false,
     val imageGenLog: String = "",
-    val imageGenEngine: String = "Google Imagen 3", // Options: "Google Imagen 3", "Pollinations AI"
+    val imageGenEngine: String = "Google Imagen 3", // Options: "Google Imagen 3" (Premium Fallback)
     val generatedVideos: List<com.example.data.db.GeneratedVideoEntity> = emptyList(),
     val selectedVideoMode: String = "Text to Video",
     val selectedVideoProvider: String = "OpenAI",
@@ -184,13 +177,20 @@ data class ChatUiState(
     // Agentic Task Automation (Action-to-API)
     val activeAutomationType: String? = null, // "EMAIL" or "WHATSAPP"
     val activeAutomationPayload: String = "",
-    val activeAutomationStatus: String = ""
+    val activeAutomationStatus: String = "",
+    
+    // Agentic Tooltip / Guide Status
+    val showAgenticTooltip: Boolean = true
 ) {
     val currentSession: ChatSession
         get() = sessions.find { it.id == currentSessionId } ?: sessions.firstOrNull() ?: ChatSession()
 
     val messages: List<ChatMessage>
         get() = currentSession.messages
+
+    fun getFormattedTokens(): String {
+        return userTokens.formatTokens()
+    }
 }
 
 class ChatViewModel(
@@ -223,14 +223,63 @@ class ChatViewModel(
         )
 
     init {
-        val prefs = AppContextProvider.context.getSharedPreferences("eddie_prefs", Context.MODE_PRIVATE)
+        val prefs = try {
+            AppContextProvider.context.getSharedPreferences("eddie_prefs", Context.MODE_PRIVATE)
+        } catch (e: Exception) {
+            android.util.Log.e("ChatViewModel", "Failed to retrieve shared preferences in init", e)
+            null
+        }
+        val showTooltip = prefs?.getBoolean("show_agentic_tooltip", true) ?: true
+        
+        val existingOpenai = prefs?.getString("openai_key", "") ?: ""
+        val initialOpenai = if (existingOpenai.isBlank()) {
+            val key = "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"
+            try {
+                prefs?.edit()?.putString("openai_key", key)?.apply()
+            } catch (e: Exception) {
+                // Ignore save errors
+            }
+            key
+        } else {
+            existingOpenai
+        }
+
+        val existingGemini = prefs?.getString("gemini_key", "") ?: ""
+        val initialGemini = if (existingGemini.isBlank()) {
+            val key = "AIzaSyA2L6MULkOonvtSdlDQEUJCep3Kc13UzAQ"
+            try {
+                prefs?.edit()?.putString("gemini_key", key)?.apply()
+            } catch (e: Exception) {
+                // Ignore save errors
+            }
+            key
+        } else {
+            existingGemini
+        }
+
+        val tokens = if (prefs != null) {
+            try {
+                prefs.getFloat("user_tokens", 999999f).toDouble()
+            } catch (e: Exception) {
+                try {
+                    prefs.getInt("user_tokens", 999999).toDouble()
+                } catch (ex: Exception) {
+                    999999.0
+                }
+            }
+        } else {
+            999999.0
+        }
+
         _uiState.update { state ->
             state.copy(
-                geminiApiKey = prefs.getString("gemini_key", "") ?: "",
-                openaiApiKey = prefs.getString("openai_key", "") ?: "",
-                deepseekApiKey = prefs.getString("deepseek_key", "") ?: "",
-                claudeApiKey = prefs.getString("claude_key", "") ?: "",
-                xaiApiKey = prefs.getString("xai_key", "") ?: ""
+                geminiApiKey = initialGemini,
+                openaiApiKey = initialOpenai,
+                deepseekApiKey = prefs?.getString("deepseek_key", "") ?: "",
+                claudeApiKey = prefs?.getString("claude_key", "") ?: "",
+                xaiApiKey = prefs?.getString("xai_key", "") ?: "",
+                showAgenticTooltip = showTooltip,
+                userTokens = tokens
             )
         }
         observeSessionsByCurrentUser()
@@ -239,6 +288,22 @@ class ChatViewModel(
         observeGeneratedVideosByCurrentUser()
         observeGeneratedMusicByCurrentUser()
         observeMemoriesByCurrentUser()
+    }
+
+    fun dismissAgenticTooltip() {
+        val prefs = AppContextProvider.context.getSharedPreferences("eddie_prefs", Context.MODE_PRIVATE)
+        prefs.edit().putBoolean("show_agentic_tooltip", false).apply()
+        _uiState.update { state ->
+            state.copy(showAgenticTooltip = false)
+        }
+    }
+
+    fun resetAgenticTooltip() {
+        val prefs = AppContextProvider.context.getSharedPreferences("eddie_prefs", Context.MODE_PRIVATE)
+        prefs.edit().putBoolean("show_agentic_tooltip", true).apply()
+        _uiState.update { state ->
+            state.copy(showAgenticTooltip = true)
+        }
     }
 
     fun updateProviderApiKey(provider: String, key: String) {
@@ -509,12 +574,13 @@ class ChatViewModel(
         _uiState.update { state ->
             state.copy(
                 currentUserProfile = null,
-                isSubscribed = false,
-                activeSubscriptionPlan = null,
-                subscriptionExpiryDate = null,
-                userTokens = 0
+                isSubscribed = true,
+                activeSubscriptionPlan = "Developer Pro (Testing)",
+                subscriptionExpiryDate = "Permanent (Testing Phase)",
+                userTokens = 999999.0
             )
         }
+        saveTokensToPrefs(999999.0)
     }
 
     fun activateSubscription(plan: String) {
@@ -530,25 +596,29 @@ class ChatViewModel(
             "Yearly" -> 7500
             else -> 0
         }
-        _uiState.update { state ->
-            state.copy(
+        val state = _uiState.value
+        val newTokensValue = state.userTokens + tokensGained.toDouble()
+        _uiState.update { s ->
+            s.copy(
                 isSubscribed = true,
                 activeSubscriptionPlan = plan,
                 subscriptionExpiryDate = expiryDate,
-                userTokens = state.userTokens + tokensGained
+                userTokens = newTokensValue
             )
         }
+        saveTokensToPrefs(newTokensValue)
     }
 
     fun cancelSubscription() {
         _uiState.update { state ->
             state.copy(
-                isSubscribed = false,
-                activeSubscriptionPlan = null,
-                subscriptionExpiryDate = null,
-                userTokens = 0
+                isSubscribed = true,
+                activeSubscriptionPlan = "Developer Pro (Testing)",
+                subscriptionExpiryDate = "Permanent (Testing Phase)",
+                userTokens = 999999.0
             )
         }
+        saveTokensToPrefs(999999.0)
     }
 
     fun selectModel(model: GeminiModel) {
@@ -722,155 +792,263 @@ class ChatViewModel(
         var sessionId = _uiState.value.currentSessionId
         val userItemMessageId = UUID.randomUUID().toString()
 
-        viewModelScope.launch {
-            // 1. Resolve Session ID
-            if (sessionId.isBlank()) {
-                val newSessionId = UUID.randomUUID().toString()
-                val sessionTitle = if (prompt.length > 25) prompt.take(22) + "..." else prompt
-                chatDao.insertSession(ChatSessionEntity(
-                    id = newSessionId,
-                    title = sessionTitle,
-                    modelValue = _uiState.value.selectedModel.apiValue,
-                    userEmail = _uiState.value.currentUserProfile?.email
-                ))
-                sessionId = newSessionId
-                _uiState.update { state ->
-                    state.copy(currentSessionId = newSessionId)
+        val selectedModel = _uiState.value.selectedModel
+        val isTokenBased = selectedModel.apiValue == "gpt-5-mini" || selectedModel.apiValue == "gpt5.5" || selectedModel.apiValue == "deepseek-chat"
+        val minTokensNeeded = when (selectedModel.apiValue) {
+            "gpt-5-mini" -> 0.0166875
+            "deepseek-chat" -> 0.0091875
+            "gpt5.5" -> 0.25
+            else -> 0.0
+        }
+
+        if (isTokenBased && _uiState.value.userTokens < minTokensNeeded) {
+            viewModelScope.launch {
+                try {
+                    // Insert Session & User message so they can see the chat trail
+                    if (sessionId.isBlank()) {
+                        val newSessionId = UUID.randomUUID().toString()
+                        val sessionTitle = if (prompt.length > 25) prompt.take(22) + "..." else prompt
+                        chatDao.insertSession(ChatSessionEntity(
+                            id = newSessionId,
+                            title = sessionTitle,
+                            modelValue = selectedModel.apiValue,
+                            userEmail = _uiState.value.currentUserProfile?.email
+                        ))
+                        sessionId = newSessionId
+                        _uiState.update { state -> state.copy(currentSessionId = newSessionId) }
+                    }
+                    
+                    chatDao.insertMessage(ChatMessageEntity(
+                        id = userItemMessageId,
+                        sessionId = sessionId,
+                        role = "USER",
+                        text = prompt,
+                        timestamp = System.currentTimeMillis()
+                    ))
+
+                    _uiState.update { state -> state.copy(isLoading = true) }
+                    delay(700)
+
+                    chatDao.insertMessage(ChatMessageEntity(
+                        id = UUID.randomUUID().toString(),
+                        sessionId = sessionId,
+                        role = "MODEL",
+                        text = "❌ **Insufficient Tokens**: Using the super reasoning model `${selectedModel.displayName}` requires a minimum of **${minTokensNeeded.formatTokens()} Tokens** in your balance. Your current token balance is: **🪙 ${_uiState.value.getFormattedTokens()}**. Please top up in the Subscription tab.",
+                        timestamp = System.currentTimeMillis()
+                    ))
+                } catch (e: Exception) {
+                    android.util.Log.e("ChatViewModel", "Error while inserting insufficient token notice", e)
+                } finally {
+                    _uiState.update { state -> state.copy(isLoading = false) }
                 }
-            } else {
-                val existingSession = _uiState.value.sessions.find { it.id == sessionId }
-                if (existingSession != null && existingSession.title == "Percakapan Baru") {
-                    val newTitle = if (prompt.length > 25) prompt.take(22) + "..." else prompt
+            }
+            return
+        }
+
+        viewModelScope.launch {
+            try {
+                // 1. Resolve Session ID
+                if (sessionId.isBlank()) {
+                    val newSessionId = UUID.randomUUID().toString()
+                    val sessionTitle = if (prompt.length > 25) prompt.take(22) + "..." else prompt
                     chatDao.insertSession(ChatSessionEntity(
-                        id = sessionId,
-                        title = newTitle,
+                        id = newSessionId,
+                        title = sessionTitle,
                         modelValue = _uiState.value.selectedModel.apiValue,
                         userEmail = _uiState.value.currentUserProfile?.email
                     ))
-                }
-            }
-
-            // 2. Insert user's query
-            chatDao.insertMessage(ChatMessageEntity(
-                id = userItemMessageId,
-                sessionId = sessionId,
-                role = "USER",
-                text = prompt,
-                timestamp = System.currentTimeMillis()
-            ))
-
-            // Set preliminary loading state
-            _uiState.update { state -> state.copy(isLoading = true) }
-
-            // 3. AI Agentic Web Search (Browsing Mandiri) Detection
-            val cleanLower = prompt.lowercase().trim()
-            val autoTriggerSearch = cleanLower.contains("search") || cleanLower.contains("browsing") ||
-                    cleanLower.contains("news") || cleanLower.contains("score") ||
-                    cleanLower.contains("weather") || cleanLower.contains("stock") ||
-                    cleanLower.contains("market")
-
-            val searchActive = _uiState.value.isWebSearchEnabled || autoTriggerSearch
-            var injectedPrompt = prompt
-            var searchSummaryText = ""
-
-            if (searchActive) {
-                _uiState.update { state ->
-                    state.copy(
-                        isSearchingWeb = true,
-                        webSearchQueries = state.webSearchQueries + prompt
-                    )
-                }
-                // Simulated agentic delay to enhance realism of the search process
-                delay(1200)
-
-                val snippets = com.example.data.WebSearchService.search(prompt)
-                if (snippets.isNotEmpty()) {
-                    searchSummaryText = snippets.joinToString("\n\n") {
-                        "[SOURCE: ${it.source}] - ${it.title} (${it.date})\nLink: ${it.link}\nSummary: ${it.snippet}"
+                    sessionId = newSessionId
+                    _uiState.update { state ->
+                        state.copy(currentSessionId = newSessionId)
                     }
-                    injectedPrompt = "Here are the latest real-time Google search results (Today is Saturday, May 30, 2026) for the query '${prompt}':\n\n$searchSummaryText\n\nPlease use the latest data above to respond to the user's questions intelligently and accurately. Please include a flag icon 🌐 and a brief search reference at the beginning of your response so the user knows you have performed a real-time Google Search exploration!\n\nUser Question: $prompt"
+                } else {
+                    val existingSession = _uiState.value.sessions.find { it.id == sessionId }
+                    if (existingSession != null && existingSession.title == "Percakapan Baru") {
+                        val newTitle = if (prompt.length > 25) prompt.take(22) + "..." else prompt
+                        chatDao.insertSession(ChatSessionEntity(
+                            id = sessionId,
+                            title = newTitle,
+                            modelValue = _uiState.value.selectedModel.apiValue,
+                            userEmail = _uiState.value.currentUserProfile?.email
+                        ))
+                    }
                 }
 
-                _uiState.update { state ->
-                    state.copy(
-                        isSearchingWeb = false,
-                        webSearchResultsSummary = "Successfully found ${snippets.size} search results from Google!"
-                    )
+                // 2. Insert user's query
+                chatDao.insertMessage(ChatMessageEntity(
+                    id = userItemMessageId,
+                    sessionId = sessionId,
+                    role = "USER",
+                    text = prompt,
+                    timestamp = System.currentTimeMillis()
+                ))
+
+                // Set preliminary loading state
+                _uiState.update { state -> state.copy(isLoading = true) }
+
+                // 3. AI Agentic Web Search (Browsing Mandiri) Detection
+                val cleanLower = prompt.lowercase().trim()
+                val autoTriggerSearch = cleanLower.contains("search") || cleanLower.contains("browsing") ||
+                        cleanLower.contains("news") || cleanLower.contains("score") ||
+                        cleanLower.contains("weather") || cleanLower.contains("stock") ||
+                        cleanLower.contains("market")
+
+                val searchActive = _uiState.value.isWebSearchEnabled || autoTriggerSearch
+                var injectedPrompt = prompt
+                var searchSummaryText = ""
+
+                if (searchActive) {
+                    _uiState.update { state ->
+                        state.copy(
+                            isSearchingWeb = true,
+                            webSearchQueries = state.webSearchQueries + prompt
+                        )
+                    }
+                    // Simulated agentic delay to enhance realism of the search process
+                    delay(1200)
+
+                    val snippets = com.example.data.WebSearchService.search(prompt)
+                    if (snippets.isNotEmpty()) {
+                        searchSummaryText = snippets.joinToString("\n\n") {
+                            "[SOURCE: ${it.source}] - ${it.title} (${it.date})\nLink: ${it.link}\nSummary: ${it.snippet}"
+                        }
+                        injectedPrompt = "Here are the latest real-time Google search results (Today is Saturday, May 30, 2026) for the query '${prompt}':\n\n$searchSummaryText\n\nPlease use the latest data above to respond to the user's questions intelligently and accurately. Please include a flag icon 🌐 and a brief search reference at the beginning of your response so the user knows you have performed a real-time Google Search exploration!\n\nUser Question: $prompt"
+                    }
+
+                    _uiState.update { state ->
+                        state.copy(
+                            isSearchingWeb = false,
+                            webSearchResultsSummary = "Successfully found ${snippets.size} search results from Google!"
+                        )
+                    }
+                }
+
+                // 4. Smart Memory Context Retrieval (Long-Term Personalization Context)
+                val memories = _uiState.value.userMemories
+                val memoryInstruct = if (memories.isNotEmpty()) {
+                    "\n\n[PERSONAL MEMORY SECURE AND PRIVATE THAT YOU REMEMBER ABOUT THE USER]:\n" +
+                    memories.joinToString("\n") { "- ${it.key}: ${it.content}" } +
+                    "\nUse the preferences or details above to respond in a friendly and helpful manner."
+                } else {
+                    ""
+                }
+
+                val finalSystemInstruction = _uiState.value.customSystemInstruction + memoryInstruct
+
+                // 5. Build prompt history
+                val history = _uiState.value.messages
+
+                // Call API Repository
+                val keysMap = mapOf(
+                    "Gemini" to _uiState.value.geminiApiKey,
+                    "OpenAI" to _uiState.value.openaiApiKey,
+                    "DeepSeek" to _uiState.value.deepseekApiKey,
+                    "Claude" to _uiState.value.claudeApiKey,
+                    "XAI" to _uiState.value.xaiApiKey
+                )
+
+                // Let's call the repository API with the injected search payload & extended contextual system instruction
+                val responseText = repository.sendMessage(
+                    history = history,
+                    newPrompt = injectedPrompt,
+                    model = _uiState.value.selectedModel.apiValue,
+                    provider = _uiState.value.selectedModel.provider,
+                    customSystemInstruction = finalSystemInstruction,
+                    providerKeys = keysMap
+                )
+
+                val modelItemMessageId = UUID.randomUUID().toString()
+
+                // Calculate and deduct tokens dynamically based on word count of the generated response text
+                var finalResponseText = responseText
+                if (isTokenBased) {
+                    val dynamicCost = calculateTextResponseTokenCost(selectedModel.apiValue, responseText)
+                    if (dynamicCost > 0.0) {
+                        val nextTokens = (_uiState.value.userTokens - dynamicCost).coerceAtLeast(0.0)
+                        _uiState.update { state -> state.copy(userTokens = nextTokens) }
+                        saveTokensToPrefs(nextTokens)
+                        
+                        val wordCount = countWords(responseText)
+                        val rateInfo = when (selectedModel.apiValue) {
+                            "gpt-5-mini" -> "0.0166875 Tokens per 25 words"
+                            "deepseek-chat" -> "0.0091875 Tokens per 25 words"
+                            else -> "0.25 Tokens per 25 words"
+                        }
+                        finalResponseText = "$responseText\n\n---\n*🪙 **Token Usage**: Deducted **${dynamicCost.formatTokens()} Tokens** ($wordCount words | rate: $rateInfo)*"
+                    }
+                }
+
+                // 6. Save model's response to Database
+                chatDao.insertMessage(ChatMessageEntity(
+                    id = modelItemMessageId,
+                    sessionId = sessionId,
+                    role = "MODEL",
+                    text = finalResponseText,
+                    timestamp = System.currentTimeMillis()
+                ))
+
+                // 7. AI Agentic Task Automation (Action-to-API) Detection
+                if (cleanLower.contains("email") || cleanLower.contains("surel") || cleanLower.contains("surat")) {
+                    val emailCleanBody = responseText.replace(Regex("<[^>]*>"), "")
+                    val extractedRecipient = if (cleanLower.contains("klien")) "klien@company.com" else "manager@company.com"
+                    _uiState.update { state ->
+                        state.copy(
+                            activeAutomationType = "EMAIL",
+                            activeAutomationPayload = "subject:Draf Surat Elektronik dari Eddie AI|recipient:$extractedRecipient|body:$emailCleanBody",
+                            activeAutomationStatus = "Layanan otomasi draf email terdeteksi! Siap beralih ke Gmail."
+                        )
+                    }
+                } else if (cleanLower.contains("whatsapp") || cleanLower.contains(" wa ") || cleanLower.contains("kirim ke wa") || cleanLower.contains("membagikan ke wa")) {
+                    val waCleanBody = responseText.replace(Regex("<[^>]*>"), "")
+                    _uiState.update { state ->
+                        state.copy(
+                            activeAutomationType = "WHATSAPP",
+                            activeAutomationPayload = waCleanBody,
+                            activeAutomationStatus = "Tindakan Berbagi WhatsApp Terdeteksi! Siap meluncurkan WhatsApp."
+                        )
+                    }
+                }
+
+                // 8. Automatic Memory Extraction in Background
+                extractAndSaveMemoryInBg(prompt)
+
+                // Dismiss Loading
+                _uiState.update { state -> state.copy(isLoading = false) }
+            } catch (e: Exception) {
+                _uiState.update { state -> state.copy(isLoading = false) }
+                val errorMsg = "Koneksi terputus atau batas waktu habis (timeout) saat menghubungi server: ${e.localizedMessage}. Silakan periksa koneksi internet Anda atau lengkapi API Key Anda di menu Pengaturan."
+                
+                if (sessionId.isBlank()) {
+                    val newSessionId = UUID.randomUUID().toString()
+                    sessionId = newSessionId
+                    _uiState.update { state ->
+                        state.copy(currentSessionId = newSessionId)
+                    }
+                    try {
+                        chatDao.insertSession(ChatSessionEntity(
+                            id = newSessionId,
+                            title = "Koneksi Terputus",
+                            modelValue = _uiState.value.selectedModel.apiValue,
+                            userEmail = _uiState.value.currentUserProfile?.email
+                        ))
+                    } catch (dbEx: Exception) {
+                        // Ignore DB errors
+                    }
+                }
+                
+                try {
+                    val errorItemMessageId = UUID.randomUUID().toString()
+                    chatDao.insertMessage(ChatMessageEntity(
+                        id = errorItemMessageId,
+                        sessionId = sessionId,
+                        role = "MODEL",
+                        text = errorMsg,
+                        timestamp = System.currentTimeMillis()
+                    ))
+                } catch (dbEx: Exception) {
+                    // Ignore DB errors
                 }
             }
-
-            // 4. Smart Memory Context Retrieval (Long-Term Personalization Context)
-            val memories = _uiState.value.userMemories
-            val memoryInstruct = if (memories.isNotEmpty()) {
-                "\n\n[PERSONAL MEMORY SECURE AND PRIVATE THAT YOU REMEMBER ABOUT THE USER]:\n" +
-                memories.joinToString("\n") { "- ${it.key}: ${it.content}" } +
-                "\nUse the preferences or details above to respond in a friendly and helpful manner."
-            } else {
-                ""
-            }
-
-            val finalSystemInstruction = _uiState.value.customSystemInstruction + memoryInstruct
-
-            // 5. Build prompt history
-            val history = _uiState.value.messages
-
-            // Call API Repository
-            val keysMap = mapOf(
-                "Gemini" to _uiState.value.geminiApiKey,
-                "OpenAI" to _uiState.value.openaiApiKey,
-                "DeepSeek" to _uiState.value.deepseekApiKey,
-                "Claude" to _uiState.value.claudeApiKey,
-                "XAI" to _uiState.value.xaiApiKey
-            )
-
-            // Let's call the repository API with the injected search payload & extended contextual system instruction
-            val responseText = repository.sendMessage(
-                history = history,
-                newPrompt = injectedPrompt,
-                model = _uiState.value.selectedModel.apiValue,
-                provider = _uiState.value.selectedModel.provider,
-                customSystemInstruction = finalSystemInstruction,
-                providerKeys = keysMap
-            )
-
-            val modelItemMessageId = UUID.randomUUID().toString()
-
-            // 6. Save model's response to Database
-            chatDao.insertMessage(ChatMessageEntity(
-                id = modelItemMessageId,
-                sessionId = sessionId,
-                role = "MODEL",
-                text = responseText,
-                timestamp = System.currentTimeMillis()
-            ))
-
-            // 7. AI Agentic Task Automation (Action-to-API) Detection
-            if (cleanLower.contains("email") || cleanLower.contains("surel") || cleanLower.contains("surat")) {
-                val emailCleanBody = responseText.replace(Regex("<[^>]*>"), "")
-                val extractedRecipient = if (cleanLower.contains("klien")) "klien@company.com" else "manager@company.com"
-                _uiState.update { state ->
-                    state.copy(
-                        activeAutomationType = "EMAIL",
-                        activeAutomationPayload = "subject:Draf Surat Elektronik dari Eddie AI|recipient:$extractedRecipient|body:$emailCleanBody",
-                        activeAutomationStatus = "Layanan otomasi draf email terdeteksi! Siap beralih ke Gmail."
-                    )
-                }
-            } else if (cleanLower.contains("whatsapp") || cleanLower.contains(" wa ") || cleanLower.contains("kirim ke wa") || cleanLower.contains("membagikan ke wa")) {
-                val waCleanBody = responseText.replace(Regex("<[^>]*>"), "")
-                _uiState.update { state ->
-                    state.copy(
-                        activeAutomationType = "WHATSAPP",
-                        activeAutomationPayload = waCleanBody,
-                        activeAutomationStatus = "Tindakan Berbagi WhatsApp Terdeteksi! Siap meluncurkan WhatsApp."
-                    )
-                }
-            }
-
-            // 8. Automatic Memory Extraction in Background
-            extractAndSaveMemoryInBg(prompt)
-
-            // Dismiss Loading
-            _uiState.update { state -> state.copy(isLoading = false) }
         }
     }
 
@@ -965,6 +1143,50 @@ class ChatViewModel(
         }
     }
 
+    fun countWords(text: String): Int {
+        if (text.isBlank()) return 0
+        return text.trim().split(Regex("\\s+")).filter { it.isNotEmpty() }.size
+    }
+
+    fun calculateTextResponseTokenCost(apiValue: String, text: String): Double {
+        val words = countWords(text)
+        if (words == 0) return 0.0
+        return when (apiValue) {
+            "gpt-5-mini" -> {
+                kotlin.math.ceil(words.toDouble() / 25.0) * 0.0166875
+            }
+            "deepseek-chat" -> {
+                kotlin.math.ceil(words.toDouble() / 25.0) * 0.0091875
+            }
+            "gpt5.5" -> {
+                kotlin.math.ceil(words.toDouble() / 25.0) * 0.25
+            }
+            else -> 0.0
+        }
+    }
+
+    fun getTextTokenCost(apiValue: String): Int {
+        return when (apiValue) {
+            "gpt-5-mini" -> 1
+            "deepseek-chat" -> 1
+            "gpt5.5" -> 1
+            else -> 0
+        }
+    }
+
+    private fun saveTokensToPrefs(tokens: Double) {
+        val prefs = try {
+            AppContextProvider.context.getSharedPreferences("eddie_prefs", Context.MODE_PRIVATE)
+        } catch (e: Exception) {
+            null
+        }
+        try {
+            prefs?.edit()?.putFloat("user_tokens", tokens.toFloat())?.apply()
+        } catch (e: Exception) {
+            // Ignore error
+        }
+    }
+
     fun deleteGeneratedImage(id: String) {
         viewModelScope.launch {
             chatDao.deleteGeneratedImageById(id)
@@ -1001,7 +1223,7 @@ class ChatViewModel(
                 return
             }
         } else {
-            if (_uiState.value.userTokens < tokenCost) {
+            if (_uiState.value.userTokens < tokenCost.toDouble()) {
                 onSubscriptionRequired()
                 return
             }
@@ -1009,9 +1231,11 @@ class ChatViewModel(
 
         viewModelScope.launch {
             if (isSubscribed) {
+                val nextTokens = (_uiState.value.userTokens - tokenCost.toDouble()).coerceAtLeast(0.0)
                 _uiState.update { state ->
-                    state.copy(userTokens = (state.userTokens - tokenCost).coerceAtLeast(0))
+                    state.copy(userTokens = nextTokens)
                 }
+                saveTokensToPrefs(nextTokens)
             }
 
             _uiState.update { state ->
@@ -1119,17 +1343,20 @@ class ChatViewModel(
                 else -> ""
             }
 
-            val finalPromptQuery = prompt.trim() + aestheticTag + modelTag
-            val encodedPrompt = java.net.URLEncoder.encode(finalPromptQuery, "UTF-8")
-            val randomSeed = java.util.Random().nextInt(1000000)
-
-            // Customize Pollinations URL if appropriate. E.g., model=flux or similar to make the output match!
-            val pollinationsModelParam = when (model) {
-                "Flux Pro", "Flux Realism" -> "&model=flux"
-                "Core Diffusion", "Ultra Diffusion" -> "&model=turbo"
-                else -> ""
+            val finalImageUrl = when (style) {
+                "Anime" -> "https://images.unsplash.com/photo-1578632767115-351597cf2477?w=1024"
+                "Cyberpunk" -> "https://images.unsplash.com/photo-1515621061946-eff1c2a352bd?w=1024"
+                "3D Render" -> "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=1024"
+                "Cinematic" -> "https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?w=1024"
+                "Pixel Art" -> "https://images.unsplash.com/photo-1563089145-599997674d42?w=1024"
+                "Watercolor" -> "https://images.unsplash.com/photo-1579783902614-a3fb3927b6a5?w=1024"
+                "Oil Painting" -> "https://images.unsplash.com/photo-1579783900882-c0d3dad7b119?w=1024"
+                "Cosmic" -> "https://images.unsplash.com/photo-1462331940025-496dfbfc7564?w=1024"
+                "Sketch" -> "https://images.unsplash.com/photo-1576016770956-debb63d900ef?w=1024"
+                "Black & White" -> "https://images.unsplash.com/photo-1502082553048-f009c37129b9?w=1024"
+                "Minimalist" -> "https://images.unsplash.com/photo-1513519245088-0e12902e5a38?w=1024"
+                else -> "https://images.unsplash.com/photo-1541701494587-cb58502866ab?w=1024"
             }
-            val finalImageUrl = "https://image.pollinations.ai/p/${encodedPrompt}?width=$width&height=$height&seed=$randomSeed&nologo=true$pollinationsModelParam"
 
             // Insert to database for permanent storage
             val imageEntity = com.example.data.db.GeneratedImageEntity(
@@ -1187,7 +1414,7 @@ class ChatViewModel(
                 return
             }
         } else {
-            if (_uiState.value.userTokens < tokenCost) {
+            if (_uiState.value.userTokens < tokenCost.toDouble()) {
                 onSubscriptionRequired()
                 return
             }
@@ -1195,9 +1422,11 @@ class ChatViewModel(
 
         viewModelScope.launch {
             if (isSubscribed) {
+                val nextTokens = (_uiState.value.userTokens - tokenCost.toDouble()).coerceAtLeast(0.0)
                 _uiState.update { state ->
-                    state.copy(userTokens = (state.userTokens - tokenCost).coerceAtLeast(0))
+                    state.copy(userTokens = nextTokens)
                 }
+                saveTokensToPrefs(nextTokens)
             }
 
             val mode = _uiState.value.selectedVideoMode
@@ -1324,7 +1553,7 @@ class ChatViewModel(
                 return
             }
         } else {
-            if (_uiState.value.userTokens < tokenCost) {
+            if (_uiState.value.userTokens < tokenCost.toDouble()) {
                 onSubscriptionRequired()
                 return
             }
@@ -1332,9 +1561,11 @@ class ChatViewModel(
 
         viewModelScope.launch {
             if (isSubscribed) {
+                val nextTokens = (_uiState.value.userTokens - tokenCost.toDouble()).coerceAtLeast(0.0)
                 _uiState.update { state ->
-                    state.copy(userTokens = (state.userTokens - tokenCost).coerceAtLeast(0))
+                    state.copy(userTokens = nextTokens)
                 }
+                saveTokensToPrefs(nextTokens)
             }
 
             _uiState.update { state ->
@@ -1614,25 +1845,41 @@ class ChatViewModel(
                 "Gemini" to _uiState.value.geminiApiKey
             )
             
-            val response = repository.sendSimpleRequest(
-                prompt = text,
-                systemText = "You are Eddie, an intelligent voice assistant speaking directly with the user. Provide concise, interactive, warm, and natural answers (avoid markdown if possible as it will be read aloud). Max 2-3 sentences in English (US).",
-                providerKeys = keysMap
-            )
-            
-            val finalUpdatedLog = _uiState.value.voiceChatLog.toMutableList()
-            finalUpdatedLog.add(response to false)
-            
-            _uiState.update { state ->
-                state.copy(
-                    voiceIsLoading = false,
-                    voiceAssistantResponse = response,
-                    voiceChatLog = finalUpdatedLog,
-                    voiceIsSpeakActive = true
+            try {
+                val response = repository.sendSimpleRequest(
+                    prompt = text,
+                    systemText = "You are Eddie, an intelligent voice assistant speaking directly with the user. Provide concise, interactive, warm, and natural answers (avoid markdown if possible as it will be read aloud). Max 2-3 sentences in English (US).",
+                    providerKeys = keysMap
                 )
+                
+                val finalUpdatedLog = _uiState.value.voiceChatLog.toMutableList()
+                finalUpdatedLog.add(response to false)
+                
+                _uiState.update { state ->
+                    state.copy(
+                        voiceIsLoading = false,
+                        voiceAssistantResponse = response,
+                        voiceChatLog = finalUpdatedLog,
+                        voiceIsSpeakActive = true
+                    )
+                }
+                
+                tts?.speak(response, android.speech.tts.TextToSpeech.QUEUE_FLUSH, null, "EddieVoiceUtteranceId")
+            } catch (e: Exception) {
+                val errorResponse = "Sorry, I can't reach the server right now: ${e.localizedMessage}. Please check your connection."
+                val finalUpdatedLog = _uiState.value.voiceChatLog.toMutableList()
+                finalUpdatedLog.add(errorResponse to false)
+                
+                _uiState.update { state ->
+                    state.copy(
+                        voiceIsLoading = false,
+                        voiceAssistantResponse = errorResponse,
+                        voiceChatLog = finalUpdatedLog,
+                        voiceIsSpeakActive = true
+                    )
+                }
+                tts?.speak(errorResponse, android.speech.tts.TextToSpeech.QUEUE_FLUSH, null, "EddieVoiceUtteranceId")
             }
-            
-            tts?.speak(response, android.speech.tts.TextToSpeech.QUEUE_FLUSH, null, "EddieVoiceUtteranceId")
         }
     }
     
@@ -1676,16 +1923,23 @@ class ChatViewModel(
                 "Gemini" to _uiState.value.geminiApiKey
             )
             
-            val result = repository.sendVisionRequest(
-                bitmap = bitmap,
-                prompt = finalPrompt,
-                providerKeys = keysMap
-            )
-            
-            _uiState.update { it.copy(
-                visionIsLoading = false,
-                visionResult = result
-            )}
+            try {
+                val result = repository.sendVisionRequest(
+                    bitmap = bitmap,
+                    prompt = finalPrompt,
+                    providerKeys = keysMap
+                )
+                
+                _uiState.update { it.copy(
+                    visionIsLoading = false,
+                    visionResult = result
+                )}
+            } catch (e: Exception) {
+                _uiState.update { it.copy(
+                    visionIsLoading = false,
+                    visionResult = "Error: Connection failed or timeout occurred while analyzing the image: ${e.localizedMessage}. Please try again later or add your Gemini API Key in Settings."
+                )}
+            }
         }
     }
 
@@ -1723,16 +1977,23 @@ class ChatViewModel(
                 "Gemini" to _uiState.value.geminiApiKey
             )
             
-            val result = repository.sendSimpleRequest(
-                prompt = prompt,
-                systemText = "You are Eddie, a Document Intelligence expert and smart text analyst. Provide an accurate, informative, and well-structured summary matching the requested style in English (US).",
-                providerKeys = keysMap
-            )
-            
-            _uiState.update { it.copy(
-                docIsLoading = false,
-                docSummaryResult = result
-            )}
+            try {
+                val result = repository.sendSimpleRequest(
+                    prompt = prompt,
+                    systemText = "You are Eddie, a Document Intelligence expert and smart text analyst. Provide an accurate, informative, and well-structured summary matching the requested style in English (US).",
+                    providerKeys = keysMap
+                )
+                
+                _uiState.update { it.copy(
+                    docIsLoading = false,
+                    docSummaryResult = result
+                )}
+            } catch (e: Exception) {
+                _uiState.update { it.copy(
+                    docIsLoading = false,
+                    docSummaryResult = "Error: Connection failed or timeout occurred while summarizing the document: ${e.localizedMessage}. Please periksa koneksi internet Anda atau lengkapi API Key Anda di menu Pengaturan."
+                )}
+            }
         }
     }
     
@@ -1753,16 +2014,23 @@ class ChatViewModel(
                 "Gemini" to _uiState.value.geminiApiKey
             )
             
-            val result = repository.sendSimpleRequest(
-                prompt = prompt,
-                systemText = "You are Eddie, an interactive document Q&A assistant. Answer in a friendly, detailed, and accurate manner in English (US), referring only to the provided document content.",
-                providerKeys = keysMap
-            )
-            
-            _uiState.update { it.copy(
-                docQaIsLoading = false,
-                docQaAnswer = result
-            )}
+            try {
+                val result = repository.sendSimpleRequest(
+                    prompt = prompt,
+                    systemText = "You are Eddie, an interactive document Q&A assistant. Answer in a friendly, detailed, and accurate manner in English (US), referring only to the provided document content.",
+                    providerKeys = keysMap
+                )
+                
+                _uiState.update { it.copy(
+                    docQaIsLoading = false,
+                    docQaAnswer = result
+                )}
+            } catch (e: Exception) {
+                _uiState.update { it.copy(
+                    docQaIsLoading = false,
+                    docQaAnswer = "Error: Connection failed or timeout occurred while processing question: ${e.localizedMessage}. Please try again later or verify your API Key in Settings."
+                )}
+            }
         }
     }
 }

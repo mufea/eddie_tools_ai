@@ -11,7 +11,7 @@ data class ChatSessionEntity(
     @PrimaryKey val id: String,
     val title: String,
     val timestamp: Long = System.currentTimeMillis(),
-    val modelValue: String = "gemini-3.5-flash",
+    val modelValue: String = "openai",
     val userEmail: String? = null
 )
 

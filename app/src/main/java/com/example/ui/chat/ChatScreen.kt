@@ -41,6 +41,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.AnnotatedString
@@ -232,7 +233,7 @@ fun ChatScreen(
                     )
                     Spacer(modifier = Modifier.height(12.dp))
                     Text(
-                        text = "Eddie Chat",
+                        text = "Eddie Assistant",
                         style = MaterialTheme.typography.titleLarge.copy(
                             fontWeight = FontWeight.Bold,
                             letterSpacing = (-0.5).sp
@@ -240,7 +241,7 @@ fun ChatScreen(
                         color = MaterialTheme.colorScheme.onSurface
                     )
                     Text(
-                        text = "Local database & customized assistant",
+                        text = "Agentic Chat & Customized System",
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -279,7 +280,7 @@ fun ChatScreen(
 
                     NavigationDrawerItem(
                         icon = { Text("💬", style = TextStyle(fontSize = 16.sp)) },
-                        label = { Text("Eddie Chat Assistant", fontWeight = FontWeight.SemiBold) },
+                        label = { Text("Chat Assistant", fontWeight = FontWeight.SemiBold) },
                         selected = activeTab == "chat",
                         onClick = {
                             activeTab = "chat"
@@ -289,7 +290,7 @@ fun ChatScreen(
 
                     NavigationDrawerItem(
                         icon = { Text("🎨", style = TextStyle(fontSize = 16.sp)) },
-                        label = { Text("Eddie Image Studio", fontWeight = FontWeight.SemiBold) },
+                        label = { Text("Image Studio", fontWeight = FontWeight.SemiBold) },
                         selected = activeTab == "image_gen",
                         onClick = {
                             activeTab = "image_gen"
@@ -299,7 +300,7 @@ fun ChatScreen(
 
                     NavigationDrawerItem(
                         icon = { Text("🎬", style = TextStyle(fontSize = 16.sp)) },
-                        label = { Text("Eddie Video Studio", fontWeight = FontWeight.SemiBold) },
+                        label = { Text("Video Studio", fontWeight = FontWeight.SemiBold) },
                         selected = activeTab == "video_gen",
                         onClick = {
                             activeTab = "video_gen"
@@ -309,7 +310,7 @@ fun ChatScreen(
 
                     NavigationDrawerItem(
                         icon = { Text("💻", style = TextStyle(fontSize = 16.sp)) },
-                        label = { Text("Eddie AI Code Studio", fontWeight = FontWeight.SemiBold) },
+                        label = { Text("AI Code Studio", fontWeight = FontWeight.SemiBold) },
                         selected = activeTab == "ai_code",
                         onClick = {
                             activeTab = "ai_code"
@@ -319,7 +320,7 @@ fun ChatScreen(
 
                     NavigationDrawerItem(
                         icon = { Text("🎵", style = TextStyle(fontSize = 16.sp)) },
-                        label = { Text("Eddie AI Music Studio", fontWeight = FontWeight.SemiBold) },
+                        label = { Text("AI Music Studio", fontWeight = FontWeight.SemiBold) },
                         selected = activeTab == "music_gen",
                         onClick = {
                             activeTab = "music_gen"
@@ -337,7 +338,7 @@ fun ChatScreen(
 
                     NavigationDrawerItem(
                         icon = { Text("🎙️", style = TextStyle(fontSize = 16.sp)) },
-                        label = { Text("Eddie Voice Assistant", fontWeight = FontWeight.SemiBold) },
+                        label = { Text("Voice Assistant", fontWeight = FontWeight.SemiBold) },
                         selected = activeTab == "voice_ai",
                         onClick = {
                             activeTab = "voice_ai"
@@ -454,7 +455,7 @@ fun ChatScreen(
 
                     NavigationDrawerItem(
                         icon = { Text("🧠", style = TextStyle(fontSize = 16.sp)) },
-                        label = { Text("Eddie Smart Memory") },
+                        label = { Text("Smart Memory") },
                         selected = false,
                         onClick = {
                             showMemoriesDialog = true
@@ -672,8 +673,27 @@ fun ChatScreen(
             }
         }
     ) {
+        val backgroundGradient = if (uiState.isDarkTheme) {
+            Brush.verticalGradient(
+                colors = listOf(
+                    Color(0xFF0B0F19),
+                    Color(0xFF1E1B4B),
+                    Color(0xFF111827)
+                )
+            )
+        } else {
+            Brush.verticalGradient(
+                colors = listOf(
+                    Color(0xFFFFFFFF),
+                    Color(0xFFEBF4FF),
+                    Color(0xFFF1F5F9)
+                )
+            )
+        }
+
         Scaffold(
-            containerColor = MaterialTheme.colorScheme.background,
+            modifier = Modifier.background(backgroundGradient),
+            containerColor = Color.Transparent,
             topBar = {
                 Column {
                     TopAppBar(
@@ -794,8 +814,17 @@ fun ChatScreen(
                                 }
                             }
                         },
+                        actions = {
+                            IconButton(onClick = { viewModel.resetAgenticTooltip() }) {
+                                Icon(
+                                    imageVector = Icons.Default.Info,
+                                    contentDescription = "Panduan Agen Cerdas",
+                                    tint = MaterialTheme.colorScheme.primary
+                                )
+                            }
+                        },
                         colors = TopAppBarDefaults.topAppBarColors(
-                            containerColor = MaterialTheme.colorScheme.background,
+                            containerColor = Color.Transparent,
                             titleContentColor = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     )
@@ -809,6 +838,15 @@ fun ChatScreen(
                         .fillMaxSize()
                         .padding(paddingValues)
                 ) {
+                    if (uiState.showAgenticTooltip) {
+                        AgenticTooltipBanner(
+                            onDismiss = { viewModel.dismissAgenticTooltip() },
+                            onSelectPreset = { presetText ->
+                                inputText = presetText
+                            }
+                        )
+                    }
+
                     if (uiState.messages.isEmpty()) {
                         Box(
                             modifier = Modifier
@@ -2016,11 +2054,51 @@ fun ChatMessageBubble(
             tonalElevation = 0.dp,
             shadowElevation = 0.dp
         ) {
-            MarkdownText(
-                text = message.text,
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
-                color = contentColor
-            )
+            val delimiter = "\n\n---\n*🪙"
+            val tokenIndex = message.text.indexOf(delimiter)
+            if (tokenIndex != -1) {
+                val mainText = message.text.substring(0, tokenIndex)
+                val tokenRaw = message.text.substring(tokenIndex + delimiter.length)
+                // strip trailing markdown italic mark '*' from tokenRaw if it is present
+                val tokenClean = tokenRaw.trim().removeSuffix("*").trim()
+
+                Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
+                    MarkdownText(
+                        text = mainText,
+                        color = contentColor
+                    )
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    HorizontalDivider(
+                        color = contentColor.copy(alpha = 0.15f),
+                        thickness = 1.dp
+                    )
+
+                    Spacer(modifier = Modifier.height(6.dp))
+
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Text(
+                            text = "🪙",
+                            style = MaterialTheme.typography.labelSmall
+                        )
+                        MarkdownText(
+                            text = tokenClean,
+                            color = contentColor.copy(alpha = 0.65f),
+                            style = MaterialTheme.typography.labelSmall
+                        )
+                    }
+                }
+            } else {
+                MarkdownText(
+                    text = message.text,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+                    color = contentColor
+                )
+            }
         }
 
         // Action Toolbar (Copy, TTS, Bookmark option for assistant responses)
@@ -2107,6 +2185,183 @@ fun TypingIndicator() {
 }
 
 @Composable
+fun AgenticTooltipBanner(
+    onDismiss: () -> Unit,
+    onSelectPreset: (String) -> Unit
+) {
+    var isEnglish by remember { mutableStateOf(true) }
+
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.15f)
+        ),
+        shape = RoundedCornerShape(16.dp),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.25f))
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp)
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text("💡", fontSize = 20.sp)
+                    Text(
+                        text = if (isEnglish) "Agentic Chat Features" else "Cara Pakai Fitur Agen Cerdas",
+                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
+                
+                // Language selection controls
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(20.dp))
+                        .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.6f))
+                        .padding(horizontal = 4.dp, vertical = 2.dp)
+                ) {
+                    Text(
+                        text = "EN",
+                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                        color = if (isEnglish) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(if (isEnglish) MaterialTheme.colorScheme.primaryContainer else Color.Transparent)
+                            .clickable { isEnglish = true }
+                            .padding(horizontal = 6.dp, vertical = 2.dp)
+                    )
+                    Text(
+                        text = "ID",
+                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                        color = if (!isEnglish) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(if (!isEnglish) MaterialTheme.colorScheme.primaryContainer else Color.Transparent)
+                            .clickable { isEnglish = false }
+                            .padding(horizontal = 6.dp, vertical = 2.dp)
+                    )
+                }
+                
+                Spacer(modifier = Modifier.width(8.dp))
+
+                IconButton(
+                    onClick = onDismiss,
+                    modifier = Modifier.size(24.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Close,
+                        contentDescription = "Close",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(16.dp)
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            Text(
+                text = if (isEnglish) {
+                    "Eddie is equipped with intelligent agents (Action-to-API) that automatically detect your prompt context to draw draft emails or share directly to WhatsApp without manual copying!"
+                } else {
+                    "Eddie dilengkapi agen cerdas (Action-to-API) yang otomatis mengenali pesan atau instruksi Anda untuk menyusun draf email atau membagikan ke WhatsApp tanpa salin-tempel manual!"
+                },
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            Text(
+                text = if (isEnglish) {
+                    "Tap any sample prompt template below to see it in action instantly:"
+                } else {
+                    "Coba ketuk template perintah di bawah untuk mencoba langsung:"
+                },
+                style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                color = MaterialTheme.colorScheme.onSurface
+            )
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // Preset prompts horizontal row
+            Row(
+                modifier = Modifier
+                    .horizontalScroll(rememberScrollState())
+                    .fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                // Draft Email Chip
+                AssistChip(
+                    onClick = {
+                        onSelectPreset(
+                            if (isEnglish) "Please write an email to the manager explaining my team updates"
+                            else "Tolong tulis email ke manager tentang rencana rapat besok pagi"
+                        )
+                    },
+                    label = {
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Text("📧")
+                            Text(if (isEnglish) "Draft Email Action" else "Draf Email Rapat")
+                        }
+                    },
+                    colors = AssistChipDefaults.assistChipColors(
+                        labelColor = MaterialTheme.colorScheme.primary
+                    )
+                )
+
+                // WhatsApp Sharing Chip
+                AssistChip(
+                    onClick = {
+                        onSelectPreset(
+                            if (isEnglish) "Send a whatsapp message with birthday greetings to grandpa"
+                            else "Kirim pesan whatsapp ucapan selamat ulang tahun untuk kakek"
+                        )
+                    },
+                    label = {
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Text("💬")
+                            Text(if (isEnglish) "WhatsApp Share" else "Kirim WhatsApp")
+                        }
+                    },
+                    colors = AssistChipDefaults.assistChipColors(
+                        labelColor = MaterialTheme.colorScheme.primary
+                    )
+                )
+
+                // Customize Prompt Option
+                AssistChip(
+                    onClick = {
+                        onSelectPreset(
+                            if (isEnglish) "What tasks can you automatically automate or draft?"
+                            else "Beri tahu saya apa saja yang bisa dilakukan oleh fitur agen otomatis Anda"
+                        )
+                    },
+                    label = {
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Text("✨")
+                            Text(if (isEnglish) "Learn Automation" else "Tanya Otomasi")
+                        }
+                    },
+                    colors = AssistChipDefaults.assistChipColors(
+                        labelColor = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                )
+            }
+        }
+    }
+}
+
+@Composable
 fun ChatInputBar(
     inputText: String,
     onTextChange: (String) -> Unit,
@@ -2117,7 +2372,7 @@ fun ChatInputBar(
     onWebSearchToggle: (Boolean) -> Unit
 ) {
     Surface(
-        color = MaterialTheme.colorScheme.background,
+        color = Color.Transparent,
         tonalElevation = 0.dp
     ) {
         Column(
@@ -2338,7 +2593,7 @@ fun EddieImageGeneratorView(
                         modifier = Modifier.padding(start = 8.dp)
                     ) {
                         Text(
-                            text = "🪙 ${uiState.userTokens} Tokens",
+                            text = "🪙 ${uiState.getFormattedTokens()} Tokens",
                             modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
                             style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
                             color = Color(0xFFFFB100)
@@ -3293,7 +3548,7 @@ fun EddieVideoGeneratorView(
                         modifier = Modifier.padding(start = 8.dp)
                     ) {
                         Text(
-                            text = "🪙 ${uiState.userTokens} Tokens",
+                            text = "🪙 ${uiState.getFormattedTokens()} Tokens",
                             modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
                             style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
                             color = Color(0xFFFFB100)
@@ -4267,7 +4522,7 @@ fun EddieMusicGeneratorView(
                         modifier = Modifier.padding(start = 8.dp)
                     ) {
                         Text(
-                            text = "🪙 ${uiState.userTokens} Tokens",
+                            text = "🪙 ${uiState.getFormattedTokens()} Tokens",
                             modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
                             style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
                             color = Color(0xFFFFB100)

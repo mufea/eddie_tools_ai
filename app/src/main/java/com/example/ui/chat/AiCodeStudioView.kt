@@ -69,7 +69,7 @@ fun EddieAiCodeStudioView(
         modifier = Modifier
             .fillMaxSize()
             .padding(paddingValues)
-            .background(MaterialTheme.colorScheme.background)
+            .background(Color.Transparent)
     ) {
         Column(
             modifier = Modifier

@@ -76,7 +76,7 @@ fun EddieVisionAnalyzerView(
 
     Scaffold(
         modifier = Modifier.padding(paddingValues),
-        containerColor = MaterialTheme.colorScheme.background
+        containerColor = Color.Transparent
     ) { innerPadding ->
         Column(
             modifier = Modifier
