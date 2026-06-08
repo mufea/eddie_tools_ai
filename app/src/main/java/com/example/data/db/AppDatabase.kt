@@ -186,6 +186,13 @@ abstract class AppDatabase : RoomDatabase() {
         private var INSTANCE: AppDatabase? = null
 
         fun getDatabase(context: Context): AppDatabase {
+            try {
+                val field = android.database.CursorWindow::class.java.getDeclaredField("sCursorWindowSize")
+                field.isAccessible = true
+                field.set(null, 50 * 1024 * 1024) // Override CursorWindow size to 50MB to support larger Base64 blob fields safely
+            } catch (e: Exception) {
+                android.util.Log.e("AppDatabase", "Failed to override CursorWindow size", e)
+            }
             return INSTANCE ?: synchronized(this) {
                 val db = INSTANCE ?: try {
                     Room.databaseBuilder(

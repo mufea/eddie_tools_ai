@@ -42,6 +42,21 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.EaseOutQuad
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.AnnotatedString
@@ -72,6 +87,9 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.layout.ContentScale
 import coil.compose.AsyncImage
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.ui.input.pointer.PointerInputChange
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -84,7 +102,7 @@ fun ChatScreen(
     val scope = rememberCoroutineScope()
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val context = LocalContext.current
-    var activeTab by remember { mutableStateOf("chat") } // "chat" or "image_gen"
+    var activeTab by remember { mutableStateOf("chat") } // Main active tab indicator
 
     // Dialog state controllers
     var showInstructionDialog by remember { mutableStateOf(false) }
@@ -232,14 +250,39 @@ fun ChatScreen(
                         modifier = Modifier.size(36.dp)
                     )
                     Spacer(modifier = Modifier.height(12.dp))
-                    Text(
-                        text = "Eddie Assistant",
-                        style = MaterialTheme.typography.titleLarge.copy(
-                            fontWeight = FontWeight.Bold,
-                            letterSpacing = (-0.5).sp
-                        ),
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(
+                            text = "Eddie Assistant",
+                            modifier = Modifier.weight(1f, fill = false),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            style = MaterialTheme.typography.titleLarge.copy(
+                                fontWeight = FontWeight.Bold,
+                                letterSpacing = (-0.5).sp
+                            ),
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Box(
+                            modifier = Modifier
+                                .background(
+                                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f),
+                                    shape = RoundedCornerShape(8.dp)
+                                )
+                                .padding(horizontal = 8.dp, vertical = 4.dp)
+                        ) {
+                            Text(
+                                text = "🪙 ${uiState.getFormattedConsumedTokens()} Spent",
+                                style = MaterialTheme.typography.labelSmall.copy(
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                            )
+                        }
+                    }
                     Text(
                         text = "Agentic Chat & Customized System",
                         style = MaterialTheme.typography.labelSmall,
@@ -290,7 +333,7 @@ fun ChatScreen(
 
                     NavigationDrawerItem(
                         icon = { Text("🎨", style = TextStyle(fontSize = 16.sp)) },
-                        label = { Text("Image Studio", fontWeight = FontWeight.SemiBold) },
+                        label = { Text("AI Image Pro", fontWeight = FontWeight.SemiBold) },
                         selected = activeTab == "image_gen",
                         onClick = {
                             activeTab = "image_gen"
@@ -362,6 +405,74 @@ fun ChatScreen(
                         selected = activeTab == "doc_intelligence",
                         onClick = {
                             activeTab = "doc_intelligence"
+                            scope.launch { drawerState.close() }
+                        }
+                    )
+
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Text(
+                        text = "ADVANCED AI RESEARCH LABS",
+                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold, letterSpacing = 1.sp),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
+                    )
+
+                    NavigationDrawerItem(
+                        icon = { Text("📱", style = TextStyle(fontSize = 16.sp)) },
+                        label = { Text("On-Device AI (Gemini Nano)", fontWeight = FontWeight.SemiBold) },
+                        selected = activeTab == "gemini_nano",
+                        onClick = {
+                            activeTab = "gemini_nano"
+                            scope.launch { drawerState.close() }
+                        }
+                    )
+
+                    NavigationDrawerItem(
+                        icon = { Text("🌐", style = TextStyle(fontSize = 16.sp)) },
+                        label = { Text("AI Deep Web Researcher", fontWeight = FontWeight.SemiBold) },
+                        selected = activeTab == "web_researcher",
+                        onClick = {
+                            activeTab = "web_researcher"
+                            scope.launch { drawerState.close() }
+                        }
+                    )
+
+                    NavigationDrawerItem(
+                        icon = { Text("📊", style = TextStyle(fontSize = 16.sp)) },
+                        label = { Text("AI Slide Outline Gen", fontWeight = FontWeight.SemiBold) },
+                        selected = activeTab == "slide_outline",
+                        onClick = {
+                            activeTab = "slide_outline"
+                            scope.launch { drawerState.close() }
+                        }
+                    )
+
+                    NavigationDrawerItem(
+                        icon = { Text("🔊", style = TextStyle(fontSize = 16.sp)) },
+                        label = { Text("AI Sound Effects SFX", fontWeight = FontWeight.SemiBold) },
+                        selected = activeTab == "sfx_generator",
+                        onClick = {
+                            activeTab = "sfx_generator"
+                            scope.launch { drawerState.close() }
+                        }
+                    )
+
+                    NavigationDrawerItem(
+                        icon = { Text("🗣️", style = TextStyle(fontSize = 16.sp)) },
+                        label = { Text("AI Talking Head Animator", fontWeight = FontWeight.SemiBold) },
+                        selected = activeTab == "talking_head",
+                        onClick = {
+                            activeTab = "talking_head"
+                            scope.launch { drawerState.close() }
+                        }
+                    )
+
+                    NavigationDrawerItem(
+                        icon = { Text("✍️", style = TextStyle(fontSize = 16.sp)) },
+                        label = { Text("AI Copywriter & Text Gen", fontWeight = FontWeight.SemiBold) },
+                        selected = activeTab == "ai_writer",
+                        onClick = {
+                            activeTab = "ai_writer"
                             scope.launch { drawerState.close() }
                         }
                     )
@@ -789,7 +900,7 @@ fun ChatScreen(
                                                             ) {
                                                                 Text(
                                                                     text = "PRO",
-                                                                    color = Color.White,
+                                                                    color = if (uiState.isSubscribed) MaterialTheme.colorScheme.onPrimary else Color(0xFF111111),
                                                                     style = MaterialTheme.typography.labelSmall.copy(fontSize = 8.sp, fontWeight = FontWeight.Bold),
                                                                     modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
                                                                 )
@@ -910,13 +1021,17 @@ fun ChatScreen(
 
                             if (uiState.isLoading) {
                                 item {
-                                    TypingIndicator()
+                                    TypingIndicator(uiState = uiState)
                                 }
                             }
                         }
                     }
 
-                    if (uiState.isSearchingWeb) {
+                    AnimatedVisibility(
+                        visible = uiState.isSearchingWeb,
+                        enter = fadeIn() + slideInVertically(initialOffsetY = { 10 }),
+                        exit = fadeOut() + slideOutVertically(targetOffsetY = { 10 })
+                    ) {
                         Card(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -1074,22 +1189,27 @@ fun ChatScreen(
                         onMicClick = startSpeechToText,
                         isLoading = uiState.isLoading,
                         isWebSearchEnabled = uiState.isWebSearchEnabled,
-                        onWebSearchToggle = { viewModel.setWebSearchEnabled(it) }
+                        onWebSearchToggle = { viewModel.setWebSearchEnabled(it) },
+                        selectedImageProvider = uiState.selectedImageProvider,
+                        selectedImageModel = uiState.selectedImageModel,
+                        onEngineSelected = { provider, model ->
+                            viewModel.selectImageEngine(provider, model)
+                        }
                     )
                 }
             } else if (activeTab == "image_gen") {
                 EddieImageGeneratorView(
                     uiState = uiState,
                     paddingValues = paddingValues,
-                    onGenerate = { prompt, style, ratio ->
-                        viewModel.generateImage(prompt, style, ratio, onSubscriptionRequired = {
+                    onGenerate = { prompt, style, ratio, provider, model, numImages, background ->
+                        viewModel.generateImage(prompt, style, ratio, provider, model, numImages, background, onSubscriptionRequired = {
                             showSubscriptionDialog = true
-                            Toast.makeText(context, "Free limit reached (max 3) or Eddie Premium is required for this style and ratio!", Toast.LENGTH_LONG).show()
+                            Toast.makeText(context, "Free limit reached or Eddie Premium is required for premium configurations!", Toast.LENGTH_LONG).show()
                         })
                     },
                     onDeleteImage = { id ->
                         viewModel.deleteGeneratedImage(id)
-                        Toast.makeText(context, "Image successfully removed from local collection.", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(context, "Artwork successfully removed from collection.", Toast.LENGTH_SHORT).show()
                     },
                     onSaveEditedImage = { originalId, prompt, style, ratio, editedUrl ->
                         viewModel.saveEditedImage(originalId, prompt, style, ratio, editedUrl)
@@ -1206,6 +1326,52 @@ fun ChatScreen(
                     },
                     onCopyText = { text -> copyToClipboard(text) },
                     onShareText = { text -> shareMessage(text) }
+                )
+            } else if (activeTab == "gemini_nano") {
+                EddieGeminiNanoView(
+                    uiState = uiState,
+                    paddingValues = paddingValues,
+                    onDownload = { viewModel.simulateDownloadGeminiNano() },
+                    onQuery = { prompt -> viewModel.runGeminiNanoQuery(prompt) },
+                    onUninstall = { viewModel.uninstallGeminiNano() }
+                )
+            } else if (activeTab == "web_researcher") {
+                EddieDeepWebResearcherView(
+                    uiState = uiState,
+                    paddingValues = paddingValues,
+                    onLaunchResearch = { topic -> viewModel.runDeepWebResearch(topic) },
+                    onClear = { viewModel.clearResearch() },
+                    onShare = { report -> shareMessage(report) }
+                )
+            } else if (activeTab == "slide_outline") {
+                EddieSlideOutlineView(
+                    uiState = uiState,
+                    paddingValues = paddingValues,
+                    onGenerate = { topic -> viewModel.generatePresentationOutline(topic) },
+                    onClear = { viewModel.clearSlides() }
+                )
+            } else if (activeTab == "sfx_generator") {
+                EddieSfxGeneratorView(
+                    uiState = uiState,
+                    paddingValues = paddingValues,
+                    onGenerateSfx = { prompt, cat, dur -> viewModel.generateSfx(prompt, cat, dur) },
+                    onPlaySfx = { viewModel.playSynthesizedSfx() },
+                    onClear = { viewModel.clearSfx() }
+                )
+            } else if (activeTab == "talking_head") {
+                EddieTalkingHeadView(
+                    uiState = uiState,
+                    paddingValues = paddingValues,
+                    onSelectImage = { url -> viewModel.selectTalkingHeadImage(url) },
+                    onAnimate = { script -> viewModel.animateTalkingHead(script, context) },
+                    onStop = { viewModel.stopTalkingHeadAnimation() }
+                )
+            } else if (activeTab == "ai_writer") {
+                EddieAiWriterView(
+                    uiState = uiState,
+                    paddingValues = paddingValues,
+                    onGenerate = { prompt, sys -> viewModel.generateAiWriterContent(prompt, sys) },
+                    onClear = { viewModel.clearWriter() }
                 )
             }
         }
@@ -1422,15 +1588,22 @@ fun ChatScreen(
     if (showApiKeyDialog) {
         var tempGeminiKey by remember { mutableStateOf(uiState.geminiApiKey) }
         var tempOpenaiKey by remember { mutableStateOf(uiState.openaiApiKey) }
+        var tempFalKey by remember { mutableStateOf(uiState.falApiKey) }
+        var tempStabilityKey by remember { mutableStateOf(uiState.stabilityApiKey) }
         var tempDeepseekKey by remember { mutableStateOf(uiState.deepseekApiKey) }
         var tempClaudeKey by remember { mutableStateOf(uiState.claudeApiKey) }
         var tempXaiKey by remember { mutableStateOf(uiState.xaiApiKey) }
+        var tempGeminiBaseUrl by remember { mutableStateOf(uiState.geminiBaseUrl) }
+        var tempOpenaiBaseUrl by remember { mutableStateOf(uiState.openaiBaseUrl) }
+        var tempDeepseekBaseUrl by remember { mutableStateOf(uiState.deepseekBaseUrl) }
+        var tempClaudeBaseUrl by remember { mutableStateOf(uiState.claudeBaseUrl) }
+        var tempXaiBaseUrl by remember { mutableStateOf(uiState.xaiBaseUrl) }
 
         AlertDialog(
             onDismissRequest = { showApiKeyDialog = false },
             title = {
                 Text(
-                    text = "🔑 Multi-Provider API Key Manager",
+                    text = "🔑 API Key & Custom Proxy Manager",
                     style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
                 )
             },
@@ -1443,7 +1616,7 @@ fun ChatScreen(
                     verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
                     Text(
-                        text = "Enter your custom API Keys below. If left blank (for OpenAI & DeepSeek), the application will automatically route connections to our free server tiers.",
+                        text = "Enter your custom API Keys below. If left blank (for OpenAI & DeepSeek), the application will automatically route connections to our free server tiers. You may also specify Custom Base URLs / Reverse Proxies below.",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -1461,6 +1634,16 @@ fun ChatScreen(
                             onValueChange = { tempGeminiKey = it },
                             modifier = Modifier.fillMaxWidth(),
                             placeholder = { Text("Default Active (AI Studio Key)") },
+                            singleLine = true,
+                            textStyle = MaterialTheme.typography.bodySmall
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        OutlinedTextField(
+                            value = tempGeminiBaseUrl,
+                            onValueChange = { tempGeminiBaseUrl = it },
+                            modifier = Modifier.fillMaxWidth(),
+                            label = { Text("Gemini Base URL / Proxy", style = MaterialTheme.typography.bodySmall) },
+                            placeholder = { Text("e.g., https://generativelanguage.googleapis.com/") },
                             singleLine = true,
                             textStyle = MaterialTheme.typography.bodySmall
                         )
@@ -1482,6 +1665,16 @@ fun ChatScreen(
                             singleLine = true,
                             textStyle = MaterialTheme.typography.bodySmall
                         )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        OutlinedTextField(
+                            value = tempOpenaiBaseUrl,
+                            onValueChange = { tempOpenaiBaseUrl = it },
+                            modifier = Modifier.fillMaxWidth(),
+                            label = { Text("OpenAI Base URL / Proxy", style = MaterialTheme.typography.bodySmall) },
+                            placeholder = { Text("e.g., https://api.openai.com/v1/chat/completions") },
+                            singleLine = true,
+                            textStyle = MaterialTheme.typography.bodySmall
+                        )
                     }
 
                     // DeepSeek Key
@@ -1500,12 +1693,22 @@ fun ChatScreen(
                             singleLine = true,
                             textStyle = MaterialTheme.typography.bodySmall
                         )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        OutlinedTextField(
+                            value = tempDeepseekBaseUrl,
+                            onValueChange = { tempDeepseekBaseUrl = it },
+                            modifier = Modifier.fillMaxWidth(),
+                            label = { Text("DeepSeek Base URL / Proxy", style = MaterialTheme.typography.bodySmall) },
+                            placeholder = { Text("e.g., https://api.deepseek.com/v1/chat/completions") },
+                            singleLine = true,
+                            textStyle = MaterialTheme.typography.bodySmall
+                        )
                     }
 
                     // Claude Key
                     Column {
                         Text(
-                            text = "Anthropic Claude API Key (Claude Sonet & Haiku)",
+                            text = "Anthropic Claude API Key (Claude Sonet & Opus)",
                             style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
                             color = Color(0xFFD97706)
                         )
@@ -1515,6 +1718,16 @@ fun ChatScreen(
                             onValueChange = { tempClaudeKey = it },
                             modifier = Modifier.fillMaxWidth(),
                             placeholder = { Text("Enter your Anthropic Claude API Key") },
+                            singleLine = true,
+                            textStyle = MaterialTheme.typography.bodySmall
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        OutlinedTextField(
+                            value = tempClaudeBaseUrl,
+                            onValueChange = { tempClaudeBaseUrl = it },
+                            modifier = Modifier.fillMaxWidth(),
+                            label = { Text("Claude Base URL / Proxy", style = MaterialTheme.typography.bodySmall) },
+                            placeholder = { Text("e.g., https://api.anthropic.com/v1/messages") },
                             singleLine = true,
                             textStyle = MaterialTheme.typography.bodySmall
                         )
@@ -1536,6 +1749,52 @@ fun ChatScreen(
                             singleLine = true,
                             textStyle = MaterialTheme.typography.bodySmall
                         )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        OutlinedTextField(
+                            value = tempXaiBaseUrl,
+                            onValueChange = { tempXaiBaseUrl = it },
+                            modifier = Modifier.fillMaxWidth(),
+                            label = { Text("xAI Base URL / Proxy", style = MaterialTheme.typography.bodySmall) },
+                            placeholder = { Text("e.g., https://api.x.ai/v1/chat/completions") },
+                            singleLine = true,
+                            textStyle = MaterialTheme.typography.bodySmall
+                        )
+                    }
+
+                    // Fal.ai Key
+                    Column {
+                        Text(
+                            text = "Fal.ai API Key (Flux Schnell, Pro & Realism)",
+                            style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                            color = Color(0xFFFF5E00)
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        OutlinedTextField(
+                            value = tempFalKey,
+                            onValueChange = { tempFalKey = it },
+                            modifier = Modifier.fillMaxWidth(),
+                            placeholder = { Text("Default Active (FAL_API_KEY in .env)") },
+                            singleLine = true,
+                            textStyle = MaterialTheme.typography.bodySmall
+                        )
+                    }
+
+                    // Stability AI Key
+                    Column {
+                        Text(
+                            text = "Stability AI API Key (Stable Image Core / v2beta)",
+                            style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                            color = Color(0xFF6366F1)
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        OutlinedTextField(
+                            value = tempStabilityKey,
+                            onValueChange = { tempStabilityKey = it },
+                            modifier = Modifier.fillMaxWidth(),
+                            placeholder = { Text("Default Active (STABILITY_API_KEY in .env)") },
+                            singleLine = true,
+                            textStyle = MaterialTheme.typography.bodySmall
+                        )
                     }
                 }
             },
@@ -1544,11 +1803,18 @@ fun ChatScreen(
                     onClick = {
                         viewModel.updateProviderApiKey("Gemini", tempGeminiKey)
                         viewModel.updateProviderApiKey("OpenAI", tempOpenaiKey)
+                        viewModel.updateProviderApiKey("FalAI", tempFalKey)
+                        viewModel.updateProviderApiKey("Stable Diffusion", tempStabilityKey)
                         viewModel.updateProviderApiKey("DeepSeek", tempDeepseekKey)
                         viewModel.updateProviderApiKey("Claude", tempClaudeKey)
                         viewModel.updateProviderApiKey("XAI", tempXaiKey)
+                        viewModel.updateProviderBaseUrl("Gemini", tempGeminiBaseUrl)
+                        viewModel.updateProviderBaseUrl("OpenAI", tempOpenaiBaseUrl)
+                        viewModel.updateProviderBaseUrl("DeepSeek", tempDeepseekBaseUrl)
+                        viewModel.updateProviderBaseUrl("Claude", tempClaudeBaseUrl)
+                        viewModel.updateProviderBaseUrl("XAI", tempXaiBaseUrl)
                         showApiKeyDialog = false
-                        Toast.makeText(context, "All API Keys saved successfully!", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(context, "All API Keys and custom Base URLs saved successfully!", Toast.LENGTH_SHORT).show()
                     }
                 ) {
                     Text("Save")
@@ -2017,6 +2283,15 @@ fun ChatMessageBubble(
 ) {
     val isUser = message.role == Role.USER
     val isDark = MaterialTheme.colorScheme.background == DarkBackground
+    
+    val formattedTime = remember(message.timestamp) {
+        try {
+            val sdf = java.text.SimpleDateFormat("HH:mm", java.util.Locale.getDefault())
+            sdf.format(java.util.Date(message.timestamp))
+        } catch (e: Exception) {
+            ""
+        }
+    }
 
     val backgroundColor = if (isUser) {
         if (isDark) DarkUserBubbleBg else LightUserBubbleBg
@@ -2037,9 +2312,36 @@ fun ChatMessageBubble(
         RoundedCornerShape(16.dp, 16.dp, 16.dp, 4.dp)
     }
 
+    val animAlpha = remember { Animatable(0f) }
+    val animOffsetY = remember { Animatable(12f) }
+    LaunchedEffect(message.id) {
+        launch {
+            animAlpha.animateTo(
+                targetValue = 1f,
+                animationSpec = tween(
+                    durationMillis = 350,
+                    easing = FastOutSlowInEasing
+                )
+            )
+        }
+        launch {
+            animOffsetY.animateTo(
+                targetValue = 0f,
+                animationSpec = tween(
+                    durationMillis = 300,
+                    easing = EaseOutQuad
+                )
+            )
+        }
+    }
+
     Column(
         modifier = Modifier
             .fillMaxWidth()
+            .graphicsLayer(
+                alpha = animAlpha.value,
+                translationY = animOffsetY.value
+            )
             .padding(
                 start = if (isUser) 48.dp else 4.dp,
                 end = if (isUser) 4.dp else 48.dp
@@ -2056,7 +2358,96 @@ fun ChatMessageBubble(
         ) {
             val delimiter = "\n\n---\n*🪙"
             val tokenIndex = message.text.indexOf(delimiter)
-            if (tokenIndex != -1) {
+            if (message.text.contains("[IMAGE_URL]") && message.text.contains("[IMAGE_URL_END]")) {
+                val start = message.text.indexOf("[IMAGE_URL]") + 11
+                val end = message.text.indexOf("[IMAGE_URL_END]")
+                if (end > start) {
+                    val imageUrl = message.text.substring(start, end).trim()
+                    val promptText = message.text.substring(end + 15).trim()
+
+                    Column(
+                        modifier = Modifier
+                            .padding(12.dp)
+                            .widthIn(max = 280.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .aspectRatio(1f)
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(MaterialTheme.colorScheme.surfaceVariant)
+                        ) {
+                            AsyncImage(
+                                model = imageUrl,
+                                contentDescription = promptText,
+                                modifier = Modifier.fillMaxSize(),
+                                contentScale = ContentScale.Crop
+                            )
+                        }
+                        
+                        Spacer(modifier = Modifier.height(8.dp))
+                        
+                        Text(
+                            text = promptText,
+                            style = MaterialTheme.typography.bodyMedium.copy(
+                                fontWeight = FontWeight.Medium,
+                                fontSize = 13.sp
+                            ),
+                            color = contentColor
+                        )
+                        
+                        Spacer(modifier = Modifier.height(8.dp))
+                        
+                        val context = LocalContext.current
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.End,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Button(
+                                onClick = {
+                                    Toast.makeText(context, "Downloading artwork...", Toast.LENGTH_SHORT).show()
+                                    downloadAndroidImage(context, imageUrl, promptText) { savedPath ->
+                                        if (savedPath != null) {
+                                            Toast.makeText(context, "Saved to $savedPath!", Toast.LENGTH_LONG).show()
+                                        } else {
+                                            Toast.makeText(context, "Failed to download image", Toast.LENGTH_SHORT).show()
+                                        }
+                                    }
+                                },
+                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+                                modifier = Modifier.height(32.dp),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = MaterialTheme.colorScheme.primaryContainer,
+                                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                                )
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                ) {
+                                    DownloadIconButton(
+                                        onClick = {},
+                                        size = 14.dp,
+                                        color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                        modifier = Modifier.size(14.dp)
+                                    )
+                                    Text(
+                                        text = "Download",
+                                        style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold)
+                                    )
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    MarkdownText(
+                        text = message.text,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+                        color = contentColor
+                    )
+                }
+            } else if (tokenIndex != -1) {
                 val mainText = message.text.substring(0, tokenIndex)
                 val tokenRaw = message.text.substring(tokenIndex + delimiter.length)
                 // strip trailing markdown italic mark '*' from tokenRaw if it is present
@@ -2101,10 +2492,35 @@ fun ChatMessageBubble(
             }
         }
 
+        if (isUser && formattedTime.isNotEmpty()) {
+            Row(
+                modifier = Modifier.padding(top = 4.dp, end = 4.dp),
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = formattedTime,
+                    style = MaterialTheme.typography.bodySmall.copy(
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Normal
+                    ),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.62f)
+                )
+                Icon(
+                    imageVector = Icons.Default.CheckCircle,
+                    contentDescription = "Sent",
+                    modifier = Modifier.size(11.dp),
+                    tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.65f)
+                )
+            }
+        }
+
         // Action Toolbar (Copy, TTS, Bookmark option for assistant responses)
         if (!isUser) {
             Row(
-                modifier = Modifier.padding(top = 4.dp, start = 4.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 4.dp, start = 4.dp, end = 4.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -2153,33 +2569,289 @@ fun ChatMessageBubble(
                         color = if (message.isBookmarked) Color.Red else MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
+
+                if (formattedTime.isNotEmpty()) {
+                    Spacer(modifier = Modifier.weight(1f))
+                    Text(
+                        text = formattedTime,
+                        style = MaterialTheme.typography.bodySmall.copy(
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Normal
+                        ),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.62f),
+                        modifier = Modifier.padding(end = 4.dp)
+                    )
+                }
             }
         }
     }
 }
 
 @Composable
-fun TypingIndicator() {
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(start = 4.dp),
-        contentAlignment = Alignment.CenterStart
-    ) {
-        Row(
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                Box(modifier = Modifier.size(6.dp).clip(CircleShape).background(MaterialTheme.colorScheme.primary))
-                Box(modifier = Modifier.size(6.dp).clip(CircleShape).background(MaterialTheme.colorScheme.primary))
-                Box(modifier = Modifier.size(6.dp).clip(CircleShape).background(MaterialTheme.colorScheme.primary))
-            }
-            Text(
-                text = "Eddie sedang mengetik...",
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+fun TypingIndicator(uiState: ChatUiState) {
+    val lastMessage = uiState.messages.lastOrNull()
+    val isImageLoading = lastMessage != null && lastMessage.role == Role.MODEL && (
+        lastMessage.text.contains("Generating masterpiece", ignoreCase = true) ||
+        lastMessage.text.contains("creating artwork", ignoreCase = true) ||
+        lastMessage.text.contains("🎨", ignoreCase = true)
+    )
+
+    val infiniteTransition = rememberInfiniteTransition(label = "pulse")
+    val alpha by infiniteTransition.animateFloat(
+        initialValue = 0.3f,
+        targetValue = 0.9f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(900, easing = LinearEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "alpha"
+    )
+
+    val entryAlpha = remember { Animatable(0f) }
+    val entryOffsetY = remember { Animatable(8f) }
+    LaunchedEffect(true) {
+        launch {
+            entryAlpha.animateTo(
+                targetValue = 1f,
+                animationSpec = tween(
+                    durationMillis = 300,
+                    easing = FastOutSlowInEasing
+                )
             )
+        }
+        launch {
+            entryOffsetY.animateTo(
+                targetValue = 0f,
+                animationSpec = tween(
+                    durationMillis = 250,
+                    easing = EaseOutQuad
+                )
+            )
+        }
+    }
+
+    if (isImageLoading) {
+        // Render Image Generation Skeleton Screen
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .graphicsLayer(
+                    alpha = entryAlpha.value,
+                    translationY = entryOffsetY.value
+                )
+                .padding(start = 4.dp, end = 48.dp, top = 8.dp, bottom = 8.dp),
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.surface
+            ),
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)),
+            shape = RoundedCornerShape(16.dp, 16.dp, 16.dp, 4.dp)
+        ) {
+            Column(
+                modifier = Modifier
+                    .padding(16.dp)
+                    .widthIn(max = 320.dp)
+            ) {
+                // Skeleton Box for Image (1:1 Ratio)
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .aspectRatio(1f)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = alpha)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Info,
+                            contentDescription = "Generating image",
+                            tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.6f),
+                            modifier = Modifier.size(48.dp)
+                        )
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Text(
+                            text = "Synthesizing Canvas",
+                            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.8f)
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = "AI is drawing your lines...",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // Skeleton Lines below Image box
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth(0.95f)
+                        .height(8.dp)
+                        .clip(RoundedCornerShape(4.dp))
+                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = alpha))
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth(0.6f)
+                        .height(8.dp)
+                        .clip(RoundedCornerShape(4.dp))
+                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = alpha))
+                )
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // Bottom Indeterminate Progress Bar
+                LinearProgressIndicator(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(6.dp)
+                        .clip(RoundedCornerShape(3.dp)),
+                    color = MaterialTheme.colorScheme.primary,
+                    trackColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
+                )
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(6.dp)
+                            .clip(CircleShape)
+                            .background(MaterialTheme.colorScheme.primary)
+                    )
+                    Text(
+                        text = "Rendering masterpiece in progress...",
+                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold, fontStyle = FontStyle.Italic),
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
+            }
+        }
+    } else {
+        // Render Gemini API Text Response Skeleton Screen
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .graphicsLayer(
+                    alpha = entryAlpha.value,
+                    translationY = entryOffsetY.value
+                )
+                .padding(start = 4.dp, end = 48.dp, top = 8.dp, bottom = 8.dp),
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.surface
+            ),
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)),
+            shape = RoundedCornerShape(16.dp, 16.dp, 16.dp, 4.dp)
+        ) {
+            Column(
+                modifier = Modifier.padding(16.dp)
+            ) {
+                // Header with status
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.padding(bottom = 12.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(24.dp)
+                            .clip(CircleShape)
+                            .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = alpha)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "🤖",
+                            style = MaterialTheme.typography.labelSmall
+                        )
+                    }
+                    Text(
+                        text = "Eddie is typing a response...",
+                        style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
+
+                // Shimmer paragraphs
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth(0.95f)
+                            .height(14.dp)
+                            .clip(RoundedCornerShape(4.dp))
+                            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = alpha))
+                    )
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth(0.85f)
+                            .height(14.dp)
+                            .clip(RoundedCornerShape(4.dp))
+                            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = alpha))
+                    )
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth(0.92f)
+                            .height(14.dp)
+                            .clip(RoundedCornerShape(4.dp))
+                            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = alpha))
+                    )
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth(0.45f)
+                            .height(14.dp)
+                            .clip(RoundedCornerShape(4.dp))
+                            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = alpha))
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // Pulsing dot animations next to status
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Box(
+                            modifier = Modifier
+                                .size(6.dp)
+                                .clip(CircleShape)
+                                .graphicsLayer(alpha = alpha)
+                                .background(MaterialTheme.colorScheme.primary)
+                        )
+                        Box(
+                            modifier = Modifier
+                                .size(6.dp)
+                                .clip(CircleShape)
+                                .graphicsLayer(alpha = (alpha + 0.3f).coerceAtMost(1f))
+                                .background(MaterialTheme.colorScheme.primary)
+                        )
+                        Box(
+                            modifier = Modifier
+                                .size(6.dp)
+                                .clip(CircleShape)
+                                .graphicsLayer(alpha = (alpha - 0.3f).coerceAtLeast(0.1f))
+                                .background(MaterialTheme.colorScheme.primary)
+                        )
+                    }
+                    Text(
+                        text = "Synthesizing answer",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
         }
     }
 }
@@ -2189,8 +2861,6 @@ fun AgenticTooltipBanner(
     onDismiss: () -> Unit,
     onSelectPreset: (String) -> Unit
 ) {
-    var isEnglish by remember { mutableStateOf(true) }
-
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -2216,44 +2886,12 @@ fun AgenticTooltipBanner(
                 ) {
                     Text("💡", fontSize = 20.sp)
                     Text(
-                        text = if (isEnglish) "Agentic Chat Features" else "Cara Pakai Fitur Agen Cerdas",
+                        text = "Agentic Chat Features",
                         style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
                         color = MaterialTheme.colorScheme.primary
                     )
                 }
                 
-                // Language selection controls
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(20.dp))
-                        .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.6f))
-                        .padding(horizontal = 4.dp, vertical = 2.dp)
-                ) {
-                    Text(
-                        text = "EN",
-                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-                        color = if (isEnglish) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(if (isEnglish) MaterialTheme.colorScheme.primaryContainer else Color.Transparent)
-                            .clickable { isEnglish = true }
-                            .padding(horizontal = 6.dp, vertical = 2.dp)
-                    )
-                    Text(
-                        text = "ID",
-                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-                        color = if (!isEnglish) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(if (!isEnglish) MaterialTheme.colorScheme.primaryContainer else Color.Transparent)
-                            .clickable { isEnglish = false }
-                            .padding(horizontal = 6.dp, vertical = 2.dp)
-                    )
-                }
-                
-                Spacer(modifier = Modifier.width(8.dp))
-
                 IconButton(
                     onClick = onDismiss,
                     modifier = Modifier.size(24.dp)
@@ -2270,11 +2908,7 @@ fun AgenticTooltipBanner(
             Spacer(modifier = Modifier.height(10.dp))
 
             Text(
-                text = if (isEnglish) {
-                    "Eddie is equipped with intelligent agents (Action-to-API) that automatically detect your prompt context to draw draft emails or share directly to WhatsApp without manual copying!"
-                } else {
-                    "Eddie dilengkapi agen cerdas (Action-to-API) yang otomatis mengenali pesan atau instruksi Anda untuk menyusun draf email atau membagikan ke WhatsApp tanpa salin-tempel manual!"
-                },
+                text = "Eddie is equipped with intelligent agents (Action-to-API) that automatically detect your prompt context to draw draft emails or share directly to WhatsApp without manual copying!",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -2282,36 +2916,28 @@ fun AgenticTooltipBanner(
             Spacer(modifier = Modifier.height(12.dp))
 
             Text(
-                text = if (isEnglish) {
-                    "Tap any sample prompt template below to see it in action instantly:"
-                } else {
-                    "Coba ketuk template perintah di bawah untuk mencoba langsung:"
-                },
+                text = "Tap any sample prompt template below to see it in action instantly:",
                 style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
                 color = MaterialTheme.colorScheme.onSurface
             )
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            // Preset prompts horizontal row
-            Row(
-                modifier = Modifier
-                    .horizontalScroll(rememberScrollState())
-                    .fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            // Preset prompts vertical layout (disabled horizontal scroll)
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(6.dp)
             ) {
                 // Draft Email Chip
                 AssistChip(
                     onClick = {
-                        onSelectPreset(
-                            if (isEnglish) "Please write an email to the manager explaining my team updates"
-                            else "Tolong tulis email ke manager tentang rencana rapat besok pagi"
-                        )
+                        onSelectPreset("Please write an email to the manager explaining my team updates")
                     },
+                    modifier = Modifier.fillMaxWidth(),
                     label = {
                         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                             Text("📧")
-                            Text(if (isEnglish) "Draft Email Action" else "Draf Email Rapat")
+                            Text("Draft Email Action")
                         }
                     },
                     colors = AssistChipDefaults.assistChipColors(
@@ -2322,15 +2948,13 @@ fun AgenticTooltipBanner(
                 // WhatsApp Sharing Chip
                 AssistChip(
                     onClick = {
-                        onSelectPreset(
-                            if (isEnglish) "Send a whatsapp message with birthday greetings to grandpa"
-                            else "Kirim pesan whatsapp ucapan selamat ulang tahun untuk kakek"
-                        )
+                        onSelectPreset("Send a whatsapp message with birthday greetings to grandpa")
                     },
+                    modifier = Modifier.fillMaxWidth(),
                     label = {
                         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                             Text("💬")
-                            Text(if (isEnglish) "WhatsApp Share" else "Kirim WhatsApp")
+                            Text("WhatsApp Share")
                         }
                     },
                     colors = AssistChipDefaults.assistChipColors(
@@ -2338,18 +2962,33 @@ fun AgenticTooltipBanner(
                     )
                 )
 
-                // Customize Prompt Option
+                // Creative Concept Prompt (one more prompt added)
                 AssistChip(
                     onClick = {
-                        onSelectPreset(
-                            if (isEnglish) "What tasks can you automatically automate or draft?"
-                            else "Beri tahu saya apa saja yang bisa dilakukan oleh fitur agen otomatis Anda"
-                        )
+                        onSelectPreset("Create a detailed prompt for a beautiful fantasy hidden valley waterfall")
                     },
+                    modifier = Modifier.fillMaxWidth(),
+                    label = {
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Text("🎨")
+                            Text("Creative Image Concept Prompt")
+                        }
+                    },
+                    colors = AssistChipDefaults.assistChipColors(
+                        labelColor = MaterialTheme.colorScheme.secondary
+                    )
+                )
+
+                // Customize Prompt Option / Learn Automation in bottom
+                AssistChip(
+                    onClick = {
+                        onSelectPreset("What tasks can you automatically automate or draft?")
+                    },
+                    modifier = Modifier.fillMaxWidth(),
                     label = {
                         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                             Text("✨")
-                            Text(if (isEnglish) "Learn Automation" else "Tanya Otomasi")
+                            Text("Learn Automation")
                         }
                     },
                     colors = AssistChipDefaults.assistChipColors(
@@ -2369,8 +3008,13 @@ fun ChatInputBar(
     onMicClick: () -> Unit,
     isLoading: Boolean,
     isWebSearchEnabled: Boolean,
-    onWebSearchToggle: (Boolean) -> Unit
+    onWebSearchToggle: (Boolean) -> Unit,
+    selectedImageProvider: String = "Gemini",
+    selectedImageModel: String = "imagen3",
+    onEngineSelected: (provider: String, model: String) -> Unit = { _, _ -> }
 ) {
+    val isDrawMode = inputText.startsWith("/draw", ignoreCase = true) || inputText.startsWith("/image", ignoreCase = true)
+    
     Surface(
         color = Color.Transparent,
         tonalElevation = 0.dp
@@ -2381,56 +3025,85 @@ fun ChatInputBar(
                 .padding(16.dp)
                 .navigationBarsPadding(),
         ) {
+            if (isDrawMode) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 8.dp)
+                        .horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Engine:",
+                        style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(end = 4.dp)
+                    )
+                    
+                    val engines = listOf(
+                        Triple("GPT Image 1.5", "gpt-image-1.5", "OpenAI"),
+                        Triple("Flux Pro", "flux-pro", "Fal AI"),
+                        Triple("Gemini Imagen 3", "imagen3", "Gemini"),
+                        Triple("Stable Diffusion", "sd3", "Stable Diffusion")
+                    )
+                    engines.forEach { (displayName, modelId, provider) ->
+                        val isSelected = selectedImageProvider == provider && selectedImageModel == modelId
+                        Surface(
+                            shape = RoundedCornerShape(12.dp),
+                            color = if (isSelected) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                            border = BorderStroke(1.dp, if (isSelected) MaterialTheme.colorScheme.secondary else Color.Transparent),
+                            modifier = Modifier
+                                .clickable { onEngineSelected(provider, modelId) }
+                                .padding(vertical = 2.dp)
+                        ) {
+                            Text(
+                                text = displayName,
+                                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Medium),
+                                color = if (isSelected) MaterialTheme.colorScheme.onSecondaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                            )
+                        }
+                    }
+                }
+            }
+
+            // Main Text Input Area
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .background(
                         color = MaterialTheme.colorScheme.surface,
-                        shape = RoundedCornerShape(16.dp)
+                        shape = RoundedCornerShape(24.dp)
                     )
                     .border(
                         width = 1.dp,
-                        color = if (isWebSearchEnabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,
-                        shape = RoundedCornerShape(16.dp)
+                        color = if (isWebSearchEnabled) {
+                            MaterialTheme.colorScheme.primary
+                        } else if (isDrawMode) {
+                            MaterialTheme.colorScheme.secondary
+                        } else {
+                            MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)
+                        },
+                        shape = RoundedCornerShape(24.dp)
                     )
-                    .padding(8.dp),
+                    .padding(horizontal = 12.dp, vertical = 6.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                // Speech Input Mic button
-                IconButton(
-                    onClick = onMicClick,
-                    modifier = Modifier.size(40.dp)
-                ) {
-                    Text("🎙️", style = TextStyle(fontSize = 18.sp))
-                }
-
-                // Web Search (Browsing Mandiri) button
-                IconButton(
-                    onClick = { onWebSearchToggle(!isWebSearchEnabled) },
-                    modifier = Modifier
-                        .size(40.dp)
-                        .background(
-                            color = if (isWebSearchEnabled) MaterialTheme.colorScheme.primaryContainer else Color.Transparent,
-                            shape = CircleShape
-                        )
-                ) {
-                    Text(
-                        text = "🌐",
-                        style = TextStyle(
-                            fontSize = 18.sp,
-                            color = if (isWebSearchEnabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    )
-                }
-
                 TextField(
                     value = inputText,
                     onValueChange = onTextChange,
                     modifier = Modifier.weight(1f),
                     placeholder = {
                         Text(
-                            text = if (isWebSearchEnabled) "Ask Google in real-time..." else "Type a message...",
+                            text = if (isDrawMode) {
+                                "Describe what to generate..."
+                            } else if (isWebSearchEnabled) {
+                                "Ask Google in real-time..."
+                            } else {
+                                "Type a message..."
+                            },
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             style = MaterialTheme.typography.bodyMedium
                         )
@@ -2450,7 +3123,11 @@ fun ChatInputBar(
                 FloatingActionButton(
                     onClick = onSend,
                     modifier = Modifier.size(40.dp),
-                    containerColor = if (isLoading || inputText.isBlank()) MaterialTheme.colorScheme.primary.copy(alpha = 0.5f) else MaterialTheme.colorScheme.primary,
+                    containerColor = if (isLoading || inputText.isBlank()) {
+                        MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)
+                    } else {
+                        MaterialTheme.colorScheme.primary
+                    },
                     contentColor = MaterialTheme.colorScheme.onPrimary,
                     elevation = FloatingActionButtonDefaults.elevation(defaultElevation = 0.dp),
                     shape = CircleShape
@@ -2462,7 +3139,147 @@ fun ChatInputBar(
                     )
                 }
             }
+
+            // Controls and Mode Selection Buttons row below the input box
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 10.dp, start = 4.dp, end = 4.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // Feature 1: Default Text Input Mode
+                val isDefaultMode = !isDrawMode && !isWebSearchEnabled
+                IconButton(
+                    onClick = {
+                        // Deactivate draw mode if active
+                        if (isDrawMode) {
+                            val cleanPrompt = when {
+                                inputText.startsWith("/draw", ignoreCase = true) -> inputText.substring(5).trim()
+                                inputText.startsWith("/image", ignoreCase = true) -> inputText.substring(6).trim()
+                                else -> inputText
+                            }
+                            onTextChange(cleanPrompt)
+                        }
+                        // Turn off web search
+                        onWebSearchToggle(false)
+                    },
+                    modifier = Modifier
+                        .size(36.dp)
+                        .background(
+                            color = if (isDefaultMode) MaterialTheme.colorScheme.primaryContainer else Color.Transparent,
+                            shape = CircleShape
+                        )
+                        .border(
+                            width = 1.dp,
+                            color = if (isDefaultMode) MaterialTheme.colorScheme.primary else Color.Transparent,
+                            shape = CircleShape
+                        )
+                ) {
+                    Text(
+                        text = "💬",
+                        style = TextStyle(
+                            fontSize = 16.sp,
+                            color = if (isDefaultMode) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    )
+                }
+
+                // Feature 2: Speech Input Mic Button
+                IconButton(
+                    onClick = onMicClick,
+                    modifier = Modifier
+                        .size(36.dp)
+                        .background(
+                            color = Color.Transparent,
+                            shape = CircleShape
+                        )
+                ) {
+                    Text("🎙️", style = TextStyle(fontSize = 16.sp))
+                }
+
+                // Feature 3: Web Search Toggle Button
+                IconButton(
+                    onClick = {
+                        // Deactivate draw mode when entering search mode
+                        if (isDrawMode) {
+                            val cleanPrompt = when {
+                                inputText.startsWith("/draw", ignoreCase = true) -> inputText.substring(5).trim()
+                                inputText.startsWith("/image", ignoreCase = true) -> inputText.substring(6).trim()
+                                else -> inputText
+                            }
+                            onTextChange(cleanPrompt)
+                        }
+                        onWebSearchToggle(!isWebSearchEnabled)
+                    },
+                    modifier = Modifier
+                        .size(36.dp)
+                        .background(
+                            color = if (isWebSearchEnabled) MaterialTheme.colorScheme.primaryContainer else Color.Transparent,
+                            shape = CircleShape
+                        )
+                        .border(
+                            width = 1.dp,
+                            color = if (isWebSearchEnabled) MaterialTheme.colorScheme.primary else Color.Transparent,
+                            shape = CircleShape
+                        )
+                ) {
+                    Text(
+                        text = "🌐",
+                        style = TextStyle(
+                            fontSize = 16.sp,
+                            color = if (isWebSearchEnabled) {
+                                MaterialTheme.colorScheme.primary
+                            } else {
+                                MaterialTheme.colorScheme.onSurfaceVariant
+                            }
+                        )
+                    )
+                }
+
+                // Feature 4: Image Generation Mode Button (🎨)
+                IconButton(
+                    onClick = {
+                        // Disable web search when entering draw mode
+                        onWebSearchToggle(false)
+                        if (isDrawMode) {
+                            val cleanPrompt = when {
+                                inputText.startsWith("/draw", ignoreCase = true) -> inputText.substring(5).trim()
+                                inputText.startsWith("/image", ignoreCase = true) -> inputText.substring(6).trim()
+                                else -> inputText
+                            }
+                            onTextChange(cleanPrompt)
+                        } else {
+                            onTextChange("/draw " + inputText.removePrefix("/draw").trim())
+                        }
+                    },
+                    modifier = Modifier
+                        .size(36.dp)
+                        .background(
+                            color = if (isDrawMode) MaterialTheme.colorScheme.primaryContainer else Color.Transparent,
+                            shape = CircleShape
+                        )
+                        .border(
+                            width = 1.dp,
+                            color = if (isDrawMode) MaterialTheme.colorScheme.primary else Color.Transparent,
+                            shape = CircleShape
+                        )
+                ) {
+                    Text(
+                        text = "🎨",
+                        style = TextStyle(
+                            fontSize = 16.sp,
+                            color = if (isDrawMode) {
+                                MaterialTheme.colorScheme.primary
+                            } else {
+                                MaterialTheme.colorScheme.onSurfaceVariant
+                            }
+                        )
+                    )
+                }
+            }
             
+            // Subtitle status display
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -2471,8 +3288,20 @@ fun ChatInputBar(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = if (isWebSearchEnabled) "🌐 Real-Time Web Search Active (Google Search)" else "⚡ Eddie AI Smart Assistant v3.0",
-                    color = if (isWebSearchEnabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                    text = if (isDrawMode) {
+                        "🎨 Image Generator Active"
+                    } else if (isWebSearchEnabled) {
+                        "🌐 Real-Time Web Search Active (Google Search)"
+                    } else {
+                        "⚡ Eddie AI Smart Assistant v3.0"
+                    },
+                    color = if (isDrawMode) {
+                        MaterialTheme.colorScheme.secondary
+                    } else if (isWebSearchEnabled) {
+                        MaterialTheme.colorScheme.primary
+                    } else {
+                        MaterialTheme.colorScheme.onSurfaceVariant
+                    },
                     style = MaterialTheme.typography.labelSmall
                 )
                 Text(
@@ -2517,12 +3346,15 @@ fun MarkdownText(
     )
 }
 
-@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+@OptIn(
+    androidx.compose.material3.ExperimentalMaterial3Api::class,
+    androidx.compose.foundation.layout.ExperimentalLayoutApi::class
+)
 @Composable
 fun EddieImageGeneratorView(
     uiState: ChatUiState,
     paddingValues: PaddingValues,
-    onGenerate: (String, String, String) -> Unit,
+    onGenerate: (prompt: String, style: String, ratio: String, provider: String, model: String, numImages: Int, background: String) -> Unit,
     onDeleteImage: (String) -> Unit,
     onSaveEditedImage: (String, String, String, String, String) -> Unit,
     onProviderChange: (String) -> Unit,
@@ -2530,46 +3362,61 @@ fun EddieImageGeneratorView(
 ) {
     val context = LocalContext.current
     var prompt by remember { mutableStateOf("") }
-    var selectedStyle by remember { mutableStateOf("Realistic") }
-    var selectedAspectRatio by remember { mutableStateOf("1:1") }
+    var selectedStyle by remember { mutableStateOf("Photorealistic") }
+    var selectedAspectRatio by remember { mutableStateOf("1024:1024") }
+    
+    // Providers & Models
+    var activeProvider by remember { mutableStateOf("Gemini") }
+    var activeModelID by remember { mutableStateOf("imagen3") }
+
+    var numImages by remember { mutableStateOf(1) }
+    var selectedBackground by remember { mutableStateOf("Auto") }
 
     // Zoom popup dialog state controllers
     var selectedImageForZoom by remember { mutableStateOf<com.example.data.db.GeneratedImageEntity?>(null) }
     var editingImageItem by remember { mutableStateOf<com.example.data.db.GeneratedImageEntity?>(null) }
 
     val styles = listOf(
-        "Realistic" to false,
-        "Sketch" to false,
-        "Black & White" to false,
-        "Minimalist" to false,
-        "3D Render" to true,
-        "Cinematic" to true,
-        "Cyberpunk" to true,
-        "Anime" to true,
-        "Pixel Art" to true,
-        "Watercolor" to true,
-        "Oil Painting" to true,
-        "Cosmic" to true
+        "Photorealistic" to "📸",
+        "Oil Painting" to "🎨",
+        "Black and White" to "🏁",
+        "Gaming" to "🎮",
+        "3D Render" to "🧱",
+        "Hand Drawn" to "✏️",
+        "Anime" to "🌸",
+        "Editorial" to "📰",
+        "Minimal Photoshot" to "🏺",
+        "Cinematic" to "🎬",
+        "Sci-Fi" to "🚀",
+        "Digital Painting" to "🖥️",
+        "PIxel Art" to "👾",
+        "Analog Camera" to "🎞️",
+        "Classic Art" to "🏛️",
+        "Cartoonify" to "🧸",
+        "Cyberpunk" to "🌆",
+        "Fantasy" to "🔮",
+        "3D Character" to "🤖"
     )
 
     val aspectRatios = listOf(
-        "1:1" to "Square" to false,
-        "16:9" to "Landscape" to true,
-        "9:16" to "Portrait" to true
+        "1024:1024" to "Square (1024:1024)",
+        "1536:1024" to "Landscape (1536:1024)",
+        "1024:1536" to "Portrait (1024:1536)"
     )
 
     Column(
         modifier = Modifier
             .fillMaxSize()
             .padding(paddingValues)
-            .verticalScroll(rememberScrollState())
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         // Hero Header
-        Column {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 12.dp)
+        ) {
             Text(
-                text = "Eddie AI Art Studio ✨",
+                text = "Eddie AI Image Pro 🎨",
                 style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Bold),
                 color = MaterialTheme.colorScheme.primary
             )
@@ -2580,7 +3427,7 @@ fun EddieImageGeneratorView(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = "Transform descriptive words into stunning digital masterpieces in real-time.",
+                    text = "High-precision commercial suite with dynamic multi-variable engines.",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.weight(1f)
@@ -2601,9 +3448,21 @@ fun EddieImageGeneratorView(
                     }
                 }
             }
+            Spacer(modifier = Modifier.height(8.dp))
+            HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
         }
 
-        // Input prompt card
+        // Scrollable content underneath
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 16.dp, vertical = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+
+        // Prompt Input Card
         Card(
             modifier = Modifier.fillMaxWidth(),
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)),
@@ -2620,14 +3479,13 @@ fun EddieImageGeneratorView(
                 OutlinedTextField(
                     value = prompt,
                     onValueChange = { prompt = it },
-                    placeholder = { Text("Example: A cyberpunk city under neon rain, high detail...") },
+                    placeholder = { Text("Example: A vibrant futuristic city with flying automobiles under glowing neon signs...") },
                     modifier = Modifier.fillMaxWidth().height(100.dp),
                     shape = RoundedCornerShape(12.dp)
                 )
 
                 Spacer(modifier = Modifier.height(12.dp))
 
-                // Sample Prompts pill row
                 Text(
                     text = "Quick Inspiration:",
                     style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
@@ -2640,10 +3498,10 @@ fun EddieImageGeneratorView(
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     val quickPrompts = listOf(
-                        "An astronaut riding a white horse on Mars, dramatic oil painting",
-                        "A floating fantasy village surrounded by soft clouds, watercolor style",
-                        "A cute cat wearing a wizard hat reading an old magic spell book, 3D render",
-                        "A mystical forest at night filled with glowing golden fireflies"
+                        "An astronaut riding a white horse in Yosemite valley, cinematic lighting",
+                        "A gorgeous floating castle surrounded by vaporwave neon clouds, 3D render",
+                        "A cute kitten wearing a shiny wizard coat casting light spells",
+                        "A dramatic medieval fortress standing tall against a cosmic sky"
                     )
                     quickPrompts.forEach { text ->
                         Surface(
@@ -2665,120 +3523,63 @@ fun EddieImageGeneratorView(
             }
         }
 
-        // Provider & Model Selection Card
+        // Provider selection
         Card(
             modifier = Modifier.fillMaxWidth(),
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f)),
             border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
         ) {
             Column(modifier = Modifier.padding(16.dp)) {
-                // Header of the selection
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Info, // A descriptive, present icon
-                        contentDescription = "Settings Icon",
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(20.dp)
-                    )
-                    Text(
-                        text = "Select Provider & Image Model",
-                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                }
-
-                Spacer(modifier = Modifier.height(12.dp))
-
-                // Provider Selection label
                 Text(
-                    text = "Provider AI:",
-                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    text = "1. Generative Engines Cluster",
+                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                    color = MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier.padding(bottom = 8.dp)
                 )
 
-                Spacer(modifier = Modifier.height(6.dp))
-
-                // Horizontal row of provider chips
-                Row(
-                    modifier = Modifier.horizontalScroll(rememberScrollState()),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                FlowRow(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
-                    val providers = listOf("OpenAI", "Stable Diffusion", "FalAI")
-                    providers.forEach { provider ->
-                        val isSelected = uiState.selectedImageProvider == provider
+                    val presets = listOf(
+                        Triple("GPT Image 1.5", "gpt-image-1.5", "OpenAI"),
+                        Triple("Flux Pro", "flux-pro", "Fal AI"),
+                        Triple("Gemini Imagen 3", "imagen3", "Gemini"),
+                        Triple("Stable Diffusion", "sd3", "Stable Diffusion")
+                    )
+                    presets.forEach { (displayName, modelId, provider) ->
+                        val isSelected = activeProvider == provider && activeModelID == modelId
+                        val isPro = provider != "Gemini"
+                        
                         FilterChip(
                             selected = isSelected,
-                            onClick = { onProviderChange(provider) },
-                            label = { Text(provider) },
-                            leadingIcon = {
-                                val icon = when (provider) {
-                                    "OpenAI" -> Icons.Default.CheckCircle
-                                    "Stable Diffusion" -> Icons.Default.Face
-                                    else -> Icons.Default.Person
-                                }
-                                Icon(
-                                    imageVector = icon,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(16.dp)
-                                )
+                            onClick = { 
+                                activeProvider = provider
+                                activeModelID = modelId
+                                onProviderChange(provider)
+                                onModelChange(modelId)
                             },
-                            colors = FilterChipDefaults.filterChipColors(
-                                selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
-                                selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                                selectedLeadingIconColor = MaterialTheme.colorScheme.onPrimaryContainer
-                            )
-                        )
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(12.dp))
-
-                // Model Selection label
-                Text(
-                    text = "Model:",
-                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-
-                Spacer(modifier = Modifier.height(6.dp))
-
-                // Horizontal row of model chips based on the selected provider
-                val models = when (uiState.selectedImageProvider) {
-                    "OpenAI" -> listOf("GPT Image 1.5", "GPT Image 2")
-                    "Stable Diffusion" -> listOf("Stable Diffusion", "Core Diffusion", "Ultra Diffusion")
-                    "FalAI" -> listOf("Flux Pro", "Flux Realism")
-                    else -> emptyList()
-                }
-
-                Row(
-                    modifier = Modifier.horizontalScroll(rememberScrollState()),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    models.forEach { model ->
-                        val isSelected = uiState.selectedImageModel == model
-                        val isPro = model in listOf("GPT Image 2", "Ultra Diffusion", "Flux Realism")
-                        val badgeColor = if (uiState.isSubscribed) MaterialTheme.colorScheme.primary else Color(0xFFFFB100)
-
-                        FilterChip(
-                            selected = isSelected,
-                            onClick = { onModelChange(model) },
                             label = {
                                 Row(
                                     verticalAlignment = Alignment.CenterVertically,
                                     horizontalArrangement = Arrangement.spacedBy(6.dp)
                                 ) {
-                                    Text(model)
+                                    val iconEmoji = when (provider) {
+                                        "OpenAI" -> "🧠"
+                                        "Fal AI" -> "🔮"
+                                        "Gemini" -> "♊"
+                                        else -> "🌀"
+                                    }
+                                    Text("$iconEmoji $displayName")
                                     if (isPro) {
                                         Surface(
-                                            color = badgeColor,
+                                            color = if (uiState.isSubscribed) MaterialTheme.colorScheme.primary else Color(0xFFFFB100),
                                             shape = RoundedCornerShape(4.dp)
                                         ) {
                                             Text(
                                                 text = "PRO",
-                                                color = Color.White,
+                                                color = if (uiState.isSubscribed) MaterialTheme.colorScheme.onPrimary else Color(0xFF111111),
                                                 fontSize = 8.sp,
                                                 fontWeight = FontWeight.Bold,
                                                 modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
@@ -2787,11 +3588,112 @@ fun EddieImageGeneratorView(
                                     }
                                 }
                             },
-                            colors = FilterChipDefaults.filterChipColors(
-                                selectedContainerColor = MaterialTheme.colorScheme.secondaryContainer,
-                                selectedLabelColor = MaterialTheme.colorScheme.onSecondaryContainer
-                            )
+                            leadingIcon = {
+                                Icon(
+                                    imageVector = if (isSelected) Icons.Default.CheckCircle else Icons.Default.Info,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                            }
                         )
+                    }
+                }
+            }
+        }
+
+        // Image Count and Background Configuration
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f)),
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Text(
+                    text = "2. Advanced Pro Features",
+                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                    color = MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier.padding(bottom = 12.dp)
+                )
+
+                // Num Images
+                Text(
+                    text = "Number of Variations:",
+                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(bottom = 6.dp)
+                )
+
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    val numbers = listOf(1, 2, 3, 4)
+                    numbers.forEach { num ->
+                        val isSelected = numImages == num
+                        Surface(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clickable { numImages = num },
+                            shape = RoundedCornerShape(10.dp),
+                            color = if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface,
+                            border = BorderStroke(
+                                width = if (isSelected) 2.dp else 1.dp,
+                                color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)
+                            )
+                        ) {
+                            Box(
+                                contentAlignment = Alignment.Center,
+                                modifier = Modifier.padding(vertical = 10.dp)
+                            ) {
+                                Text(
+                                    text = "$num Variation" + (if (num > 1) "s" else ""),
+                                    style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                                    color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface
+                                )
+                            }
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // Background Config
+                Text(
+                    text = "Composition Background:",
+                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(bottom = 6.dp)
+                )
+
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    val backgroundOptions = listOf("Auto", "Transparent", "Opaque")
+                    backgroundOptions.forEach { bg ->
+                        val isSelected = selectedBackground == bg
+                        Surface(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clickable { selectedBackground = bg },
+                            shape = RoundedCornerShape(10.dp),
+                            color = if (isSelected) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surface,
+                            border = BorderStroke(
+                                width = if (isSelected) 2.dp else 1.dp,
+                                color = if (isSelected) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)
+                            )
+                        ) {
+                            Box(
+                                contentAlignment = Alignment.Center,
+                                modifier = Modifier.padding(vertical = 10.dp)
+                            ) {
+                                Text(
+                                    text = bg,
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = if (isSelected) MaterialTheme.colorScheme.onSecondaryContainer else MaterialTheme.colorScheme.onSurface
+                                )
+                            }
+                        }
                     }
                 }
             }
@@ -2800,20 +3702,19 @@ fun EddieImageGeneratorView(
         // Styles Section
         Column {
             Text(
-                text = "Select Artistic Style",
+                text = "3. Artistic Style Direction",
                 style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
                 color = MaterialTheme.colorScheme.onSurface,
                 modifier = Modifier.padding(bottom = 8.dp)
             )
 
-            Row(
-                modifier = Modifier.horizontalScroll(rememberScrollState()),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            FlowRow(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                styles.forEach { (styleName, isPro) ->
+                styles.forEach { (styleName, emoji) ->
                     val isSelected = selectedStyle == styleName
-                    val badgeColor = if (uiState.isSubscribed) MaterialTheme.colorScheme.primary else Color(0xFFFFB100)
-
                     Surface(
                         modifier = Modifier.clickable { selectedStyle = styleName },
                         shape = RoundedCornerShape(12.dp),
@@ -2824,29 +3725,16 @@ fun EddieImageGeneratorView(
                         )
                     ) {
                         Row(
-                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
                             verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
+                            Text(text = emoji, fontSize = 16.sp)
                             Text(
                                 text = styleName,
                                 style = MaterialTheme.typography.bodyMedium.copy(fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal),
                                 color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface
                             )
-                            if (isPro) {
-                                Surface(
-                                    color = badgeColor,
-                                    shape = RoundedCornerShape(4.dp)
-                                ) {
-                                    Text(
-                                        text = "PRO",
-                                        color = Color.White,
-                                        fontSize = 8.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
-                                    )
-                                }
-                            }
                         }
                     }
                 }
@@ -2856,7 +3744,7 @@ fun EddieImageGeneratorView(
         // Aspect Ratio Section
         Column {
             Text(
-                text = "Define Image Aspect Ratio",
+                text = "4. Resolution Canvas Specs",
                 style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
                 color = MaterialTheme.colorScheme.onSurface,
                 modifier = Modifier.padding(bottom = 8.dp)
@@ -2867,12 +3755,12 @@ fun EddieImageGeneratorView(
                 modifier = Modifier.fillMaxWidth()
             ) {
                 aspectRatios.forEach { ratioData ->
-                    val ratioPair = ratioData.first
-                    val isPro = ratioData.second
-                    val ratio = ratioPair.first
-                    val label = ratioPair.second
+                    val ratio = ratioData.first
+                    val label = ratioData.second
                     val isSelected = selectedAspectRatio == ratio
+                    val isPro = ratio != "1024:1024"
                     val badgeColor = if (uiState.isSubscribed) MaterialTheme.colorScheme.primary else Color(0xFFFFB100)
+                    val badgeTextColor = if (uiState.isSubscribed) MaterialTheme.colorScheme.onPrimary else Color(0xFF111111)
 
                     Surface(
                         modifier = Modifier
@@ -2895,8 +3783,8 @@ fun EddieImageGeneratorView(
                                 horizontalArrangement = Arrangement.spacedBy(4.dp)
                             ) {
                                 Text(
-                                    text = ratio,
-                                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                                    text = if (ratio == "1024:1024") "Square" else if (ratio == "1536:1024") "Landscape" else "Portrait",
+                                    style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
                                     color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface
                                 )
                                 if (isPro) {
@@ -2906,7 +3794,7 @@ fun EddieImageGeneratorView(
                                     ) {
                                         Text(
                                             text = "PRO",
-                                            color = Color.White,
+                                            color = badgeTextColor,
                                             fontSize = 7.sp,
                                             fontWeight = FontWeight.Bold,
                                             modifier = Modifier.padding(horizontal = 3.dp, vertical = 1.dp)
@@ -2914,8 +3802,9 @@ fun EddieImageGeneratorView(
                                     }
                                 }
                             }
+                            Spacer(modifier = Modifier.height(4.dp))
                             Text(
-                                text = label,
+                                text = ratio,
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -2926,15 +3815,15 @@ fun EddieImageGeneratorView(
         }
 
         // Action Button and Status logs
-        if (uiState.imageGenIsLoading) {
+        if (uiState.imageGenLog.isNotBlank()) {
             Surface(
                 color = Color(0xFF1E1E1E),
                 shape = RoundedCornerShape(12.dp),
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp)
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Text(
-                        text = "Eddie Art Studio - Processing Image...",
+                        text = if (uiState.imageGenIsLoading) "Eddie Art Pro Studio - Processing Rendering..." else "Eddie Art Pro Studio - Complete",
                         color = Color.Green,
                         style = TextStyle(fontFamily = FontFamily.Monospace, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                     )
@@ -2944,23 +3833,41 @@ fun EddieImageGeneratorView(
                         color = Color.White,
                         style = TextStyle(fontFamily = FontFamily.Monospace, fontSize = 12.sp, lineHeight = 16.sp)
                     )
-                    Spacer(modifier = Modifier.height(12.dp))
-                    LinearProgressIndicator(
-                        modifier = Modifier.fillMaxWidth(),
-                        color = Color.Green,
-                        trackColor = Color.DarkGray
-                    )
+                    if (uiState.imageGenIsLoading) {
+                        Spacer(modifier = Modifier.height(12.dp))
+                        LinearProgressIndicator(
+                            modifier = Modifier.fillMaxWidth(),
+                            color = Color.Green,
+                            trackColor = Color.DarkGray
+                        )
+                    }
                 }
+            }
+        }
+
+        if (uiState.imageGenIsLoading) {
+            Button(
+                onClick = { },
+                enabled = false,
+                modifier = Modifier.fillMaxWidth().height(52.dp),
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Text(
+                    text = "Painting Masterpiece... ⏳",
+                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
+                )
             }
         } else {
             Button(
-                onClick = { onGenerate(prompt, selectedStyle, selectedAspectRatio) },
+                onClick = { 
+                    onGenerate(prompt, selectedStyle, selectedAspectRatio, activeProvider, activeModelID, numImages, selectedBackground)
+                },
                 enabled = prompt.isNotBlank(),
                 modifier = Modifier.fillMaxWidth().height(52.dp),
                 shape = RoundedCornerShape(12.dp)
             ) {
                 Text(
-                    text = "Start Painting Image ✨",
+                    text = "Paint AI Masterpiece ✨",
                     style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
                 )
             }
@@ -2970,7 +3877,7 @@ fun EddieImageGeneratorView(
 
         // History Gallery Section
         Text(
-            text = "Your Masterpiece Gallery Collection",
+            text = "Your Premium Artwork Collection",
             style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
             color = MaterialTheme.colorScheme.onSurface
         )
@@ -2998,7 +3905,7 @@ fun EddieImageGeneratorView(
                     )
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
-                        text = "Describe your dream visuals above to start your first gallery.",
+                        text = "Describe your dream visuals above to start your first premium gallery.",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         textAlign = TextAlign.Center,
@@ -3057,11 +3964,30 @@ fun EddieImageGeneratorView(
                                         color = MaterialTheme.colorScheme.onSurface
                                     )
                                     Spacer(modifier = Modifier.height(4.dp))
-                                    Text(
-                                        text = "Ratio: " + imageItem.aspectRatio,
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text(
+                                            text = "Ratio: " + imageItem.aspectRatio,
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                        DownloadIconButton(
+                                            onClick = {
+                                                Toast.makeText(context, "Downloading artwork...", Toast.LENGTH_SHORT).show()
+                                                downloadAndroidImage(context, imageItem.imageUrl, imageItem.prompt) { savedPath ->
+                                                    if (savedPath != null) {
+                                                        Toast.makeText(context, "Saved to $savedPath!", Toast.LENGTH_LONG).show()
+                                                    } else {
+                                                        Toast.makeText(context, "Failed to download image", Toast.LENGTH_SHORT).show()
+                                                    }
+                                                }
+                                            },
+                                            size = 24.dp
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -3070,6 +3996,7 @@ fun EddieImageGeneratorView(
             }
         }
     }
+}
 
     selectedImageForZoom?.let { imageItem ->
         AlertDialog(
@@ -3166,6 +4093,20 @@ fun EddieImageGeneratorView(
                         }
                     ) {
                         Text("Share")
+                    }
+                    Button(
+                        onClick = {
+                            Toast.makeText(context, "Downloading artwork...", Toast.LENGTH_SHORT).show()
+                            downloadAndroidImage(context, imageItem.imageUrl, imageItem.prompt) { savedPath ->
+                                if (savedPath != null) {
+                                    Toast.makeText(context, "Saved to $savedPath!", Toast.LENGTH_LONG).show()
+                                } else {
+                                    Toast.makeText(context, "Failed to download image", Toast.LENGTH_SHORT).show()
+                                }
+                            }
+                        }
+                    ) {
+                        Text("Download ⬇️")
                     }
                 }
             },
@@ -3518,11 +4459,13 @@ fun EddieVideoGeneratorView(
         modifier = Modifier
             .fillMaxSize()
             .padding(paddingValues)
-            .verticalScroll(rememberScrollState())
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        Column {
+        // Hero Header (Fixed/Sticky at the Top)
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 12.dp)
+        ) {
             Text(
                 text = "Eddie AI Video Studio 🎬",
                 style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Bold),
@@ -3556,7 +4499,19 @@ fun EddieVideoGeneratorView(
                     }
                 }
             }
+            Spacer(modifier = Modifier.height(8.dp))
+            HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
         }
+
+        // Scrollable content underneath
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 16.dp, vertical = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
 
         // Provider & Model Selection Card for Video Generator
         Card(
@@ -3699,6 +4654,7 @@ fun EddieVideoGeneratorView(
                         val isSelected = uiState.selectedVideoModel == model
                         val isPro = model in listOf("Sora 2 pro", "Veo 3.1", "Kling v3", "Kling v2.6 pro", "Kling v3 pro")
                         val badgeColor = if (uiState.isSubscribed) MaterialTheme.colorScheme.primary else Color(0xFFFFB100)
+                        val badgeTextColor = if (uiState.isSubscribed) MaterialTheme.colorScheme.onPrimary else Color(0xFF111111)
 
                         FilterChip(
                             selected = isSelected,
@@ -3716,7 +4672,7 @@ fun EddieVideoGeneratorView(
                                         ) {
                                             Text(
                                                 text = "PRO",
-                                                color = Color.White,
+                                                color = badgeTextColor,
                                                 fontSize = 8.sp,
                                                 fontWeight = FontWeight.Bold,
                                                 modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
@@ -3891,6 +4847,7 @@ fun EddieVideoGeneratorView(
                 styles.forEach { (styleName, isPro) ->
                     val isSelected = selectedStyle == styleName
                     val badgeColor = if (uiState.isSubscribed) MaterialTheme.colorScheme.primary else Color(0xFFFFB100)
+                    val badgeTextColor = if (uiState.isSubscribed) MaterialTheme.colorScheme.onPrimary else Color(0xFF111111)
 
                     Surface(
                         modifier = Modifier.clickable { selectedStyle = styleName },
@@ -3918,7 +4875,7 @@ fun EddieVideoGeneratorView(
                                 ) {
                                     Text(
                                         text = "PRO",
-                                        color = Color.White,
+                                        color = badgeTextColor,
                                         fontSize = 8.sp,
                                         fontWeight = FontWeight.Bold,
                                         modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
@@ -3950,6 +4907,7 @@ fun EddieVideoGeneratorView(
                     val label = item.second
                     val isSelected = selectedAspectRatio == ratio
                     val badgeColor = if (uiState.isSubscribed) MaterialTheme.colorScheme.primary else Color(0xFFFFB100)
+                    val badgeTextColor = if (uiState.isSubscribed) MaterialTheme.colorScheme.onPrimary else Color(0xFF111111)
 
                     Surface(
                         modifier = Modifier
@@ -3983,7 +4941,7 @@ fun EddieVideoGeneratorView(
                                     ) {
                                         Text(
                                             text = "PRO",
-                                            color = Color.White,
+                                            color = badgeTextColor,
                                             fontSize = 7.sp,
                                             fontWeight = FontWeight.Bold,
                                             modifier = Modifier.padding(horizontal = 3.dp, vertical = 1.dp)
@@ -4021,6 +4979,7 @@ fun EddieVideoGeneratorView(
                     val label = item.second
                     val isSelected = selectedResolution == res
                     val badgeColor = if (uiState.isSubscribed) MaterialTheme.colorScheme.primary else Color(0xFFFFB100)
+                    val badgeTextColor = if (uiState.isSubscribed) MaterialTheme.colorScheme.onPrimary else Color(0xFF111111)
 
                     Surface(
                         modifier = Modifier
@@ -4054,7 +5013,7 @@ fun EddieVideoGeneratorView(
                                     ) {
                                         Text(
                                             text = "PRO",
-                                            color = Color.White,
+                                            color = badgeTextColor,
                                             fontSize = 7.sp,
                                             fontWeight = FontWeight.Bold,
                                             modifier = Modifier.padding(horizontal = 3.dp, vertical = 1.dp)
@@ -4092,6 +5051,7 @@ fun EddieVideoGeneratorView(
                     val label = item.second
                     val isSelected = selectedDuration == dur
                     val badgeColor = if (uiState.isSubscribed) MaterialTheme.colorScheme.primary else Color(0xFFFFB100)
+                    val badgeTextColor = if (uiState.isSubscribed) MaterialTheme.colorScheme.onPrimary else Color(0xFF111111)
 
                     Surface(
                         modifier = Modifier
@@ -4125,7 +5085,7 @@ fun EddieVideoGeneratorView(
                                     ) {
                                         Text(
                                             text = "PRO",
-                                            color = Color.White,
+                                            color = badgeTextColor,
                                             fontSize = 7.sp,
                                             fontWeight = FontWeight.Bold,
                                             modifier = Modifier.padding(horizontal = 3.dp, vertical = 1.dp)
@@ -4321,6 +5281,7 @@ fun EddieVideoGeneratorView(
 
         Spacer(modifier = Modifier.height(30.dp))
     }
+    }
 
     selectedVideoForPlay?.let { video ->
         VideoPlayerDialog(
@@ -4492,11 +5453,13 @@ fun EddieMusicGeneratorView(
         modifier = Modifier
             .fillMaxSize()
             .padding(paddingValues)
-            .verticalScroll(rememberScrollState())
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        Column {
+        // Hero Header (Fixed/Sticky at the Top)
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 12.dp)
+        ) {
             Text(
                 text = "Eddie AI Music Studio 🎵",
                 style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Bold),
@@ -4530,7 +5493,19 @@ fun EddieMusicGeneratorView(
                     }
                 }
             }
+            Spacer(modifier = Modifier.height(8.dp))
+            HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
         }
+
+        // Scrollable content underneath
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 16.dp, vertical = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
 
         // Provider & Model Selection Card for Music Generator
         Card(
@@ -4619,6 +5594,7 @@ fun EddieMusicGeneratorView(
                         val isSelected = uiState.selectedMusicModel == model
                         val isPro = model in listOf("Lyria 3 pro", "Suno v4 pro")
                         val badgeColor = if (uiState.isSubscribed) MaterialTheme.colorScheme.primary else Color(0xFFFFB100)
+                        val badgeTextColor = if (uiState.isSubscribed) MaterialTheme.colorScheme.onPrimary else Color(0xFF111111)
 
                         FilterChip(
                             selected = isSelected,
@@ -4636,7 +5612,7 @@ fun EddieMusicGeneratorView(
                                         ) {
                                             Text(
                                                 text = "PRO",
-                                                color = Color.White,
+                                                color = badgeTextColor,
                                                 fontSize = 8.sp,
                                                 fontWeight = FontWeight.Bold,
                                                 modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
@@ -4736,6 +5712,7 @@ fun EddieMusicGeneratorView(
                     val subtitle = item.second
                     val isSelected = selectedGenre == genreName
                     val badgeColor = if (uiState.isSubscribed) MaterialTheme.colorScheme.primary else Color(0xFFFFB100)
+                    val badgeTextColor = if (uiState.isSubscribed) MaterialTheme.colorScheme.onPrimary else Color(0xFF111111)
 
                     Surface(
                         modifier = Modifier
@@ -4769,7 +5746,7 @@ fun EddieMusicGeneratorView(
                                     ) {
                                         Text(
                                             text = "PRO",
-                                            color = Color.White,
+                                            color = badgeTextColor,
                                             fontSize = 8.sp,
                                             fontWeight = FontWeight.Bold,
                                             modifier = Modifier.padding(horizontal = 3.dp, vertical = 1.dp)
@@ -4810,6 +5787,7 @@ fun EddieMusicGeneratorView(
                     val desc = item.second
                     val isSelected = selectedDuration == durLabel
                     val badgeColor = if (uiState.isSubscribed) MaterialTheme.colorScheme.primary else Color(0xFFFFB100)
+                    val badgeTextColor = if (uiState.isSubscribed) MaterialTheme.colorScheme.onPrimary else Color(0xFF111111)
 
                     Surface(
                         modifier = Modifier
@@ -4843,7 +5821,7 @@ fun EddieMusicGeneratorView(
                                     ) {
                                         Text(
                                             text = "PRO",
-                                            color = Color.White,
+                                            color = badgeTextColor,
                                             fontSize = 7.sp,
                                             fontWeight = FontWeight.Bold,
                                             modifier = Modifier.padding(horizontal = 3.dp, vertical = 1.dp)
@@ -5149,6 +6127,7 @@ fun EddieMusicGeneratorView(
 
         Spacer(modifier = Modifier.height(40.dp))
     }
+    }
 
     editingMusicItem?.let { item ->
         EddieMusicEditorDialog(
@@ -5159,6 +6138,12 @@ fun EddieMusicGeneratorView(
     }
 }
 
+data class DrawingStroke(
+    val points: List<androidx.compose.ui.geometry.Offset>,
+    val color: androidx.compose.ui.graphics.Color,
+    val width: Float
+)
+
 @Composable
 fun EddieImageEditorDialog(
     imageItem: com.example.data.db.GeneratedImageEntity,
@@ -5167,10 +6152,38 @@ fun EddieImageEditorDialog(
 ) {
     val context = LocalContext.current
     var brightness by remember { mutableStateOf(0f) } // range -0.5 to 0.5
+    var contrast by remember { mutableStateOf(0f) } // range -0.5 to 0.5
+    var warmth by remember { mutableStateOf(0f) } // range -0.5 to 0.5
     var selectedTone by remember { mutableStateOf("Original") }
+    var filterIntensity by remember { mutableStateOf(0.70f) } // range 0f to 1f
     var customText by remember { mutableStateOf("") }
     var textPosition by remember { mutableStateOf("Bottom") }
     var selectedTextColor by remember { mutableStateOf("White") }
+    var textFontStyle by remember { mutableStateOf("Sans-Serif") }
+    var textFontSize by remember { mutableStateOf(16f) } // range 12f to 32f
+
+    // Advanced transformation settings
+    var rotationAngle by remember { mutableStateOf(0f) }
+    var isFlippedHorizontal by remember { mutableStateOf(false) }
+    var isFlippedVertical by remember { mutableStateOf(false) }
+    var selectedAspect by remember { mutableStateOf("Original") }
+    var selectedFrame by remember { mutableStateOf("None") }
+    var selectedSticker by remember { mutableStateOf("None") }
+    var vignetteEnabled by remember { mutableStateOf(false) }
+    var blurOverlayEnabled by remember { mutableStateOf(false) }
+
+    // Brush Tooling State
+    var brushColor by remember { mutableStateOf(androidx.compose.ui.graphics.Color.Red) }
+    var brushThickness by remember { mutableStateOf(8f) } // range 2f to 40f
+    val drawingStrokes = remember { mutableStateListOf<DrawingStroke>() }
+    val currentStrokePoints = remember { mutableStateListOf<androidx.compose.ui.geometry.Offset>() }
+
+    // Double Exposure Overlay state
+    var activeOverlayTexture by remember { mutableStateOf("None") }
+    var overlayTextureOpacity by remember { mutableStateOf(0.50f) } // range 0f to 1f
+
+    // Control tabs
+    var activeSubTab by remember { mutableStateOf("Color") }
 
     // Rendering / saving simulation state
     var isSaving by remember { mutableStateOf(false) }
@@ -5179,16 +6192,29 @@ fun EddieImageEditorDialog(
 
     val scope = rememberCoroutineScope()
 
-    val tones = listOf("Original", "Cyberpunk", "Vintage Lofi", "Emerald Green", "Cinema Warm", "B&W", "Cosmic Violet")
+    val subTabs = listOf(
+        Pair("Color", "🎨"),
+        Pair("Crop", "📐"),
+        Pair("Frames", "🖼️"),
+        Pair("Text/Badge", "✍️"),
+        Pair("Brush & Draw", "🖌️"),
+        Pair("Overlays", "🌌"),
+        Pair("Lens FX", "✨")
+    )
+
+    val tones = listOf("Original", "Cyberpunk", "Vintage Lofi", "Emerald Green", "Cinema Warm", "B&W", "Cosmic Violet", "Cool Neon", "Golden Hour", "Faded Matte")
     val positions = listOf("Top", "Center", "Bottom")
-    val textColors = listOf("White", "Black", "Gold", "Neon Green", "Hot Pink")
+    val textColors = listOf("White", "Black", "Gold", "Neon Green", "Hot Pink", "Cyan")
+    val aspects = listOf("Original", "1:1 Square", "16:9 Landscape", "9:16 Portrait", "4:3 Classic")
+    val frames = listOf("None", "Polaroid", "Film Strip", "Classic Gold", "Neon Border", "Cyber Outline", "Vibrant Rainbow")
+    val stickers = listOf("None", "🔥 TRENDING", "🎨 AI MASTERPIECE", "🔒 EXCLUSIVE", "🕶️ RETRO", "✨ GLOW", "🌟 ULTRA PRO")
 
     AlertDialog(
         onDismissRequest = { if (!isSaving) onDismissRequest() },
         title = {
             Text(
-                text = "Eddie AI Image Editing Studio 🎨",
-                style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold)
+                text = "Eddie AI Image Studio Pro 🎨",
+                style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
             )
         },
         text = {
@@ -5202,20 +6228,89 @@ fun EddieImageEditorDialog(
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(220.dp)
+                        .height(240.dp)
                         .clip(RoundedCornerShape(12.dp))
-                        .background(Color.DarkGray),
+                        .background(Color(0xFF151515)),
                     contentAlignment = Alignment.Center
                 ) {
-                    Box(modifier = Modifier.fillMaxSize()) {
+                    val imageModifier = when (selectedAspect) {
+                        "1:1 Square" -> Modifier.aspectRatio(1f)
+                        "16:9 Landscape" -> Modifier.aspectRatio(16f/9f)
+                        "9:16 Portrait" -> Modifier.aspectRatio(9f/16f)
+                        "4:3 Classic" -> Modifier.aspectRatio(4f/3f)
+                        else -> Modifier.fillMaxSize()
+                    }
+
+                    Box(
+                        modifier = imageModifier
+                            .fillMaxHeight()
+                            .padding(10.dp)
+                            .align(Alignment.Center)
+                            .then(
+                                when (selectedFrame) {
+                                    "Polaroid" -> Modifier
+                                        .background(Color.White)
+                                        .border(10.dp, Color.White)
+                                        .padding(bottom = 24.dp)
+                                    "Film Strip" -> Modifier
+                                        .border(8.dp, Color.Black)
+                                        .padding(4.dp)
+                                        .border(2.dp, Color.White, shape = RoundedCornerShape(2.dp))
+                                    "Classic Gold" -> Modifier.border(5.dp, Color(0xFFFFD700))
+                                    "Neon Border" -> Modifier.border(4.dp, Color(0xFF00FFFF))
+                                    "Cyber Outline" -> Modifier.border(4.dp, Color(0xFFFF007F))
+                                    "Vibrant Rainbow" -> Modifier.border(
+                                        width = 6.dp, 
+                                        brush = androidx.compose.ui.graphics.Brush.linearGradient(
+                                            colors = listOf(Color.Red, Color.Yellow, Color.Green, Color.Cyan, Color.Blue, Color.Magenta)
+                                        ),
+                                        shape = androidx.compose.ui.graphics.RectangleShape
+                                    )
+                                    else -> Modifier
+                                }
+                            )
+                            .pointerInput(activeSubTab) {
+                                if (activeSubTab == "Brush & Draw") {
+                                    detectDragGestures(
+                                        onDragStart = { offset: androidx.compose.ui.geometry.Offset ->
+                                            currentStrokePoints.add(offset)
+                                        },
+                                        onDrag = { change: PointerInputChange, dragAmount: androidx.compose.ui.geometry.Offset ->
+                                            change.consume()
+                                            currentStrokePoints.add(change.position)
+                                        },
+                                        onDragEnd = {
+                                            if (currentStrokePoints.isNotEmpty()) {
+                                                drawingStrokes.add(
+                                                    DrawingStroke(
+                                                        points = currentStrokePoints.toList(),
+                                                        color = brushColor,
+                                                        width = brushThickness
+                                                    )
+                                                )
+                                                currentStrokePoints.clear()
+                                            }
+                                        }
+                                    )
+                                }
+                            },
+                        contentAlignment = Alignment.Center
+                    ) {
                         AsyncImage(
                             model = imageItem.imageUrl,
                             contentDescription = "Preview",
-                            modifier = Modifier.fillMaxSize(),
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .graphicsLayer(
+                                    rotationZ = rotationAngle,
+                                    scaleX = if (isFlippedHorizontal) -1f else 1f,
+                                    scaleY = if (isFlippedVertical) -1f else 1f
+                                ),
                             contentScale = ContentScale.Fit,
                             colorFilter = if (selectedTone == "B&W") androidx.compose.ui.graphics.ColorFilter.colorMatrix(androidx.compose.ui.graphics.ColorMatrix().apply { setToSaturation(0f) }) else null
                         )
-                        // Visual feedback overlay for Brightness
+
+                        // Brightness overlay
                         if (brightness != 0f) {
                             Box(
                                 modifier = Modifier
@@ -5226,20 +6321,180 @@ fun EddieImageEditorDialog(
                                     )
                             )
                         }
-                        // Visual feedback overlay for Tone Filters
-                        if (selectedTone == "Cyberpunk") {
-                            Box(modifier = Modifier.fillMaxSize().background(Color.Magenta.copy(alpha = 0.22f)))
-                        } else if (selectedTone == "Vintage Lofi") {
-                            Box(modifier = Modifier.fillMaxSize().background(Color(0xFFE5A93C).copy(alpha = 0.25f)))
-                        } else if (selectedTone == "Emerald Green") {
-                            Box(modifier = Modifier.fillMaxSize().background(Color.Green.copy(alpha = 0.18f)))
-                        } else if (selectedTone == "Cinema Warm") {
-                            Box(modifier = Modifier.fillMaxSize().background(Color(0xFFFF8A00).copy(alpha = 0.18f)))
-                        } else if (selectedTone == "Cosmic Violet") {
-                            Box(modifier = Modifier.fillMaxSize().background(Color(0xFF8B00FF).copy(alpha = 0.22f)))
+
+                        // Contrast overlay
+                        if (contrast > 0f) {
+                            Box(modifier = Modifier.fillMaxSize().background(Color.White.copy(alpha = contrast * 0.15f)))
+                        } else if (contrast < 0f) {
+                            Box(modifier = Modifier.fillMaxSize().background(Color.Gray.copy(alpha = (-contrast) * 0.25f)))
                         }
 
-                        // Floating custom text overlay
+                        // Warmth overlay
+                        if (warmth > 0f) {
+                            Box(modifier = Modifier.fillMaxSize().background(Color(0xFFFFB03A).copy(alpha = warmth * 0.25f)))
+                        } else if (warmth < 0f) {
+                            Box(modifier = Modifier.fillMaxSize().background(Color(0xFF3A8CFF).copy(alpha = (-warmth) * 0.25f)))
+                        }
+
+                        // Filter overlays
+                        val toneAlpha = filterIntensity * 0.35f
+                        if (selectedTone == "Cyberpunk") {
+                            Box(modifier = Modifier.fillMaxSize().background(Color.Magenta.copy(alpha = toneAlpha * 0.65f)))
+                        } else if (selectedTone == "Vintage Lofi") {
+                            Box(modifier = Modifier.fillMaxSize().background(Color(0xFFE5A93C).copy(alpha = toneAlpha * 0.70f)))
+                        } else if (selectedTone == "Emerald Green") {
+                            Box(modifier = Modifier.fillMaxSize().background(Color.Green.copy(alpha = toneAlpha * 0.50f)))
+                        } else if (selectedTone == "Cinema Warm") {
+                            Box(modifier = Modifier.fillMaxSize().background(Color(0xFFFF8A00).copy(alpha = toneAlpha * 0.50f)))
+                        } else if (selectedTone == "Cosmic Violet") {
+                            Box(modifier = Modifier.fillMaxSize().background(Color(0xFF8B00FF).copy(alpha = toneAlpha * 0.60f)))
+                        } else if (selectedTone == "Cool Neon") {
+                            Box(modifier = Modifier.fillMaxSize().background(Color(0xFF00FFFF).copy(alpha = toneAlpha * 0.60f)))
+                        } else if (selectedTone == "Golden Hour") {
+                            Box(modifier = Modifier.fillMaxSize().background(Color(0xFFFFD700).copy(alpha = toneAlpha * 0.60f)))
+                        } else if (selectedTone == "Faded Matte") {
+                            Box(modifier = Modifier.fillMaxSize().background(Color(0xFF8B7E74).copy(alpha = toneAlpha * 0.45f)))
+                        }
+
+                        // Vignette overlay
+                        if (vignetteEnabled) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .background(
+                                        androidx.compose.ui.graphics.Brush.radialGradient(
+                                            colors = listOf(Color.Transparent, Color.Black.copy(alpha = 0.75f)),
+                                            radius = 400f
+                                        )
+                                    )
+                            )
+                        }
+
+                        // Lens blur simulation
+                        if (blurOverlayEnabled) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .background(
+                                        androidx.compose.ui.graphics.Brush.verticalGradient(
+                                            colors = listOf(
+                                                Color.White.copy(alpha = 0.15f),
+                                                Color.Transparent,
+                                                Color.Transparent,
+                                                Color.White.copy(alpha = 0.15f)
+                                            )
+                                        )
+                                    )
+                            )
+                        }
+
+                        // Double exposure texture overlays
+                        if (activeOverlayTexture != "None") {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .background(
+                                        when (activeOverlayTexture) {
+                                            "Light Leak ⚡" -> androidx.compose.ui.graphics.Brush.radialGradient(
+                                                colors = listOf(
+                                                    Color(0xFFFF8A00).copy(alpha = overlayTextureOpacity * 0.8f),
+                                                    Color(0xFFFF007F).copy(alpha = overlayTextureOpacity * 0.4f),
+                                                    Color.Transparent
+                                                ),
+                                                center = androidx.compose.ui.geometry.Offset(0f, 0f),
+                                                radius = 600f
+                                            )
+                                            "Starry Galaxy 🌌" -> androidx.compose.ui.graphics.Brush.radialGradient(
+                                                colors = listOf(
+                                                    Color(0xFF8B00FF).copy(alpha = overlayTextureOpacity * 0.5f),
+                                                    Color(0xFF00FFFF).copy(alpha = overlayTextureOpacity * 0.3f),
+                                                    Color(0xFF000000).copy(alpha = overlayTextureOpacity * 0.7f),
+                                                    Color.Transparent
+                                                ),
+                                                radius = 800f
+                                            )
+                                            "Rain Droplets 💧" -> androidx.compose.ui.graphics.Brush.verticalGradient(
+                                                colors = listOf(
+                                                    Color(0xFFD0E1FD).copy(alpha = overlayTextureOpacity * 0.3f),
+                                                    Color(0xFF4A90E2).copy(alpha = overlayTextureOpacity * 0.15f),
+                                                    Color(0xFF1F3B68).copy(alpha = overlayTextureOpacity * 0.4f)
+                                                )
+                                            )
+                                            "Vintage Film Grain 📽️" -> androidx.compose.ui.graphics.Brush.linearGradient(
+                                                colors = listOf(
+                                                    Color(0xFF5A4D41).copy(alpha = overlayTextureOpacity * 0.25f),
+                                                    Color(0xFFE4D3C1).copy(alpha = overlayTextureOpacity * 0.15f),
+                                                    Color(0xFF332A22).copy(alpha = overlayTextureOpacity * 0.3f)
+                                                )
+                                            )
+                                            else -> androidx.compose.ui.graphics.Brush.verticalGradient(
+                                                colors = listOf(Color.Transparent, Color.Transparent)
+                                            )
+                                        }
+                                    )
+                            )
+                        }
+
+                        // Canvas drawing overlay
+                        androidx.compose.foundation.Canvas(modifier = Modifier.fillMaxSize()) {
+                            drawingStrokes.forEach { stroke ->
+                                if (stroke.points.size > 1) {
+                                    val path = androidx.compose.ui.graphics.Path().apply {
+                                        moveTo(stroke.points[0].x, stroke.points[0].y)
+                                        for (i in 1 until stroke.points.size) {
+                                            lineTo(stroke.points[i].x, stroke.points[i].y)
+                                        }
+                                    }
+                                    drawPath(
+                                        path = path,
+                                        color = stroke.color,
+                                        style = androidx.compose.ui.graphics.drawscope.Stroke(
+                                            width = stroke.width,
+                                            cap = androidx.compose.ui.graphics.StrokeCap.Round,
+                                            join = androidx.compose.ui.graphics.StrokeJoin.Round
+                                        )
+                                    )
+                                }
+                            }
+                            if (currentStrokePoints.size > 1) {
+                                val path = androidx.compose.ui.graphics.Path().apply {
+                                    moveTo(currentStrokePoints[0].x, currentStrokePoints[0].y)
+                                    for (i in 1 until currentStrokePoints.size) {
+                                        lineTo(currentStrokePoints[i].x, currentStrokePoints[i].y)
+                                    }
+                                }
+                                drawPath(
+                                    path = path,
+                                    color = brushColor,
+                                    style = androidx.compose.ui.graphics.drawscope.Stroke(
+                                        width = brushThickness,
+                                        cap = androidx.compose.ui.graphics.StrokeCap.Round,
+                                        join = androidx.compose.ui.graphics.StrokeJoin.Round
+                                    )
+                                )
+                            }
+                        }
+
+                        // Sticker badge
+                        if (selectedSticker != "None") {
+                            Box(
+                                modifier = Modifier
+                                    .align(Alignment.TopEnd)
+                                    .padding(8.dp)
+                                    .background(Color.Black.copy(alpha = 0.8f), RoundedCornerShape(6.dp))
+                                    .border(1.dp, Color(0xFFFFD700), RoundedCornerShape(6.dp))
+                                    .padding(horizontal = 6.dp, vertical = 3.dp)
+                            ) {
+                                Text(
+                                    text = selectedSticker,
+                                    color = Color(0xFFFFD700),
+                                    fontSize = 8.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
+
+                        // Custom Text overlay
                         if (customText.isNotBlank()) {
                             Box(
                                 modifier = Modifier
@@ -5258,10 +6513,17 @@ fun EddieImageEditorDialog(
                                         "Black" -> Color.Black
                                         "Gold" -> Color(0xFFFFD700)
                                         "Neon Green" -> Color.Green
+                                        "Cyan" -> Color.Cyan
                                         else -> Color(0xFFFF1493)
                                     },
                                     fontWeight = FontWeight.Bold,
-                                    style = MaterialTheme.typography.bodyMedium,
+                                    fontSize = textFontSize.sp,
+                                    fontFamily = when (textFontStyle) {
+                                        "Serif" -> FontFamily.Serif
+                                        "Monospace" -> FontFamily.Monospace
+                                        "Cursive" -> FontFamily.Cursive
+                                        else -> FontFamily.SansSerif
+                                    },
                                     modifier = Modifier
                                         .background(Color.Black.copy(alpha = 0.5f), RoundedCornerShape(4.dp))
                                         .padding(horizontal = 6.dp, vertical = 2.dp)
@@ -5271,146 +6533,528 @@ fun EddieImageEditorDialog(
                     }
                 }
 
-                // Brightness adjustment
-                Column {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = "Brightness",
-                            style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold)
-                        )
-                        Text(
-                            text = "${(brightness * 100).toInt()}%",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.primary
-                        )
-                    }
-                    Slider(
-                        value = brightness,
-                        onValueChange = { brightness = it },
-                        valueRange = -0.5f..0.5f,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                }
-
-                // Tones/Filters list
-                Column {
-                    Text(
-                        text = "Tone Filters",
-                        style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
-                        modifier = Modifier.padding(bottom = 6.dp)
-                    )
-                    Row(
-                        modifier = Modifier.horizontalScroll(rememberScrollState()),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        tones.forEach { tone ->
-                            val isSelected = selectedTone == tone
-                            Surface(
-                                shape = RoundedCornerShape(16.dp),
-                                color = if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface,
-                                border = BorderStroke(1.dp, if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)),
-                                modifier = Modifier.clickable { selectedTone = tone }
+                // Sub-navigator row
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState())
+                        .padding(vertical = 2.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    subTabs.forEach { tab ->
+                        val isSelected = activeSubTab == tab.first
+                        Surface(
+                            shape = RoundedCornerShape(12.dp),
+                            color = if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
+                            border = BorderStroke(1.dp, if (isSelected) MaterialTheme.colorScheme.primary else Color.Transparent),
+                            modifier = Modifier.clickable { activeSubTab = tab.first }
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
                             ) {
+                                Text(tab.second, fontSize = 14.sp)
                                 Text(
-                                    text = tone,
-                                    style = MaterialTheme.typography.labelMedium,
-                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
-                                    color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface
+                                    text = tab.first,
+                                    style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                                    color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }
                         }
                     }
                 }
 
-                // Overlays/Watermark Text Option
-                Column(
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Text(
-                        text = "Insert Text / Watermark",
-                        style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold)
-                    )
-                    OutlinedTextField(
-                        value = customText,
-                        onValueChange = { customText = it },
-                        placeholder = { Text("Enter watermark...") },
-                        modifier = Modifier.fillMaxWidth(),
-                        maxLines = 1,
-                        singleLine = true,
-                        shape = RoundedCornerShape(8.dp)
-                    )
+                HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
 
-                    if (customText.isNotBlank()) {
-                        // Text Position and Color Row
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    text = "Text Position",
-                                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-                                    modifier = Modifier.padding(bottom = 4.dp)
-                                )
+                // Active controls panel
+                when (activeSubTab) {
+                    "Color" -> {
+                        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                            // Brightness
+                            Column {
                                 Row(
-                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    positions.forEach { pos ->
-                                        val isSel = textPosition == pos
-                                        Box(
-                                            modifier = Modifier
-                                                .background(
-                                                    if (isSel) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                                                    RoundedCornerShape(4.dp)
-                                                )
-                                                .clickable { textPosition = pos }
-                                                .padding(horizontal = 8.dp, vertical = 4.dp)
+                                    Text("Brightness", style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold))
+                                    Text("${(brightness * 100).toInt()}%", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
+                                }
+                                Slider(value = brightness, onValueChange = { brightness = it }, valueRange = -0.5f..0.5f)
+                            }
+
+                            // Contrast
+                            Column {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text("Contrast", style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold))
+                                    Text("${(contrast * 100).toInt()}%", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
+                                }
+                                Slider(value = contrast, onValueChange = { contrast = it }, valueRange = -0.5f..0.5f)
+                            }
+
+                            // Warmth (Temperature)
+                            Column {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text("Warmth & Temperature", style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold))
+                                    Text(if (warmth > 0) "Warm +${(warmth*100).toInt()}%" else if (warmth < 0) "Cool ${(warmth*100).toInt()}%" else "Neutral", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
+                                }
+                                Slider(value = warmth, onValueChange = { warmth = it }, valueRange = -0.5f..0.5f)
+                            }
+
+                            // Tone filters
+                            Column {
+                                Text("Tone LUT Filters", style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold), modifier = Modifier.padding(bottom = 6.dp))
+                                Row(
+                                    modifier = Modifier.horizontalScroll(rememberScrollState()),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    tones.forEach { tone ->
+                                        val isSelected = selectedTone == tone
+                                        Surface(
+                                            shape = RoundedCornerShape(16.dp),
+                                            color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                                            border = BorderStroke(1.dp, if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)),
+                                            modifier = Modifier.clickable { selectedTone = tone }
                                         ) {
                                             Text(
-                                                text = pos,
-                                                fontSize = 9.sp,
-                                                fontWeight = FontWeight.SemiBold,
-                                                color = if (isSel) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface
+                                                text = tone,
+                                                style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                                                color = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
                                             )
                                         }
                                     }
                                 }
                             }
 
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    text = "Text Color",
-                                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-                                    modifier = Modifier.padding(bottom = 4.dp)
-                                )
+                            // Filter Intensity Slider
+                            if (selectedTone != "Original") {
+                                Column {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text("Filter Intensity", style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold))
+                                        Text("${(filterIntensity * 100).toInt()}%", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
+                                    }
+                                    Slider(value = filterIntensity, onValueChange = { filterIntensity = it }, valueRange = 0f..1f)
+                                }
+                            }
+                        }
+                    }
+
+                    "Crop" -> {
+                        Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                            // Aspect Ratios
+                            Column {
+                                Text("Aspect Ratio Presets", style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold), modifier = Modifier.padding(bottom = 6.dp))
                                 Row(
                                     modifier = Modifier.horizontalScroll(rememberScrollState()),
-                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                                 ) {
-                                    textColors.forEach { colorStr ->
-                                        val isSel = selectedTextColor == colorStr
-                                        Box(
-                                            modifier = Modifier
-                                                .background(
-                                                    if (isSel) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                                                    RoundedCornerShape(4.dp)
-                                                )
-                                                .clickable { selectedTextColor = colorStr }
-                                                .padding(horizontal = 6.dp, vertical = 4.dp)
+                                    aspects.forEach { aspect ->
+                                        val isSelected = selectedAspect == aspect
+                                        Surface(
+                                            shape = RoundedCornerShape(16.dp),
+                                            color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                                            border = BorderStroke(1.dp, if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)),
+                                            modifier = Modifier.clickable { selectedAspect = aspect }
                                         ) {
                                             Text(
-                                                text = colorStr,
-                                                fontSize = 9.sp,
-                                                fontWeight = FontWeight.SemiBold,
-                                                color = if (isSel) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface
+                                                text = aspect,
+                                                style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                                                color = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
                                             )
                                         }
                                     }
                                 }
+                            }
+
+                            // Transform buttons (Rotate, Flip)
+                            Column {
+                                Text("Transform Canvas", style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold), modifier = Modifier.padding(bottom = 8.dp))
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    // Rotate button
+                                    Button(
+                                        onClick = { rotationAngle = (rotationAngle + 90f) % 360f },
+                                        modifier = Modifier.weight(1f),
+                                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.surfaceVariant, contentColor = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    ) {
+                                        Text("🔄 Rotate 90°", style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold))
+                                    }
+                                    // Flip Horizontal
+                                    Button(
+                                        onClick = { isFlippedHorizontal = !isFlippedHorizontal },
+                                        modifier = Modifier.weight(1f),
+                                        colors = ButtonDefaults.buttonColors(
+                                            containerColor = if (isFlippedHorizontal) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant,
+                                            contentColor = if (isFlippedHorizontal) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    ) {
+                                        Text("↔️ Flip H", style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold))
+                                    }
+                                    // Flip Vertical
+                                    Button(
+                                        onClick = { isFlippedVertical = !isFlippedVertical },
+                                        modifier = Modifier.weight(1f),
+                                        colors = ButtonDefaults.buttonColors(
+                                            containerColor = if (isFlippedVertical) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant,
+                                            contentColor = if (isFlippedVertical) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    ) {
+                                        Text("↕️ Flip V", style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold))
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    "Frames" -> {
+                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Text("Artistic Framing Borders", style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold), modifier = Modifier.padding(bottom = 4.dp))
+                            Row(
+                                modifier = Modifier.horizontalScroll(rememberScrollState()),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                frames.forEach { frame ->
+                                    val isSelected = selectedFrame == frame
+                                    Surface(
+                                        shape = RoundedCornerShape(16.dp),
+                                        color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                                        border = BorderStroke(1.dp, if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)),
+                                        modifier = Modifier.clickable { selectedFrame = frame }
+                                    ) {
+                                        Text(
+                                            text = frame,
+                                            style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                                            color = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    "Text/Badge" -> {
+                        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                            // Text inputs
+                            Column {
+                                Text("Insert Custom Logo / Watermark", style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold), modifier = Modifier.padding(bottom = 6.dp))
+                                OutlinedTextField(
+                                    value = customText,
+                                    onValueChange = { customText = it },
+                                    placeholder = { Text("e.g. © Creative Studio 2026") },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    maxLines = 1,
+                                    singleLine = true,
+                                    shape = RoundedCornerShape(8.dp)
+                                )
+                            }
+
+                            if (customText.isNotBlank()) {
+                                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            Text("Text Position", style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold), modifier = Modifier.padding(bottom = 4.dp))
+                                            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                                positions.forEach { pos ->
+                                                    val isSel = textPosition == pos
+                                                    Box(
+                                                        modifier = Modifier
+                                                            .background(
+                                                                if (isSel) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                                                                RoundedCornerShape(6.dp)
+                                                            )
+                                                            .clickable { textPosition = pos }
+                                                            .padding(horizontal = 8.dp, vertical = 6.dp)
+                                                    ) {
+                                                        Text(text = pos, fontSize = 9.sp, fontWeight = FontWeight.SemiBold, color = if (isSel) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface)
+                                                    }
+                                                }
+                                            }
+                                        }
+
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            Text("Text Color", style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold), modifier = Modifier.padding(bottom = 4.dp))
+                                            Row(
+                                                modifier = Modifier.horizontalScroll(rememberScrollState()),
+                                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                            ) {
+                                                textColors.forEach { colorStr ->
+                                                    val isSel = selectedTextColor == colorStr
+                                                    Box(
+                                                        modifier = Modifier
+                                                            .background(
+                                                                if (isSel) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                                                                RoundedCornerShape(6.dp)
+                                                            )
+                                                            .clickable { selectedTextColor = colorStr }
+                                                            .padding(horizontal = 8.dp, vertical = 6.dp)
+                                                    ) {
+                                                        Text(text = colorStr, fontSize = 9.sp, fontWeight = FontWeight.SemiBold, color = if (isSel) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface)
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+
+                                    // Custom Watermark Typography parameters
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            Text("Font Style", style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold), modifier = Modifier.padding(bottom = 4.dp))
+                                            Row(
+                                                modifier = Modifier.horizontalScroll(rememberScrollState()),
+                                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                            ) {
+                                                val fontFamilies = listOf("Sans-Serif", "Serif", "Monospace", "Cursive")
+                                                fontFamilies.forEach { style ->
+                                                    val isSel = textFontStyle == style
+                                                    Box(
+                                                        modifier = Modifier
+                                                            .background(
+                                                                if (isSel) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                                                                RoundedCornerShape(6.dp)
+                                                            )
+                                                            .clickable { textFontStyle = style }
+                                                            .padding(horizontal = 8.dp, vertical = 6.dp)
+                                                    ) {
+                                                        Text(text = style, fontSize = 9.sp, fontWeight = FontWeight.SemiBold, color = if (isSel) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface)
+                                                    }
+                                                }
+                                            }
+                                        }
+
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                horizontalArrangement = Arrangement.SpaceBetween
+                                            ) {
+                                                Text("Size", style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold))
+                                                Text("${textFontSize.toInt()}sp", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
+                                            }
+                                            Slider(
+                                                value = textFontSize,
+                                                onValueChange = { textFontSize = it },
+                                                valueRange = 12f..32f,
+                                                modifier = Modifier.height(24.dp)
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+
+                            // Badge Overlay choices
+                            Column {
+                                Text("Artistic Trending Badge", style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold), modifier = Modifier.padding(bottom = 6.dp))
+                                Row(
+                                    modifier = Modifier.horizontalScroll(rememberScrollState()),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    stickers.forEach { sticker ->
+                                        val isSelected = selectedSticker == sticker
+                                        Surface(
+                                            shape = RoundedCornerShape(16.dp),
+                                            color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                                            border = BorderStroke(1.dp, if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)),
+                                            modifier = Modifier.clickable { selectedSticker = sticker }
+                                        ) {
+                                            Text(
+                                                text = sticker,
+                                                style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                                                color = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    "Brush & Draw" -> {
+                        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                            Text("Interactive Studio Brush 🖌️", style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold))
+                            Text("Drag on the preview canvas above to add vector layers, signatures or annotations.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            
+                            // Brush color options
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text("Color:", style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold))
+                                val brushColorsList = listOf(
+                                    Pair(Color.Red, "Red"),
+                                    Pair(Color.Green, "Green"),
+                                    Pair(Color.Blue, "Blue"),
+                                    Pair(Color(0xFFFFD700), "Gold"),
+                                    Pair(Color(0xFFFF1493), "Hot Pink"),
+                                    Pair(Color.White, "White"),
+                                    Pair(Color.Black, "Black")
+                                )
+                                Row(
+                                    modifier = Modifier.horizontalScroll(rememberScrollState()),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    brushColorsList.forEach { pair ->
+                                        val isColorSelected = brushColor == pair.first
+                                        Box(
+                                            modifier = Modifier
+                                                .size(28.dp)
+                                                .clip(CircleShape)
+                                                .background(pair.first)
+                                                .border(
+                                                    width = if (isColorSelected) 3.dp else 1.dp,
+                                                    color = if (isColorSelected) MaterialTheme.colorScheme.primary else Color.Gray.copy(alpha = 0.5f),
+                                                    shape = CircleShape
+                                                )
+                                                .clickable { brushColor = pair.first }
+                                        )
+                                    }
+                                }
+                            }
+
+                            // Brush size slider
+                            Column {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text("Brush Size", style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold))
+                                    Text("${brushThickness.toInt()}px", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
+                                }
+                                Slider(value = brushThickness, onValueChange = { brushThickness = it }, valueRange = 2f..40f)
+                            }
+
+                            // Undo / Clear
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Button(
+                                    onClick = { if (drawingStrokes.isNotEmpty()) drawingStrokes.removeAt(drawingStrokes.size - 1) },
+                                    enabled = drawingStrokes.isNotEmpty(),
+                                    modifier = Modifier.weight(1f),
+                                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.surfaceVariant, contentColor = MaterialTheme.colorScheme.onSurfaceVariant)
+                                ) {
+                                    Text("↩️ Undo Stroke")
+                                }
+                                Button(
+                                    onClick = { drawingStrokes.clear() },
+                                    enabled = drawingStrokes.isNotEmpty(),
+                                    modifier = Modifier.weight(1f),
+                                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.errorContainer, contentColor = MaterialTheme.colorScheme.onErrorContainer)
+                                ) {
+                                    Text("🗑️ Clear Canvas")
+                                }
+                            }
+                        }
+                    }
+
+                    "Overlays" -> {
+                        Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                            Text("Double Exposure Texture Overlays 🌌", style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold))
+                            Text("Infuse artistic camera flares and ambient exposure patterns onto your artwork.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            
+                            val overlayTextures = listOf("None", "Light Leak ⚡", "Starry Galaxy 🌌", "Rain Droplets 💧", "Vintage Film Grain 📽️")
+                            
+                            Row(
+                                modifier = Modifier.horizontalScroll(rememberScrollState()),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                overlayTextures.forEach { textureName ->
+                                    val isSelected = activeOverlayTexture == textureName
+                                    Surface(
+                                        shape = RoundedCornerShape(16.dp),
+                                        color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                                        border = BorderStroke(1.dp, if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)),
+                                        modifier = Modifier.clickable { activeOverlayTexture = textureName }
+                                    ) {
+                                        Text(
+                                            text = textureName,
+                                            style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                                            color = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                }
+                            }
+
+                            if (activeOverlayTexture != "None") {
+                                Column {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text("Overlay Blending Opacity", style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold))
+                                        Text("${(overlayTextureOpacity * 100).toInt()}%", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
+                                    }
+                                    Slider(value = overlayTextureOpacity, onValueChange = { overlayTextureOpacity = it }, valueRange = 0.1f..1.0f)
+                                }
+                            }
+                        }
+                    }
+
+                    "Lens FX" -> {
+                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Text("Professional Filter Effects", style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold), modifier = Modifier.padding(bottom = 4.dp))
+                            
+                            // Vignette
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f), RoundedCornerShape(8.dp))
+                                    .clickable { vignetteEnabled = !vignetteEnabled }
+                                    .padding(12.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column {
+                                    Text("Edge Vignette Shadow 🖤", style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold))
+                                    Text("Add photographic dark radial shadow around borders", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
+                                Switch(checked = vignetteEnabled, onCheckedChange = { vignetteEnabled = it })
+                            }
+
+                            // Tilt Shift Blur
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f), RoundedCornerShape(8.dp))
+                                    .clickable { blurOverlayEnabled = !blurOverlayEnabled }
+                                    .padding(12.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column {
+                                    Text("Lens Tilt-Shift Blur 💧", style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold))
+                                    Text("Softly defocus top and bottom areas to create depth of field", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
+                                Switch(checked = blurOverlayEnabled, onCheckedChange = { blurOverlayEnabled = it })
                             }
                         }
                     }
@@ -5434,7 +7078,7 @@ fun EddieImageEditorDialog(
                                 text = savingLog,
                                 color = Color.White,
                                 style = TextStyle(fontFamily = FontFamily.Monospace, fontSize = 11.sp, lineHeight = 15.sp)
-                            )
+                              )
                             Spacer(modifier = Modifier.height(8.dp))
                             LinearProgressIndicator(
                                 progress = { savingProgress },
@@ -5453,27 +7097,76 @@ fun EddieImageEditorDialog(
                     onClick = {
                         isSaving = true
                         scope.launch {
-                            savingLog = "> Reading image hifi pixel matrix...\n"
+                            savingLog = "> Initiating advanced pixel matrix analysis...\n"
                             savingProgress = 0.1f
-                            delay(800)
-                            savingLog += "> Calibrating brightness: ${(brightness * 100).toInt()}%\n"
-                            savingProgress = 0.35f
-                            delay(850)
-                            savingLog += "> Applying tone filter: $selectedTone\n"
-                            savingProgress = 0.6f
-                            delay(900)
-                            if (customText.isNotBlank()) {
-                                savingLog += "> Inserting watermark: '$customText' at position $textPosition ($selectedTextColor)\n"
-                                savingProgress = 0.85f
-                                delay(850)
-                            }
-                            savingLog += "> Hybrid rendering complete! Saving edited copy..."
-                            savingProgress = 1.0f
                             delay(600)
+                            if (brightness != 0f || contrast != 0f || warmth != 0f) {
+                                savingLog += "> Tuning color channels: Brightness:${(brightness*100).toInt()}% Contrast:${(contrast*100).toInt()}% Temp:${(warmth*100).toInt()}%\n"
+                                savingProgress = 0.22f
+                                delay(650)
+                            }
+                            if (selectedTone != "Original") {
+                                savingLog += "> Injecting $selectedTone LUT filter coordinates (intensity: ${(filterIntensity*100).toInt()}%)...\n"
+                                savingProgress = 0.35f
+                                delay(600)
+                            }
+                            if (drawingStrokes.isNotEmpty()) {
+                                savingLog += "> Baking ${drawingStrokes.size} user brush vector vectors onto canvas matrix...\n"
+                                savingProgress = 0.48f
+                                delay(650)
+                            }
+                            if (activeOverlayTexture != "None") {
+                                savingLog += "> Projecting double exposure overlay: $activeOverlayTexture (Opacity: ${(overlayTextureOpacity*100).toInt()}%)\n"
+                                savingProgress = 0.60f
+                                delay(600)
+                            }
+                            if (rotationAngle != 0f || isFlippedHorizontal || isFlippedVertical) {
+                                savingLog += "> Transforming layout: Rot:${rotationAngle.toInt()}° FlipH:$isFlippedHorizontal FlipV:$isFlippedVertical\n"
+                                savingProgress = 0.70f
+                                delay(650)
+                            }
+                            if (selectedAspect != "Original") {
+                                savingLog += "> Cropping canvas to aspect ratio: $selectedAspect\n"
+                                savingProgress = 0.80f
+                                delay(600)
+                            }
+                            if (selectedFrame != "None" || selectedSticker != "None") {
+                                savingLog += "> Overlaying frame: $selectedFrame | Badge: $selectedSticker\n"
+                                savingProgress = 0.90f
+                                delay(600)
+                            }
+                            if (vignetteEnabled || blurOverlayEnabled) {
+                                savingLog += "> Executing FX passes: Vignette:$vignetteEnabled Tilt-Shift:$blurOverlayEnabled\n"
+                                savingProgress = 0.95f
+                                delay(650)
+                            }
+                            if (customText.isNotBlank()) {
+                                savingLog += "> Printing text: \"$customText\" ($textPosition | $selectedTextColor | Font: $textFontStyle | Size: ${textFontSize.toInt()}sp)\n"
+                                savingProgress = 0.98f
+                                delay(600)
+                            }
+                            savingLog += "> Export encoding successful! Compiling files..."
+                            savingProgress = 1.0f
+                            delay(500)
 
-                            val styleSuffix = if (selectedTone != "Original") " [$selectedTone]" else ""
-                            val watermarkSuffix = if (customText.isNotBlank()) " | Watermarked '$customText'" else ""
-                            val newPrompt = "${imageItem.prompt} (Edited - Brightness ${(brightness * 100).toInt()}%$styleSuffix$watermarkSuffix)"
+                            val listSummary = mutableListOf<String>()
+                            if (brightness != 0f) listSummary.add("Bright ${(brightness * 100).toInt()}%")
+                            if (contrast != 0f) listSummary.add("Contr ${(contrast * 100).toInt()}%")
+                            if (warmth != 0f) listSummary.add("Warm ${(warmth * 100).toInt()}%")
+                            if (selectedTone != "Original") listSummary.add("$selectedTone (${(filterIntensity*100).toInt()}% intensity)")
+                            if (drawingStrokes.isNotEmpty()) listSummary.add("${drawingStrokes.size} Custom Brushstrokes")
+                            if (activeOverlayTexture != "None") listSummary.add("$activeOverlayTexture (${(overlayTextureOpacity*100).toInt()}% blend)")
+                            if (rotationAngle != 0f) listSummary.add("${rotationAngle.toInt()}°Rot")
+                            if (isFlippedHorizontal || isFlippedVertical) listSummary.add("Flipped")
+                            if (selectedAspect != "Original") listSummary.add(selectedAspect)
+                            if (selectedFrame != "None") listSummary.add("$selectedFrame Frame")
+                            if (selectedSticker != "None") listSummary.add(selectedSticker)
+                            if (vignetteEnabled) listSummary.add("Vignette")
+                            if (blurOverlayEnabled) listSummary.add("LensBlur")
+                            if (customText.isNotBlank()) listSummary.add("Stamped '$customText' ($textFontStyle | ${textFontSize.toInt()}sp)")
+
+                            val editsDetails = if (listSummary.isNotEmpty()) " (${listSummary.joinToString(", ")})" else ""
+                            val newPrompt = "${imageItem.prompt}$editsDetails"
 
                             onSaveEditedImage(
                                 imageItem.id,
@@ -5503,6 +7196,135 @@ fun EddieImageEditorDialog(
             }
         }
     )
+}
+
+@Composable
+fun DownloadIconButton(
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    color: Color = MaterialTheme.colorScheme.primary,
+    size: androidx.compose.ui.unit.Dp = 24.dp
+) {
+    IconButton(
+        onClick = onClick,
+        modifier = modifier.size(size)
+    ) {
+        androidx.compose.foundation.Canvas(modifier = Modifier.fillMaxSize().padding(if (size < 30.dp) 4.dp else 6.dp)) {
+            val w = this.size.width
+            val h = this.size.height
+            
+            // Draw bottom bar
+            drawLine(
+                color = color,
+                start = androidx.compose.ui.geometry.Offset(1f, h - 2f),
+                end = androidx.compose.ui.geometry.Offset(w - 1f, h - 2f),
+                strokeWidth = 3f,
+                cap = androidx.compose.ui.graphics.StrokeCap.Round
+            )
+            
+            // Draw vertical stem of arrow
+            drawLine(
+                color = color,
+                start = androidx.compose.ui.geometry.Offset(w / 2f, 2f),
+                end = androidx.compose.ui.geometry.Offset(w / 2f, h - 6f),
+                strokeWidth = 3f,
+                cap = androidx.compose.ui.graphics.StrokeCap.Round
+            )
+            
+            // Draw arrow tips pointing downwards
+            drawLine(
+                color = color,
+                start = androidx.compose.ui.geometry.Offset(w / 2f, h - 6f),
+                end = androidx.compose.ui.geometry.Offset(w / 2f - w / 4f, h - 6f - h / 4f),
+                strokeWidth = 3f,
+                cap = androidx.compose.ui.graphics.StrokeCap.Round
+            )
+            drawLine(
+                color = color,
+                start = androidx.compose.ui.geometry.Offset(w / 2f, h - 6f),
+                end = androidx.compose.ui.geometry.Offset(w / 2f + w / 4f, h - 6f - h / 4f),
+                strokeWidth = 3f,
+                cap = androidx.compose.ui.graphics.StrokeCap.Round
+            )
+        }
+    }
+}
+
+fun downloadAndroidImage(
+    context: android.content.Context,
+    imageUrl: String,
+    prompt: String,
+    onComplete: (String?) -> Unit
+) {
+    kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
+        try {
+            val bytes = when {
+                imageUrl.startsWith("data:") -> {
+                    val base64Data = if (imageUrl.contains(",")) imageUrl.substringAfter(",") else imageUrl
+                    android.util.Base64.decode(base64Data, android.util.Base64.DEFAULT)
+                }
+                imageUrl.startsWith("file://") || imageUrl.startsWith("content://") -> {
+                    val uri = android.net.Uri.parse(imageUrl)
+                    context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
+                }
+                imageUrl.startsWith("/") -> {
+                    java.io.File(imageUrl).readBytes()
+                }
+                imageUrl.startsWith("http") -> {
+                    java.net.URL(imageUrl).openStream().use { it.readBytes() }
+                }
+                else -> {
+                    val file = java.io.File(context.filesDir, imageUrl)
+                    if (file.exists()) file.readBytes() else null
+                }
+            }
+
+            if (bytes == null) {
+                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                    onComplete(null)
+                }
+                return@launch
+            }
+
+            val filename = "EddieArt_${System.currentTimeMillis()}.png"
+            var savedPath: String? = null
+
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+                val contentValues = android.content.ContentValues().apply {
+                    put(android.provider.MediaStore.MediaColumns.DISPLAY_NAME, filename)
+                    put(android.provider.MediaStore.MediaColumns.MIME_TYPE, "image/png")
+                    put(android.provider.MediaStore.MediaColumns.RELATIVE_PATH, android.os.Environment.DIRECTORY_DOWNLOADS)
+                }
+                val uri = context.contentResolver.insert(
+                    android.provider.MediaStore.Downloads.EXTERNAL_CONTENT_URI,
+                    contentValues
+                )
+                if (uri != null) {
+                    context.contentResolver.openOutputStream(uri)?.use { outputStream ->
+                        outputStream.write(bytes)
+                    }
+                    savedPath = "Downloads/$filename"
+                }
+            } else {
+                val downloadsDir = android.os.Environment.getExternalStoragePublicDirectory(
+                    android.os.Environment.DIRECTORY_DOWNLOADS
+                )
+                if (!downloadsDir.exists()) downloadsDir.mkdirs()
+                val file = java.io.File(downloadsDir, filename)
+                file.outputStream().use { it.write(bytes) }
+                savedPath = file.absolutePath
+            }
+
+            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                onComplete(savedPath)
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("DownloadImage", "Error downloading image", e)
+            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                onComplete(null)
+            }
+        }
+    }
 }
 
 @Composable

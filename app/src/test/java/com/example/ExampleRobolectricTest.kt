@@ -30,6 +30,14 @@ class ExampleRobolectricTest {
   }
 
   @Test
+  fun testTokenCalculations() {
+    val state = com.example.ui.chat.ChatUiState(userTokens = 999900.0)
+    assertEquals("99", state.getFormattedConsumedTokens())
+    val formattedSpent = state.getFormattedConsumedTokens()
+    assertEquals("99", formattedSpent)
+  }
+
+  @Test
   fun testMainActivityLifecycle() {
     val context = ApplicationProvider.getApplicationContext<Context>()
     AppContextProvider.init(context)
