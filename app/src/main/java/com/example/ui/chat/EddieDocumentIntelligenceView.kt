@@ -210,7 +210,10 @@ fun EddieDocumentIntelligenceView(
                             .fillMaxWidth()
                             .height(120.dp),
                         shape = RoundedCornerShape(12.dp),
-                        textStyle = MaterialTheme.typography.bodySmall
+                        textStyle = MaterialTheme.typography.bodySmall,
+                        colors = OutlinedTextFieldDefaults.colors(
+                            unfocusedBorderColor = MaterialTheme.colorScheme.outline
+                        )
                     )
                 }
             }
@@ -340,7 +343,10 @@ fun EddieDocumentIntelligenceView(
                             onValueChange = { userQaPrompt = it },
                             placeholder = { Text("e.g. 'Who is the largest shareholder?' or 'What is the sales turnover target next year?'") },
                             modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(12.dp)
+                            shape = RoundedCornerShape(12.dp),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                unfocusedBorderColor = MaterialTheme.colorScheme.outline
+                            )
                         )
 
                         Spacer(modifier = Modifier.height(12.dp))

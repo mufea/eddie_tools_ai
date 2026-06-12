@@ -227,7 +227,10 @@ fun EddieVisionAnalyzerView(
                 label = { Text("AI Instructions / Additional Details (Optional)") },
                 placeholder = { Text("e.g. 'Turn this Compose code into dark theme' or 'List red colored objects only'") },
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(12.dp)
+                shape = RoundedCornerShape(12.dp),
+                colors = OutlinedTextFieldDefaults.colors(
+                    unfocusedBorderColor = MaterialTheme.colorScheme.outline
+                )
             )
 
             // Analyze action Button

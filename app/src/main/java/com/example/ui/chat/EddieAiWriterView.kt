@@ -46,7 +46,7 @@ data class WriterTemplate(
     val userPromptBuilder: (String, String, String) -> String
 )
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
 fun EddieAiWriterView(
     uiState: ChatUiState,
@@ -286,13 +286,13 @@ fun EddieAiWriterView(
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
 
-                    // Horizontal scrolling bar carrying 16 requested categories
-                    LazyRow(
+                    // Wrapping categories layout instead of horizontal scrolling bar
+                    FlowRow(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        contentPadding = PaddingValues(bottom = 4.dp)
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
-                        items(categories) { cat ->
+                        categories.forEach { cat ->
                             val isSelected = cat == selectedCategory
                             FilterChip(
                                 selected = isSelected,
@@ -405,7 +405,10 @@ fun EddieAiWriterView(
                                 modifier = Modifier.fillMaxWidth(),
                                 shape = RoundedCornerShape(8.dp),
                                 maxLines = 4,
-                                textStyle = MaterialTheme.typography.bodyMedium
+                                textStyle = MaterialTheme.typography.bodyMedium,
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    unfocusedBorderColor = MaterialTheme.colorScheme.outline
+                                )
                             )
                         }
 
@@ -423,7 +426,10 @@ fun EddieAiWriterView(
                                 modifier = Modifier.fillMaxWidth(),
                                 shape = RoundedCornerShape(8.dp),
                                 maxLines = 4,
-                                textStyle = MaterialTheme.typography.bodyMedium
+                                textStyle = MaterialTheme.typography.bodyMedium,
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    unfocusedBorderColor = MaterialTheme.colorScheme.outline
+                                )
                             )
                         }
 
@@ -435,11 +441,12 @@ fun EddieAiWriterView(
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                             
-                            LazyRow(
+                            FlowRow(
                                 modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                verticalArrangement = Arrangement.spacedBy(6.dp)
                             ) {
-                                items(toneOptions) { tone ->
+                                toneOptions.forEach { tone ->
                                     val isSel = tone == selectedTone
                                     Card(
                                         modifier = Modifier.clickable { selectedTone = tone },

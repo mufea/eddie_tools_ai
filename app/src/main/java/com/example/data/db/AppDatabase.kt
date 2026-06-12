@@ -44,7 +44,8 @@ data class GeneratedImageEntity(
     val style: String,
     val aspectRatio: String,
     val timestamp: Long = System.currentTimeMillis(),
-    val userEmail: String? = null
+    val userEmail: String? = null,
+    val model: String = "imagen3"
 )
 
 @Entity(tableName = "generated_videos")
@@ -118,6 +119,9 @@ interface ChatDao {
     @Query("SELECT * FROM generated_images WHERE userEmail = :email ORDER BY timestamp DESC")
     fun getGeneratedImagesForUser(email: String): Flow<List<GeneratedImageEntity>>
 
+    @Query("SELECT * FROM generated_images WHERE id = :imageId LIMIT 1")
+    suspend fun getGeneratedImageById(imageId: String): GeneratedImageEntity?
+
     @Query("DELETE FROM generated_images WHERE id = :imageId")
     suspend fun deleteGeneratedImageById(imageId: String)
 
@@ -175,7 +179,7 @@ interface ChatDao {
         GeneratedMusicEntity::class,
         UserMemoryEntity::class
     ],
-    version = 5,
+    version = 6,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {

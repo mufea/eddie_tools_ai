@@ -158,7 +158,10 @@ fun EddieSlideOutlineView(
                             placeholder = { Text("e.g., Digital Marketing Strategy for SMBs or Intro to Machine Learning") },
                             modifier = Modifier.fillMaxWidth(),
                             shape = RoundedCornerShape(8.dp),
-                            maxLines = 2
+                            maxLines = 2,
+                            colors = OutlinedTextFieldDefaults.colors(
+                                unfocusedBorderColor = MaterialTheme.colorScheme.outline
+                            )
                         )
 
                         Button(

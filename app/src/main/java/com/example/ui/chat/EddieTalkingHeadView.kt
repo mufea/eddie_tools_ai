@@ -334,7 +334,10 @@ fun EddieTalkingHeadView(
                         placeholder = { Text("Type what the avatar should speak...") },
                         modifier = Modifier.fillMaxWidth(),
                         maxLines = 4,
-                        shape = RoundedCornerShape(8.dp)
+                        shape = RoundedCornerShape(8.dp),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            unfocusedBorderColor = MaterialTheme.colorScheme.outline
+                        )
                     )
 
                     // Quick Script Templates

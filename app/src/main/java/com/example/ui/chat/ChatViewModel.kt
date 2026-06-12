@@ -37,7 +37,8 @@ data class GeminiModel(
     val apiValue: String,
     val subtitle: String,
     val provider: String = "Gemini",
-    val isPro: Boolean = false
+    val isPro: Boolean = false,
+    val tokenPrice: String = "Free"
 )
 
 val availableModels = listOf(
@@ -47,21 +48,32 @@ val availableModels = listOf(
         apiValue = "gemini-2.5-pro",
         subtitle = "Advanced model designed for coding/complex tasks.",
         provider = "Gemini",
-        isPro = true
+        isPro = true,
+        tokenPrice = "Free (No Token Cost)"
+    ),
+    GeminiModel(
+        displayName = "Gemini 2.5 Flash",
+        apiValue = "gemini-2.5-flash",
+        subtitle = "High-speed and cost-effective model for diverse developer tasks.",
+        provider = "Gemini",
+        isPro = false,
+        tokenPrice = "Free (No Token Cost)"
     ),
     GeminiModel(
         displayName = "Gemini 3.1 Pro Preview",
         apiValue = "gemini-3.1-pro-preview",
         subtitle = "A preview of our ultimate, highly sophisticated future model.",
         provider = "Gemini",
-        isPro = true
+        isPro = true,
+        tokenPrice = "Free (No Token Cost)"
     ),
     GeminiModel(
         displayName = "Gemini 3 Flash Preview",
         apiValue = "gemini-3-flash-preview",
         subtitle = "Next-generation fast model optimized for real-time applications.",
         provider = "Gemini",
-        isPro = false
+        isPro = false,
+        tokenPrice = "Free (No Token Cost)"
     ),
     // OpenAI
     GeminiModel(
@@ -69,14 +81,16 @@ val availableModels = listOf(
         apiValue = "gpt-5-mini",
         subtitle = "OpenAI's efficient, lightweight model with high-speed intelligence.",
         provider = "OpenAI",
-        isPro = false
+        isPro = false,
+        tokenPrice = "🪙 0.0167 Tokens / 25 words"
     ),
     GeminiModel(
         displayName = "GPT 5.5",
         apiValue = "gpt5.5",
         subtitle = "Next-generation reasoning model from OpenAI.",
         provider = "OpenAI",
-        isPro = false
+        isPro = false,
+        tokenPrice = "🪙 0.2500 Tokens / 25 words"
     ),
     // DeepSeek
     GeminiModel(
@@ -84,7 +98,8 @@ val availableModels = listOf(
         apiValue = "deepseek-chat",
         subtitle = "DeepSeek's powerful, cost-efficient language model.",
         provider = "DeepSeek",
-        isPro = false
+        isPro = false,
+        tokenPrice = "🪙 0.0092 Tokens / 25 words"
     ),
     // Anthropic
     GeminiModel(
@@ -92,14 +107,16 @@ val availableModels = listOf(
         apiValue = "claude-sonnet-4-6",
         subtitle = "Anthropic's latest flagship model with balanced speed and depth.",
         provider = "Claude",
-        isPro = false
+        isPro = false,
+        tokenPrice = "🪙 0.0938 Tokens / 25 words"
     ),
     GeminiModel(
         displayName = "Claude Opus 4.7",
         apiValue = "claude-opus-4-7",
         subtitle = "Anthropic's most powerful future reasoning model.",
         provider = "Claude",
-        isPro = true
+        isPro = true,
+        tokenPrice = "🪙 0.0938 Tokens / 25 words"
     ),
     // XAI
     GeminiModel(
@@ -107,7 +124,8 @@ val availableModels = listOf(
         apiValue = "grok-4.3",
         subtitle = "xAI's next-generation reasoning model.",
         provider = "XAI",
-        isPro = true
+        isPro = true,
+        tokenPrice = "🪙 0.0688 Tokens / 25 words"
     )
 )
 
@@ -246,7 +264,21 @@ data class ChatUiState(
 
     // 6. AI Writer Copywriting state
     val writerOutput: String = "",
-    val writerIsLoading: Boolean = false
+    val writerIsLoading: Boolean = false,
+
+    // 7. Cross-Platform Social Media Content state
+    val socialIdea: String = "",
+    val socialTone: String = "Professional",
+    val socialLinkedInPost: String = "",
+    val socialTwitterPost: String = "",
+    val socialInstagramPost: String = "",
+    val socialLinkedInImageUrl: String = "",
+    val socialTwitterImageUrl: String = "",
+    val socialInstagramImageUrl: String = "",
+    val socialLinkedInImagePrompt: String = "",
+    val socialTwitterImagePrompt: String = "",
+    val socialInstagramImagePrompt: String = "",
+    val socialIsLoading: Boolean = false
 ) {
     val currentSession: ChatSession
         get() = sessions.find { it.id == currentSessionId } ?: sessions.firstOrNull() ?: ChatSession()
@@ -417,7 +449,7 @@ class ChatViewModel(
                 "Claude" -> state.copy(claudeApiKey = key)
                 "XAI" -> state.copy(xaiApiKey = key)
                 "FalAI" -> state.copy(falApiKey = key)
-                "Stable Diffusion" -> state.copy(stabilityApiKey = key)
+                "Stable Diffusion", "Stability" -> state.copy(stabilityApiKey = key)
                 else -> state
             }
         }
@@ -762,11 +794,11 @@ class ChatViewModel(
 
     fun selectImageProvider(provider: String) {
         val defaultModel = when (provider) {
-            "Gemini" -> "gemini-2.5-flash"
+            "Gemini" -> "imagen3"
             "OpenAI" -> "gpt-image-1.5"
-            "Stable Diffusion" -> "Stable Diffusion"
-            "FalAI", "Fal AI" -> "Flux Pro"
-            else -> "gemini-2.5-flash"
+            "Stable Diffusion", "Stability" -> "sd3"
+            "FalAI", "Fal AI" -> "flux-pro"
+            else -> "imagen3"
         }
         _uiState.update { state ->
             state.copy(
@@ -808,7 +840,7 @@ class ChatViewModel(
             when (provider) {
                 "OpenAI" -> "Sora 2"
                 "Gemini" -> "Veo 3"
-                "FalAI" -> "Kling v2.6"
+                "FalAI" -> "veed"
                 else -> "Sora 2"
             }
         } else {
@@ -959,7 +991,7 @@ class ChatViewModel(
                         id = UUID.randomUUID().toString(),
                         sessionId = activeSessionId,
                         role = "MODEL",
-                        text = "🎨 **How to use Draw Command**:\nType `/draw <your prompt>` or click the 🎨 button to generate images instantly using Fal.ai Flux Schnell.\n\nExample: `/draw a gorgeous futuristic city floating above clouds, synthwave aesthetic`",
+                        text = "🎨 **How to Use Image Generation Commands**:\nYou can use any of the following shortcut commands to instantly generate state-of-the-art AI images:\n\n• `/draw <your prompt>`\n• `/image <your prompt>`\n• `/generate <your prompt>`\n\nOr simply click the 🎨 button on the input bar to toggle **Image Mode**.\n\n*Example*:\n`/image a gorgeous futuristic city floating above clouds, synthwave aesthetic`",
                         timestamp = System.currentTimeMillis()
                     ))
                 }
@@ -1301,7 +1333,7 @@ class ChatViewModel(
             val statusMessageText = when (provider) {
                 "Gemini" -> "🎨 **Gemini Imagen ($model)**\nGenerating masterpiece for prompt: *\"$promptText\"*... ⏳ Please hold on, creating artwork now."
                 "OpenAI" -> "🎨 **OpenAI ($model)**\nGenerating masterpiece for prompt: *\"$promptText\"*... ⏳ Please hold on, creating artwork now."
-                "Stable Diffusion" -> "🎨 **Stability AI ($model)**\nGenerating masterpiece for prompt: *\"$promptText\"*... ⏳ Please hold on, creating artwork now."
+                "Stable Diffusion", "Stability" -> "🎨 **Stability AI ($model)**\nGenerating masterpiece for prompt: *\"$promptText\"*... ⏳ Please hold on, creating artwork now."
                 else -> "🎨 **Fal.ai Flux ($model)**\nGenerating masterpiece for prompt: *\"$promptText\"*... ⏳ Please hold on, creating artwork now."
             }
 
@@ -1321,6 +1353,7 @@ class ChatViewModel(
                         val key = _uiState.value.geminiApiKey.ifBlank { null }
                         val geminiModel = when (model.lowercase()) {
                             "imagen 3 pro", "imagen-3-pro", "gemini-3-flash-preview", "gemini-3.1-flash-image-preview" -> "gemini-3-flash-preview"
+                            "imagen3" -> "gemini-2.5-flash"
                             else -> "gemini-2.5-flash"
                         }
                         repository.generateGeminiImage(
@@ -1341,7 +1374,7 @@ class ChatViewModel(
                             customBaseUrl = customUrl
                         )
                     }
-                    "Stable Diffusion" -> {
+                    "Stable Diffusion", "Stability" -> {
                         val key = _uiState.value.stabilityApiKey.ifBlank { null }
                         repository.generateStabilityImage(
                             prompt = promptText,
@@ -1351,10 +1384,17 @@ class ChatViewModel(
                     }
                     else -> {
                         val key = _uiState.value.falApiKey.ifBlank { null }
-                        val endpoint = when (model.lowercase()) {
-                            "flux pro", "flux-pro" -> "https://queue.fal.run/fal-ai/flux/pro"
+                        val endpoint = when (val m = model.lowercase()) {
+                            "flux pro", "flux-pro" -> "https://queue.fal.run/fal-ai/flux-pro"
+                            "flux 2 flex", "flux-2-flex" -> "https://queue.fal.run/fal-ai/flux-2-flex"
                             "flux realism", "flux-realism" -> "https://queue.fal.run/fal-ai/flux-realism"
-                            else -> "https://queue.fal.run/fal-ai/flux/schnell"
+                            "ideogram-v2", "ideogram-v2-using-image-to-image" -> "https://queue.fal.run/fal-ai/ideogram/v2"
+                            "nano-banana" -> "https://queue.fal.run/fal-ai/nano-banana"
+                            "nano-banana-pro" -> "https://queue.fal.run/fal-ai/nano-banana-pro"
+                            "nano-banana-2" -> "https://queue.fal.run/fal-ai/nano-banana-2"
+                            "imagen4" -> "https://queue.fal.run/fal-ai/imagen4"
+                            "flux/schnell", "flux-schnell" -> "https://queue.fal.run/fal-ai/flux/schnell"
+                            else -> if (m.startsWith("https://")) m else "https://queue.fal.run/fal-ai/$m"
                         }
                         repository.generateFalImage(
                             prompt = promptText,
@@ -1382,7 +1422,8 @@ class ChatViewModel(
                     style = "Cosmic",
                     aspectRatio = "1:1",
                     timestamp = System.currentTimeMillis(),
-                    userEmail = _uiState.value.currentUserProfile?.email
+                    userEmail = _uiState.value.currentUserProfile?.email,
+                    model = model
                 )
                 chatDao.insertGeneratedImage(imageEntity)
 
@@ -1465,22 +1506,80 @@ class ChatViewModel(
         }
     }
 
-    fun getImageTokenCost(provider: String, model: String): Int {
-        val prov = provider.lowercase().replace(" ", "")
+    fun getImageTokenCost(provider: String, model: String): Double {
+        val modelLower = model.lowercase()
         return when {
-            prov.contains("openai") -> 10
-            prov.contains("stablediffusion") || prov.contains("stability") -> 5
-            prov.contains("fal") -> 6
-            else -> 4
+            modelLower.contains("gpt-image-1.5") -> 50.0
+            modelLower.contains("gpt-image-2") -> 52.75
+            modelLower.contains("flux-pro") -> 100.0
+            modelLower.contains("flux-2-flex") -> 100.0
+            modelLower.contains("flux-realism") -> 10.0
+            modelLower.contains("ideogram-v2") -> 150.0
+            modelLower.contains("nano-banana-pro") -> 9.75
+            modelLower.contains("nano-banana-2") -> 9.75
+            modelLower.contains("nano-banana") -> 9.75
+            modelLower.contains("imagen4") -> 10.0
+            modelLower.contains("flux/schnell") || modelLower.contains("flux-schnell") -> 0.75
+            modelLower.contains("sd3-turbo") -> 30.0
+            modelLower.contains("sd3-medium") -> 30.0
+            modelLower.contains("sd3-large-turbo") -> 37.5
+            modelLower.contains("sd3-large") -> 25.0
+            modelLower.contains("sd3.5-large-turbo") -> 50.0
+            modelLower.contains("sd3.5-large") -> 37.5
+            modelLower.contains("sd3.5-medium") -> 25.0
+            modelLower.contains("sd3") || modelLower.contains("stable") -> 15.0
+            modelLower.contains("core") -> 15.0
+            modelLower.contains("ultra") -> 15.0
+            else -> 0.0
         }
     }
 
-    fun getVideoTokenCost(provider: String, model: String): Int {
+    fun getVideoTokenCost(provider: String, model: String): Double {
+        val modelLower = model.lowercase()
         return when (provider) {
-            "OpenAI" -> 50
-            "Runway" -> 40
-            "Luma AI" -> 35
-            else -> 30
+            "OpenAI" -> {
+                if (modelLower.contains("pro")) 125.0 else 25.0
+            }
+            "Gemini" -> {
+                when {
+                    modelLower == "veo 3.1 fast" || modelLower == "veo3.1-fast" || modelLower == "fast veo 3.1" -> 100.0
+                    modelLower == "veo 3.1" || modelLower == "veo3.1" -> 150.0
+                    modelLower == "veo fast" || modelLower == "veo-fast" -> 200.0
+                    modelLower == "veo 3 fast" || modelLower == "veo3-fast" -> 300.0
+                    modelLower == "veo 3.2 fast" || modelLower == "veo3.2-fast" -> 400.0
+                    modelLower == "veo 2" || modelLower == "veo2" -> 625.0
+                    modelLower == "veo 3" || modelLower == "veo3" -> 800.0
+                    modelLower == "veo 3.2" || modelLower == "veo3.2" -> 950.0
+                    modelLower == "phenaki" -> 125.0
+                    modelLower == "videopoet" -> 150.0
+                    modelLower == "lumiere" -> 250.0
+                    else -> 150.0
+                }
+            }
+            "FalAI" -> {
+                when {
+                    modelLower == "veo2" -> 625.0
+                    modelLower == "veo3" -> 800.0
+                    modelLower == "veo3-fast" -> 300.0
+                    modelLower == "veed" -> 87.5
+                    modelLower == "kling" -> 125.0
+                    modelLower == "kling-video" -> 350.0
+                    modelLower == "luma-dream-machine" -> 125.0
+                    modelLower == "minimax" -> 125.0
+                    modelLower == "haiper" -> 125.0
+                    modelLower == "klingv21" -> 125.0
+                    modelLower == "klingimage" -> 125.0
+                    modelLower == "xai/grok-imagine-video/image-to-video" -> 125.0
+                    modelLower == "kling-2.5-turbo/pro/text-to-video" -> 150.0
+                    modelLower == "kling-2.5-turbo/standard/image-to-video" -> 150.0
+                    modelLower.contains("kling v3 standard") -> 175.0
+                    // Image to video or other mappings
+                    modelLower.contains("kling v2.6 pro") || modelLower.contains("kling v3 pro") -> 350.0
+                    modelLower.contains("pro") -> 300.0
+                    else -> 125.0
+                }
+            }
+            else -> 30.0
         }
     }
 
@@ -1578,7 +1677,7 @@ class ChatViewModel(
         )
 
         // 2. Pro aspect ratios check
-        val isProRatio = aspectRatio in listOf("1536:1024", "1024:1536")
+        val isProRatio = aspectRatio in listOf("1536:1024", "1024:1536", "1080:1920", "1920:1080")
 
         // 3. Max free generations count check (free users up to 3)
         val currentImagesCount = _uiState.value.generatedImages.size
@@ -1700,6 +1799,7 @@ class ChatViewModel(
                         val customApiKey = _uiState.value.geminiApiKey
                         val geminiModel = when (model.lowercase()) {
                             "imagen 3 pro", "imagen-3-pro", "gemini-3-flash-preview", "gemini-3.1-flash-image-preview" -> "gemini-3-flash-preview"
+                            "imagen3" -> "gemini-2.5-flash"
                             else -> "gemini-2.5-flash"
                         }
                         val generatedUrl = repository.generateGeminiImage(
@@ -1717,7 +1817,7 @@ class ChatViewModel(
                             state.copy(imageGenLog = state.imageGenLog + "⚠️ [Gemini API] Generation error$variationLabel: ${e.localizedMessage}. Using high fidelity studio placeholder.\n")
                         }
                     }
-                } else if (provider == "Stable Diffusion") {
+                } else if (provider == "Stable Diffusion" || provider == "Stability") {
                     try {
                         _uiState.update { state ->
                             state.copy(imageGenLog = state.imageGenLog + "> [Stability AI] Uploading visual weights utilizing model $model$variationLabel...\n")
@@ -1763,10 +1863,17 @@ class ChatViewModel(
                     }
                 } else if (provider == "Fal AI") {
                     try {
-                        val endpointUrl = when (model.lowercase()) {
-                            "flux pro", "flux-pro" -> "https://queue.fal.run/fal-ai/flux/pro"
+                        val endpointUrl = when (val m = model.lowercase()) {
+                            "flux pro", "flux-pro" -> "https://queue.fal.run/fal-ai/flux-pro"
+                            "flux 2 flex", "flux-2-flex" -> "https://queue.fal.run/fal-ai/flux-2-flex"
                             "flux realism", "flux-realism" -> "https://queue.fal.run/fal-ai/flux-realism"
-                            else -> "https://queue.fal.run/fal-ai/flux/schnell"
+                            "ideogram-v2", "ideogram-v2-using-image-to-image" -> "https://queue.fal.run/fal-ai/ideogram/v2"
+                            "nano-banana" -> "https://queue.fal.run/fal-ai/nano-banana"
+                            "nano-banana-pro" -> "https://queue.fal.run/fal-ai/nano-banana-pro"
+                            "nano-banana-2" -> "https://queue.fal.run/fal-ai/nano-banana-2"
+                            "imagen4" -> "https://queue.fal.run/fal-ai/imagen4"
+                            "flux/schnell", "flux-schnell" -> "https://queue.fal.run/fal-ai/flux/schnell"
+                            else -> if (m.startsWith("https://")) m else "https://queue.fal.run/fal-ai/$m"
                         }
                         _uiState.update { state ->
                             state.copy(imageGenLog = state.imageGenLog + "> [Fal.ai Serverless] Initializing fast-stream endpoint for $model$variationLabel...\n")
@@ -1796,7 +1903,8 @@ class ChatViewModel(
                     style = style,
                     aspectRatio = aspectRatio,
                     timestamp = System.currentTimeMillis() + i * 10,
-                    userEmail = _uiState.value.currentUserProfile?.email
+                    userEmail = _uiState.value.currentUserProfile?.email,
+                    model = model
                 )
                 chatDao.insertGeneratedImage(imageEntity)
             }
@@ -2200,6 +2308,8 @@ class ChatViewModel(
         imageUrl: String
     ) {
         viewModelScope.launch {
+            val originalEntity = chatDao.getGeneratedImageById(originalId)
+            val modelName = originalEntity?.model ?: "imagen3"
             val editedEntity = com.example.data.db.GeneratedImageEntity(
                 id = java.util.UUID.randomUUID().toString(),
                 prompt = prompt,
@@ -2207,7 +2317,8 @@ class ChatViewModel(
                 style = style,
                 aspectRatio = aspectRatio,
                 timestamp = System.currentTimeMillis(),
-                userEmail = _uiState.value.currentUserProfile?.email
+                userEmail = _uiState.value.currentUserProfile?.email,
+                model = modelName
             )
             chatDao.insertGeneratedImage(editedEntity)
         }
@@ -2871,6 +2982,195 @@ class ChatViewModel(
     fun clearWriter() {
         _uiState.update { it.copy(
             writerOutput = ""
+        ) }
+    }
+
+    // ==========================================
+    // CROSS-PLATFORM SOCIAL MEDIA CONTENT GENERATOR
+    // ==========================================
+    fun generateSocialMediaContent(idea: String, tone: String) {
+        if (idea.trim().isBlank()) return
+        
+        viewModelScope.launch {
+            _uiState.update { it.copy(
+                socialIsLoading = true,
+                socialIdea = idea,
+                socialTone = tone,
+                socialLinkedInPost = "",
+                socialTwitterPost = "",
+                socialInstagramPost = "",
+                socialLinkedInImageUrl = "",
+                socialTwitterImageUrl = "",
+                socialInstagramImageUrl = "",
+                socialLinkedInImagePrompt = "",
+                socialTwitterImagePrompt = "",
+                socialInstagramImagePrompt = ""
+            ) }
+            
+            val systemText = """
+                You are a professional cross-platform social media expert.
+                Analyze the provided idea and tone, then simultaneously draft three posts:
+                1. LinkedIn: Professional, long-form, highly structured markdown, clear paragraph spaces, and bullet points.
+                2. Twitter/X: Incredibly punchy, short, under 280 characters, carrying 1-2 powerful hashtags.
+                3. Instagram: Interactive, visually appealing caption, carrying 5-10 relevant hashtags.
+                
+                You must also suggest 2-3 precise search keywords (like "technology, futuristic, cyber") that describe the topic to display contextually relevant, beautiful imagery.
+                
+                You MUST return your response as a valid JSON object strictly conforming to this scheme:
+                {
+                   "linkedin": "The LinkedIn post content here...",
+                   "twitter": "The Twitter/X post content here...",
+                   "instagram": "The Instagram post content here...",
+                   "keywords": "comma-separated keywords describing the topic",
+                   "image_prompt_linkedin": "Descriptive visual design prompt for LinkedIn image",
+                   "image_prompt_twitter": "Descriptive visual design prompt for Twitter/X image",
+                   "image_prompt_instagram": "Descriptive visual design prompt for Instagram image"
+                }
+                Ensure you only output the raw JSON object, without enclosing it in markdown code block wrappers (like ```json), so it can be parsed immediately.
+            """.trimIndent()
+            
+            val prompt = "Generate social media posts for this core idea: \"$idea\" with a \"$tone\" tone."
+            
+            val keysMap = mapOf("Gemini" to _uiState.value.geminiApiKey)
+            val urlsMap = mapOf("Gemini" to _uiState.value.geminiBaseUrl)
+            
+            try {
+                val output = repository.sendSimpleRequest(
+                    prompt = prompt,
+                    systemText = systemText,
+                    providerKeys = keysMap,
+                    providerUrls = urlsMap
+                )
+                
+                var rawText = output.trim()
+                if (rawText.startsWith("```json")) {
+                    rawText = rawText.substringAfter("```json")
+                } else if (rawText.startsWith("```")) {
+                    rawText = rawText.substringAfter("```")
+                }
+                if (rawText.endsWith("```")) {
+                    rawText = rawText.substringBeforeLast("```")
+                }
+                rawText = rawText.trim()
+                
+                var linkedinText = ""
+                var twitterText = ""
+                var instagramText = ""
+                var searchKeywords = ""
+                var promptLinkedIn = ""
+                var promptTwitter = ""
+                var promptInstagram = ""
+                
+                try {
+                    val json = org.json.JSONObject(rawText)
+                    linkedinText = json.optString("linkedin", "")
+                    twitterText = json.optString("twitter", "")
+                    instagramText = json.optString("instagram", "")
+                    searchKeywords = json.optString("keywords", "")
+                    promptLinkedIn = json.optString("image_prompt_linkedin", "")
+                    promptTwitter = json.optString("image_prompt_twitter", "")
+                    promptInstagram = json.optString("image_prompt_instagram", "")
+                } catch (e: Exception) {
+                    // Fallback word-based parsing if JSON output is unstructured
+                    linkedinText = if (output.contains("linkedin", ignoreCase = true)) {
+                        output.substringAfter("linkedin", "").substringBefore("twitter", "").trim()
+                    } else {
+                        output
+                    }
+                    twitterText = if (output.contains("twitter", ignoreCase = true)) {
+                        output.substringAfter("twitter", "").substringBefore("instagram", "").trim()
+                    } else {
+                        "Stay updated on: $idea! #smart #news"
+                    }
+                    instagramText = if (output.contains("instagram", ignoreCase = true)) {
+                        output.substringAfter("instagram", "").trim()
+                    } else {
+                        "Amazing perspective on: $idea. Swipe left! #aesthetic"
+                    }
+                    searchKeywords = idea.split(" ").take(3).joinToString(",")
+                }
+                
+                // If parsing yielded empty strings, generate high-quality fallback content
+                if (linkedinText.isBlank()) {
+                    linkedinText = "💼 **LinkedIn Draft on: $idea** ($tone Tone)\n\n" +
+                            "I'm thrilled to share some insights on this transformational topic. We need to look deep into $idea.\n\n" +
+                            "**Key Takeaways:**\n" +
+                            "• Industry benchmarks are shifting\n" +
+                            "• Leadership demands adaptability\n" +
+                            "• Implementation is where projects win\n\n" +
+                            "Join the conversation below! What's your perspective? #LinkedIn #Growth"
+                }
+                if (twitterText.isBlank()) {
+                    twitterText = "🐦 **Twitter/X Draft on: $idea** ($tone Tone)\n\n" +
+                            "Let's be clear: $idea is completely changing the landscape. 🚀 Those who move fast will win. Thoughts? 👇 #Marketing"
+                }
+                if (instagramText.isBlank()) {
+                    instagramText = "📸 **Instagram Draft on: $idea** ($tone Tone)\n\n" +
+                            "Elevate your perspective of $idea ✨ Every detail matters when building for the long-term.\n\n" +
+                            "🎨 Design & Strategy\n" +
+                            "🌱 Growth & Resilience\n\n" +
+                            "#Instagram #Aesthetic #Inspiration #Explore"
+                }
+                
+                val cleanKeywords = searchKeywords.replace(" ", "").trim()
+                
+                _uiState.update { it.copy(
+                    socialIsLoading = false,
+                    socialLinkedInPost = linkedinText,
+                    socialTwitterPost = twitterText,
+                    socialInstagramPost = instagramText,
+                    socialLinkedInImageUrl = "https://images.unsplash.com/featured/1200x630/?${cleanKeywords.ifBlank { "business" }},professional",
+                    socialTwitterImageUrl = "https://images.unsplash.com/featured/1200x675/?${cleanKeywords.ifBlank { "technology" }},growth",
+                    socialInstagramImageUrl = "https://images.unsplash.com/featured/1080x1350/?${cleanKeywords.ifBlank { "lifestyle" }},minimalist",
+                    socialLinkedInImagePrompt = promptLinkedIn.ifBlank { "Professional office context showing $idea" },
+                    socialTwitterImagePrompt = promptTwitter.ifBlank { "Fast tech graphic representing $idea" },
+                    socialInstagramImagePrompt = promptInstagram.ifBlank { "Aesthetically pleasing visual matching $idea" }
+                ) }
+                
+            } catch (e: Exception) {
+                // Return high-quality, professional fallback content template on exception
+                val fallbackKeywords = idea.split(" ").take(2).joinToString(",") { it.replace(Regex("[^a-zA-Z0-9]"), "") }
+                _uiState.update { it.copy(
+                    socialIsLoading = false,
+                    socialLinkedInPost = "💼 **LinkedIn Draft on: $idea** ($tone Tone)\n\n" +
+                            "I've been reflecting heavily on the implications of $idea in our current industry landscape.\n\n" +
+                            "**Top 3 Actionable Strategies:**\n" +
+                            "1️⃣ **Framework Alignment**: Adapt modern structures early to prevent downstream architectural debt.\n" +
+                            "2️⃣ **Skill Density**: Focus on cross-functional training to amplify individual output.\n" +
+                            "3️⃣ **Strategic Patience**: Balance short-term rapid prototyping with long-term security.\n\n" +
+                            "How is your team responding to this? Let's discuss in the comments below! #Leadership #Efficiency",
+                    socialTwitterPost = "🐦 **Twitter/X Draft on: $idea** ($tone Tone)\n\n" +
+                            "The reality is simple: $idea is no longer optional. It's a strategic imperative.\n\n" +
+                            "Keep iterating. Keep refining. 💯 #GrowthMindset #Innovation",
+                    socialInstagramPost = "📸 **Instagram Draft on: $idea** ($tone Tone)\n\n" +
+                            "Finding inspiration in the details of $idea 🌿 Every journey begins with a single bold concept.\n\n" +
+                            "✨ Craftmanship\n" +
+                            "🚀 Innovation\n" +
+                            "🛡️ Excellence\n\n" +
+                            "#Mindset #Aesthetic #CreativeLife #Studio #Excellence",
+                    socialLinkedInImageUrl = "https://images.unsplash.com/featured/1200x630/?${fallbackKeywords.ifBlank { "office" }},professional",
+                    socialTwitterImageUrl = "https://images.unsplash.com/featured/1200x675/?${fallbackKeywords.ifBlank { "growth" }},news",
+                    socialInstagramImageUrl = "https://images.unsplash.com/featured/1080x1350/?${fallbackKeywords.ifBlank { "creative" }},nature",
+                    socialLinkedInImagePrompt = "Professional corporate illustration of $idea",
+                    socialTwitterImagePrompt = "Clean vector graphic depicting $idea",
+                    socialInstagramImagePrompt = "Aesthetic flatlay photography for $idea"
+                ) }
+            }
+        }
+    }
+
+    fun clearSocialMediaContent() {
+        _uiState.update { it.copy(
+            socialLinkedInPost = "",
+            socialTwitterPost = "",
+            socialInstagramPost = "",
+            socialLinkedInImageUrl = "",
+            socialTwitterImageUrl = "",
+            socialInstagramImageUrl = "",
+            socialLinkedInImagePrompt = "",
+            socialTwitterImagePrompt = "",
+            socialInstagramImagePrompt = "",
+            socialIdea = ""
         ) }
     }
 

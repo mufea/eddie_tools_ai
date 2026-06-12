@@ -115,7 +115,10 @@ fun EddieDeepWebResearcherView(
                             placeholder = { Text("e.g., Solid-State Battery Technology 2026 or Global AI Regulation") },
                             modifier = Modifier.fillMaxWidth(),
                             shape = RoundedCornerShape(8.dp),
-                            maxLines = 3
+                            maxLines = 3,
+                            colors = OutlinedTextFieldDefaults.colors(
+                                unfocusedBorderColor = MaterialTheme.colorScheme.outline
+                            )
                         )
 
                         Text(

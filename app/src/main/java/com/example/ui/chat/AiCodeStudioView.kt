@@ -22,7 +22,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.ui.theme.*
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun EddieAiCodeStudioView(
     uiState: ChatUiState,
@@ -196,12 +196,11 @@ fun EddieAiCodeStudioView(
                 color = MaterialTheme.colorScheme.primary
             )
 
-            // Horizontal scrolling language pills
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .horizontalScroll(rememberScrollState()),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            // Wrapping language pills list
+            FlowRow(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp)
             ) {
                 programmingLanguages.forEach { (lang, isPremium) ->
                     val isSelected = selectedLanguage == lang
@@ -340,11 +339,10 @@ fun EddieAiCodeStudioView(
                     style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
                     color = MaterialTheme.colorScheme.onSurface
                 )
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .horizontalScroll(rememberScrollState()),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                FlowRow(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     programmingLanguages.map { it.first }.forEach { lang ->
                         val isSelected = targetLanguage == lang
@@ -405,7 +403,10 @@ fun EddieAiCodeStudioView(
                     lineHeight = 17.sp
                 ),
                 maxLines = 15,
-                shape = RoundedCornerShape(12.dp)
+                shape = RoundedCornerShape(12.dp),
+                colors = OutlinedTextFieldDefaults.colors(
+                    unfocusedBorderColor = MaterialTheme.colorScheme.outline
+                )
             )
 
             // CTA GENERATE

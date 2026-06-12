@@ -2,6 +2,7 @@ package com.example.data
 
 import com.example.BuildConfig
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.OkHttpClient
@@ -188,6 +189,12 @@ class ChatRepository {
             val resolvedUrl = "${baseUrl}v1beta/models/${model}:generateContent"
             val response = GeminiClient.service.generateContent(resolvedUrl, apiKey, request)
             response.candidates.firstOrNull()?.content?.parts?.firstOrNull()?.text ?: "Tidak ada respons dari Gemini."
+        } catch (e: retrofit2.HttpException) {
+            if (e.code() == 429) {
+                "⚠️ **Batas Pemakaian Terlampaui (Error 429)**\n\nKuota pemakaian untuk model Gemini Anda telah habis atau dibatasi oleh sistem (Rate Limit Exceeded). Hal ini sering terjadi pada versi *Preview* / *Flash* pada Akun Gratis (Free Tier).\n\n**Cara Mengatasi:**\n1. Sila ganti ke model **Gemini 2.5 Flash** di menu model.\n2. Tunggu 1-2 menit sebelum mencoba kembali.\n3. Masukkan kunci API (API Key) mandiri yang memiliki kuota penuh di tab Pengaturan."
+            } else {
+                "Error Gemini API (HTTP ${e.code()}): ${e.message()}"
+            }
         } catch (e: Exception) {
             "Error: ${e.localizedMessage}"
         }
@@ -327,6 +334,12 @@ class ChatRepository {
                 val resolvedUrl = "${baseUrl}v1beta/models/gemini-3-flash-preview:generateContent"
                 val response = GeminiClient.service.generateContent(resolvedUrl, keyToUse, request)
                 response.candidates.firstOrNull()?.content?.parts?.firstOrNull()?.text ?: "No response from Gemini."
+            } catch (e: retrofit2.HttpException) {
+                if (e.code() == 429) {
+                    "⚠️ [Error 429] Batas pemakaian terlampaui untuk analisis gambar Gemini. Silakan tunggu 1-2 menit atau periksa Kunci API Anda."
+                } else {
+                    "Error Gemini API (HTTP ${e.code()}): ${e.message()}"
+                }
             } catch (e: Exception) {
                 "Error: ${e.localizedMessage}"
             }
@@ -362,6 +375,12 @@ class ChatRepository {
                 val resolvedUrl = "${baseUrl}v1beta/models/gemini-3-flash-preview:generateContent"
                 val response = GeminiClient.service.generateContent(resolvedUrl, keyToUse, request)
                 response.candidates.firstOrNull()?.content?.parts?.firstOrNull()?.text ?: "No response from Gemini."
+            } catch (e: retrofit2.HttpException) {
+                if (e.code() == 429) {
+                    "⚠️ [Error 429] Batas pemakaian terlampaui untuk analisis gambar (Vision). Silakan tunggu 1-2 menit atau periksa Kunci API Anda."
+                } else {
+                    "Error Gemini API (HTTP ${e.code()}): ${e.message()}"
+                }
             } catch (e: Exception) {
                 "Error: ${e.localizedMessage}"
             }
@@ -602,9 +621,69 @@ class ChatRepository {
                     throw IllegalStateException("Fal.ai Error ${response.code}: $bodyStr")
                 }
                 val responseJson = JSONObject(bodyStr)
+                
+                // If the response yielded immediate image data, return it
                 val imagesArray = responseJson.optJSONArray("images")
                 if (imagesArray != null && imagesArray.length() > 0) {
-                    imagesArray.getJSONObject(0).getString("url")
+                    return@withContext imagesArray.getJSONObject(0).getString("url")
+                }
+
+                // If immediate results are not present but queue details are provided, poll the queue status_url
+                val statusUrl = responseJson.optString("status_url")
+                val responseUrl = responseJson.optString("response_url")
+                
+                if (!statusUrl.isNullOrBlank() && !responseUrl.isNullOrBlank()) {
+                    var completed = false
+                    var attempts = 0
+                    val maxAttempts = 60 // Wait up to 60 seconds
+                    
+                    while (!completed && attempts < maxAttempts) {
+                        delay(1000)
+                        attempts++
+                        
+                        val statusRequest = Request.Builder()
+                            .url(statusUrl)
+                            .header("Authorization", "Key $keyToUse")
+                            .get()
+                            .build()
+                        
+                        client.newCall(statusRequest).execute().use { statusResponse ->
+                            if (statusResponse.isSuccessful) {
+                                val statusBody = statusResponse.body?.string() ?: ""
+                                val statusJson = JSONObject(statusBody)
+                                val status = statusJson.optString("status")
+                                if (status == "COMPLETED") {
+                                    completed = true
+                                } else if (status == "FAILED") {
+                                    throw IllegalStateException("Fal.ai Queue Job Failed: $statusBody")
+                                }
+                            }
+                        }
+                    }
+                    
+                    if (completed) {
+                        val resultRequest = Request.Builder()
+                            .url(responseUrl)
+                            .header("Authorization", "Key $keyToUse")
+                            .get()
+                            .build()
+                        
+                        client.newCall(resultRequest).execute().use { resultResponse ->
+                            val resultBody = resultResponse.body?.string() ?: ""
+                            if (!resultResponse.isSuccessful) {
+                                throw IllegalStateException("Failed to fetch final Fal.ai results: $resultBody")
+                            }
+                            val resultJson = JSONObject(resultBody)
+                            val finalImages = resultJson.optJSONArray("images")
+                            if (finalImages != null && finalImages.length() > 0) {
+                                return@withContext finalImages.getJSONObject(0).getString("url")
+                            } else {
+                                throw IllegalStateException("No images found in completed Fal.ai response: $resultBody")
+                            }
+                        }
+                    } else {
+                        throw IllegalStateException("Fal.ai Generation timed out after 60 seconds.")
+                    }
                 } else {
                     throw IllegalStateException("No image generated by Fal.ai. Response: $bodyStr")
                 }
@@ -625,9 +704,10 @@ class ChatRepository {
             }
 
             // Resolve endpoint based on model selection
-            val endpointPath = when (model.lowercase()) {
-                "sd3" -> "sd3"
-                "ultra" -> "ultra"
+            val modelLower = model.lowercase()
+            val endpointPath = when {
+                modelLower.startsWith("sd3") || modelLower.contains("stable") -> "sd3"
+                modelLower == "ultra" -> "ultra"
                 else -> "core"
             }
             val resolvedUrl = "https://api.stability.ai/v2beta/stable-image/generate/$endpointPath"
@@ -670,7 +750,17 @@ class ChatRepository {
             // For SD3, check if we need to add other parameters
             if (endpointPath == "sd3") {
                 builder.addFormDataPart("mode", "text-to-image")
-                builder.addFormDataPart("model", "sd3-large")
+                val stabilityModel = when {
+                    modelLower.contains("sd3-turbo") -> "sd3-turbo"
+                    modelLower.contains("sd3-medium") -> "sd3-medium"
+                    modelLower.contains("sd3-large-turbo") -> "sd3-large-turbo"
+                    modelLower.contains("sd3-large") -> "sd3-large"
+                    modelLower.contains("sd3.5-large-turbo") -> "sd3.5-large-turbo"
+                    modelLower.contains("sd3.5-large") -> "sd3.5-large"
+                    modelLower.contains("sd3.5-medium") -> "sd3.5-medium"
+                    else -> "sd3-large"
+                }
+                builder.addFormDataPart("model", stabilityModel)
             }
 
             val requestBody = builder.build()
@@ -756,6 +846,12 @@ class ChatRepository {
                 } else {
                     val responseText = response.candidates.firstOrNull()?.content?.parts?.firstOrNull { it.text != null }?.text
                     throw IllegalStateException(responseText ?: "No image returned by Gemini Imagen.")
+                }
+            } catch (e: retrofit2.HttpException) {
+                if (e.code() == 429) {
+                    throw IllegalStateException("API Rate Limit Exceeded (HTTP 429). Batas kuota gratis untuk model preview Gemini ini telah terlampaui. Silakan gunakan model standar 'Imagen 3' (Gemini 2.5), tunggu beberapa menit, atau masukkan API Key mandiri di Pengaturan.")
+                } else {
+                    throw IllegalStateException("Gemini API Error (HTTP ${e.code()}): ${e.message()}")
                 }
             } catch (e: Exception) {
                 throw IllegalStateException(e.localizedMessage ?: "Unknown error calling Gemini Imagen.")

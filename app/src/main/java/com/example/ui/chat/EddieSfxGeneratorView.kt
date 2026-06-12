@@ -124,7 +124,10 @@ fun EddieSfxGeneratorView(
                             placeholder = { Text("e.g., Sci-Fi laser gun shooting with a hum effect") },
                             modifier = Modifier.fillMaxWidth(),
                             shape = RoundedCornerShape(8.dp),
-                            maxLines = 2
+                            maxLines = 2,
+                            colors = OutlinedTextFieldDefaults.colors(
+                                unfocusedBorderColor = MaterialTheme.colorScheme.outline
+                            )
                         )
 
                         // Category Selector Dropdown
@@ -141,7 +144,10 @@ fun EddieSfxGeneratorView(
                                     label = { Text("Category / Waveform Filter") },
                                     trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = showCategoryDropdown) },
                                     modifier = Modifier.fillMaxWidth().menuAnchor(),
-                                    shape = RoundedCornerShape(8.dp)
+                                    shape = RoundedCornerShape(8.dp),
+                                    colors = OutlinedTextFieldDefaults.colors(
+                                        unfocusedBorderColor = MaterialTheme.colorScheme.outline
+                                    )
                                 )
                                 ExposedDropdownMenu(
                                     expanded = showCategoryDropdown,

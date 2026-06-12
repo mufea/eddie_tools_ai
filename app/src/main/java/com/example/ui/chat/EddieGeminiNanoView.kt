@@ -344,6 +344,9 @@ fun EddieGeminiNanoView(
                         modifier = Modifier.weight(1f),
                         shape = RoundedCornerShape(8.dp),
                         maxLines = 2,
+                        colors = OutlinedTextFieldDefaults.colors(
+                            unfocusedBorderColor = MaterialTheme.colorScheme.outline
+                        ),
                         keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
                             imeAction = androidx.compose.ui.text.input.ImeAction.Send
                         ),
