@@ -82,6 +82,16 @@ data class UserMemoryEntity(
     val userEmail: String? = null
 )
 
+@Entity(tableName = "token_usages")
+data class TokenUsageEntity(
+    @PrimaryKey val id: String,
+    val featureType: String, // "Text Generation", "Image Generation", "Video Generation", "Music Generation", etc.
+    val detail: String,
+    val tokenCost: Double,
+    val timestamp: Long = System.currentTimeMillis(),
+    val userEmail: String? = null
+)
+
 // --- DAO (Data Access Object) ---
 
 @Dao
@@ -161,6 +171,18 @@ interface ChatDao {
     @Query("DELETE FROM user_memories WHERE id = :id")
     suspend fun deleteMemoryById(id: String)
 
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertTokenUsage(usage: TokenUsageEntity)
+
+    @Query("SELECT * FROM token_usages ORDER BY timestamp DESC")
+    fun getAllTokenUsages(): Flow<List<TokenUsageEntity>>
+
+    @Query("SELECT * FROM token_usages WHERE userEmail = :email ORDER BY timestamp DESC")
+    fun getTokenUsagesForUser(email: String): Flow<List<TokenUsageEntity>>
+
+    @Query("DELETE FROM token_usages")
+    suspend fun deleteAllTokenUsages()
+
     @Query("DELETE FROM chat_messages")
     suspend fun deleteAllMessages()
 
@@ -177,9 +199,10 @@ interface ChatDao {
         GeneratedImageEntity::class,
         GeneratedVideoEntity::class,
         GeneratedMusicEntity::class,
-        UserMemoryEntity::class
+        UserMemoryEntity::class,
+        TokenUsageEntity::class
     ],
-    version = 6,
+    version = 7,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {

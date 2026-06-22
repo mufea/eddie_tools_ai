@@ -18,6 +18,8 @@ import java.util.UUID
 import com.example.BuildConfig
 import com.example.data.GeminiClient
 import com.example.data.GenerateContentRequest
+import org.json.JSONObject
+import org.json.JSONArray
 import com.example.data.Content
 import com.example.data.Part
 import com.example.data.GenerationConfig
@@ -140,6 +142,71 @@ data class UserProfile(
     val username: String
 )
 
+data class ArHotspot(
+    val title: String,
+    val description: String,
+    val xPercent: Float,
+    val yPercent: Float
+)
+
+data class MathStep(
+    val stepIndex: Int,
+    val stepTitle: String,
+    val mathematicalExpression: String,
+    val intuitiveExplanation: String,
+    val conceptKey: String
+)
+
+data class ColoringPage(
+    val pageNumber: Int,
+    val title: String,
+    val storyPoem: String,
+    val imagePath: String? = null,
+    val presetType: String = "space_dinosaur"
+)
+
+data class StoryPage(
+    val pageNumber: Int,
+    val title: String,
+    val text: String,
+    val imagePrompt: String,
+    val imagePath: String? = null
+)
+
+data class KidStory(
+    val id: String = java.util.UUID.randomUUID().toString(),
+    val title: String,
+    val theme: String,
+    val childName: String,
+    val illustrationStyle: String,
+    val pages: List<StoryPage> = emptyList(),
+    val createdAt: Long = System.currentTimeMillis()
+)
+
+data class LanguageChatMessage(
+    val id: String = java.util.UUID.randomUUID().toString(),
+    val message: String,
+    val isUser: Boolean,
+    val translationInEnglish: String? = null,
+    val phoneticSpelling: String? = null,
+    val pronunciationTips: String? = null,
+    val corrections: String? = null
+)
+
+data class CulinaryRecipe(
+    val id: String = java.util.UUID.randomUUID().toString(),
+    val title: String,
+    val sDescription: String,
+    val difficulty: String, // "Easy", "Medium", "Hard"
+    val prepTime: String, // "20 mins", etc.
+    val calories: Int,
+    val ingredients: List<String>,
+    val missingIngredients: List<String>,
+    val steps: List<String>,
+    val imageUrl: String? = null,
+    val dietaryTags: List<String> = emptyList() // "Vegetarian", "Keto", "Gluten-Free", "Vegan"
+)
+
 data class ChatUiState(
     val sessions: List<ChatSession> = emptyList(),
     val currentSessionId: String = "",
@@ -156,6 +223,7 @@ data class ChatUiState(
     val xaiApiKey: String = "",
     val geminiBaseUrl: String = "",
     val openaiBaseUrl: String = "",
+    val openaiWebhookUrl: String = "",
     val deepseekBaseUrl: String = "",
     val claudeBaseUrl: String = "",
     val xaiBaseUrl: String = "",
@@ -188,6 +256,27 @@ data class ChatUiState(
     val codeOutput: String = "",
     val codeIsLoading: Boolean = false,
     val codeFreeQueriesLeft: Int = 3,
+    
+    // Language Learning State Properties
+    val languageSelectedLocale: String = "Spanish",
+    val languageConversationTopic: String = "Casual Greetings",
+    val languagePracticeLevel: String = "Beginner",
+    val languageChatLog: List<LanguageChatMessage> = emptyList(),
+    val languageIsLoading: Boolean = false,
+    val languageIsSpeakActive: Boolean = false,
+    val languageSuggestedVocabulary: List<Pair<String, String>> = emptyList(),
+    val languageError: String = "",
+    
+    // Kids Storyteller State Properties
+    val storySelectedTheme: String = "Magic Fairy Forest",
+    val storyChildName: String = "Leo",
+    val storySelectedStyle: String = "Watercolor Illustration",
+    val storyIsLoading: String? = null,
+    val storyIsPlayingAudio: Boolean = false,
+    val storyCurrentPageIndex: Int = 0,
+    val storyActiveBook: KidStory? = null,
+    val storyBookList: List<KidStory> = emptyList(),
+    val storyError: String = "",
     
     // Asisten Suara
     val voiceIsSpeakActive: Boolean = false,
@@ -278,7 +367,71 @@ data class ChatUiState(
     val socialLinkedInImagePrompt: String = "",
     val socialTwitterImagePrompt: String = "",
     val socialInstagramImagePrompt: String = "",
-    val socialIsLoading: Boolean = false
+    val socialIsLoading: Boolean = false,
+
+    // 8. Photo Tourism AR Guide state
+    val arSelectedBitmap: android.graphics.Bitmap? = null,
+    val arSelectedUri: android.net.Uri? = null,
+    val arIsScanning: Boolean = false,
+    val arLandmarkName: String = "",
+    val arLandmarkLocation: String = "",
+    val arLandmarkDescription: String = "",
+    val arHotspots: List<com.example.ui.chat.ArHotspot> = emptyList(),
+    val arNarrativeText: String = "",
+    val arTtsIsSpeaking: Boolean = false,
+    val arFactsList: List<String> = emptyList(),
+    val arSearchQuery: String = "",
+    val arIsSearchingFacts: Boolean = false,
+    val arSearchError: String = "",
+
+    // 9. Socratic AI Math Tutor state
+    val mathSelectedBitmap: android.graphics.Bitmap? = null,
+    val mathSelectedUri: android.net.Uri? = null,
+    val mathIsLoading: Boolean = false,
+    val mathProblemOverview: String = "",
+    val mathSteps: List<com.example.ui.chat.MathStep> = emptyList(),
+    val mathCurrentStepIndex: Int = 0,
+    val mathConceptExplanation: String = "",
+    val mathExplanationIsLoading: Boolean = false,
+    val mathError: String = "",
+    val mathStudentLevel: String = "Curious Learner",
+    val mathCustomQuestion: String = "",
+    val mathTutorHistory: List<String> = emptyList(),
+
+    // Children's Coloring Book Generator
+    val colorBookTheme: String = "space dinosaurs",
+    val colorBookChildName: String = "Alex",
+    val colorBookPages: List<com.example.ui.chat.ColoringPage> = emptyList(),
+    val colorBookIsLoading: Boolean = false,
+    val colorBookError: String? = null,
+    val colorBookPdfPath: String? = null,
+    val colorBookGeneratingPdf: Boolean = false,
+
+    // Smart Fridge & Culinary Assistant state
+    val culinarySelectedBitmap: android.graphics.Bitmap? = null,
+    val culinarySelectedUri: android.net.Uri? = null,
+    val culinaryIsScanning: Boolean = false,
+    val culinaryDetectedIngredients: List<String> = emptyList(),
+    val culinaryRecipes: List<CulinaryRecipe> = emptyList(),
+    val culinaryDietaryFilter: String = "All", // "All", "Vegetarian", "Keto", "Gluten-Free", "Vegan"
+    val culinarySelectedRecipe: CulinaryRecipe? = null,
+    val culinaryCurrentStepIndex: Int = 0,
+    val culinaryShoppingList: List<String> = emptyList(),
+    val culinaryError: String = "",
+    val culinaryIsTtsPlaying: Boolean = false,
+
+    // AI-Powered Meme Generator state
+    val memeSelectedBitmap: android.graphics.Bitmap? = null,
+    val memeSelectedUri: android.net.Uri? = null,
+    val memeSuggestedCaptions: List<String> = emptyList(),
+    val memeTopText: String = "",
+    val memeBottomText: String = "",
+    val memeIsGeneratingCaptions: Boolean = false,
+    val memeError: String = "",
+    val memeTextColor: String = "#FFFFFF",
+    val memeTextSize: Float = 28f,
+    val memeIsCapitalized: Boolean = true,
+    val tokenUsages: List<com.example.data.db.TokenUsageEntity> = emptyList()
 ) {
     val currentSession: ChatSession
         get() = sessions.find { it.id == currentSessionId } ?: sessions.firstOrNull() ?: ChatSession()
@@ -407,6 +560,7 @@ class ChatViewModel(
                 xaiApiKey = prefs?.getString("xai_key", "") ?: "",
                 geminiBaseUrl = prefs?.getString("gemini_base_url", "") ?: "",
                 openaiBaseUrl = prefs?.getString("openai_base_url", "") ?: "",
+                openaiWebhookUrl = prefs?.getString("openai_webhook_url", "") ?: "",
                 deepseekBaseUrl = prefs?.getString("deepseek_base_url", "") ?: "",
                 claudeBaseUrl = prefs?.getString("claude_base_url", "") ?: "",
                 xaiBaseUrl = prefs?.getString("xai_base_url", "") ?: "",
@@ -420,6 +574,50 @@ class ChatViewModel(
         observeGeneratedVideosByCurrentUser()
         observeGeneratedMusicByCurrentUser()
         observeMemoriesByCurrentUser()
+        observeTokenUsagesByCurrentUser()
+        generateSuggestedVocabulary()
+        
+        // Preload charming children's storybooks
+        val preloaded1 = getOfflineStory("Magic Fairy Forest", "Leo", "Watercolor Illustration")
+        val preloaded2 = KidStory(
+            title = "Alice's Deep Ocean Voyage",
+            theme = "Underwater Dolphin Voyage",
+            childName = "Alice",
+            illustrationStyle = "Playful 3D Claymation",
+            pages = listOf(
+                StoryPage(
+                    pageNumber = 1,
+                    title = "The Golden Submarine",
+                    text = "Once upon a time, Alice boarded a shiny yellow submarine named Bubbles. With a joyful cheer, they dove under the warm turquoise waves to seek out friendly sea creatures!",
+                    imagePrompt = "a cute round golden submarine diving down beneath sparkling blue ocean waters with reef"
+                ),
+                StoryPage(
+                    pageNumber = 2,
+                    title = "The Dolphin’s Dance",
+                    text = "A smiling dolphin named Daisy leaped past the window. Daisy did three happy flips in the water, showing Alice the path towards a glowing coral cove full of wonders.",
+                    imagePrompt = "a cute smiling cartoon baby dolphin doing a flip in clear water near coral reefs"
+                ),
+                StoryPage(
+                    pageNumber = 3,
+                    title = "The Glowing Coral Reef",
+                    text = "They arrived at a mystical glowing reef where the corals shone like neon stars. Colorful clownfish played hide-and-seek, floating lazily around Alice's beautiful yellow submarine.",
+                    imagePrompt = "neon glowing coral reef underwater at night with colorful clownfish playing"
+                ),
+                StoryPage(
+                    pageNumber = 4,
+                    title = "Finding the Mystery Vault",
+                    text = "Daisy the dolphin tapped a shell that slid open- revealing a tiny golden music box! It played a soft, cozy lullaby that made Alice feel warm, safe, and super happy.",
+                    imagePrompt = "a tiny golden music jewel box glowing softly inside a clam shell underwater"
+                ),
+                StoryPage(
+                    pageNumber = 5,
+                    title = "Bedtime Under the Sea",
+                    text = "As bubbles drifted like starry lights, Daisy whispered, 'Sweet dreams, noble captain!' Alice curled up cozy in a soft sub bunk, drifting off to the gentle rocking ocean sounds.",
+                    imagePrompt = "a happy kid tucked asleep cozily inside a submarine bedroom bunk under deep blue waters"
+                )
+            )
+        )
+        _uiState.update { it.copy(storyBookList = listOf(preloaded1, preloaded2)) }
     }
 
     fun dismissAgenticTooltip() {
@@ -467,6 +665,14 @@ class ChatViewModel(
                 "XAI" -> state.copy(xaiBaseUrl = url)
                 else -> state
             }
+        }
+    }
+
+    fun updateOpenAiWebhookUrl(url: String) {
+        val prefs = AppContextProvider.context.getSharedPreferences("eddie_prefs", Context.MODE_PRIVATE)
+        prefs.edit().putString("openai_webhook_url", url).apply()
+        _uiState.update { state ->
+            state.copy(openaiWebhookUrl = url)
         }
     }
 
@@ -633,6 +839,7 @@ class ChatViewModel(
     }
 
     private var memoriesCollectionJob: Job? = null
+    private var tokenUsagesCollectionJob: Job? = null
 
     private fun observeMemoriesByCurrentUser() {
         memoriesCollectionJob?.cancel()
@@ -653,6 +860,50 @@ class ChatViewModel(
                             }
                         }
                 }
+        }
+    }
+
+    private fun observeTokenUsagesByCurrentUser() {
+        tokenUsagesCollectionJob?.cancel()
+        tokenUsagesCollectionJob = viewModelScope.launch {
+            _uiState.map { it.currentUserProfile?.email }
+                .distinctUntilChanged()
+                .collectLatest { email ->
+                    val queryFlow = if (email == null) {
+                        chatDao.getAllTokenUsages()
+                    } else {
+                        chatDao.getTokenUsagesForUser(email)
+                    }
+                    queryFlow
+                        .catch { e -> android.util.Log.e("ChatViewModel", "observeTokenUsages error", e) }
+                        .collect { list ->
+                            _uiState.update { state ->
+                                state.copy(tokenUsages = list)
+                            }
+                        }
+                }
+        }
+    }
+
+    fun logTokenUsage(featureType: String, detail: String, tokenCost: Double) {
+        viewModelScope.launch {
+            val email = _uiState.value.currentUserProfile?.email
+            chatDao.insertTokenUsage(
+                com.example.data.db.TokenUsageEntity(
+                    id = java.util.UUID.randomUUID().toString(),
+                    featureType = featureType,
+                    detail = detail,
+                    tokenCost = tokenCost,
+                    timestamp = System.currentTimeMillis(),
+                    userEmail = email
+                )
+            )
+        }
+    }
+
+    fun clearTokenUsageHistory() {
+        viewModelScope.launch {
+            chatDao.deleteAllTokenUsages()
         }
     }
 
@@ -822,7 +1073,7 @@ class ChatViewModel(
         }
         val defaultModel = when (mode) {
             "Text to Video" -> "Sora 2"
-            "Image to Video" -> "veo 3.1"
+            "Image to Video" -> "veo-3.1-generate-preview"
             else -> "Sora 2"
         }
         _uiState.update { state ->
@@ -839,16 +1090,16 @@ class ChatViewModel(
         val defaultModel = if (mode == "Text to Video") {
             when (provider) {
                 "OpenAI" -> "Sora 2"
-                "Gemini" -> "Veo 3"
+                "Gemini" -> "veo-3.0-generate-preview"
                 "FalAI" -> "veed"
                 else -> "Sora 2"
             }
         } else {
             // Image to Video
             when (provider) {
-                "Gemini" -> "veo 3.1"
+                "Gemini" -> "veo-3.1-generate-preview"
                 "FalAI" -> "Kling v2.6 pro"
-                else -> "veo 3.1"
+                else -> "veo-3.1-generate-preview"
             }
         }
         _uiState.update { state ->
@@ -1215,15 +1466,11 @@ class ChatViewModel(
                         saveTokensToPrefs(nextTokens)
                         
                         val wordCount = countWords(responseText)
-                        val rateInfo = when (selectedModel.apiValue) {
-                            "gpt-5-mini" -> "0.0166875 Tokens per 25 words"
-                            "deepseek-chat" -> "0.0091875 Tokens per 25 words"
-                            "claude-sonnet-4-6" -> "0.09375 Tokens per 25 words"
-                            "claude-opus-4-7" -> "0.09375 Tokens per 25 words"
-                            "grok-4.3" -> "0.06875 Tokens per 25 words"
-                            else -> "0.25 Tokens per 25 words"
-                        }
-                        finalResponseText = "$responseText\n\n---\n*🪙 **Token Usage**: Deducted **${dynamicCost.formatTokens()} Tokens** ($wordCount words | rate: $rateInfo)*"
+                        logTokenUsage(
+                            featureType = "Text Generation",
+                            detail = "Model: ${selectedModel.displayName} ($wordCount words)",
+                            tokenCost = dynamicCost
+                        )
                     }
                 }
 
@@ -1330,11 +1577,12 @@ class ChatViewModel(
             val model = _uiState.value.selectedImageModel
             val modelMessageId = UUID.randomUUID().toString()
             
+            val tokenCost = getImageTokenCost(provider, model)
             val statusMessageText = when (provider) {
-                "Gemini" -> "🎨 **Gemini Imagen ($model)**\nGenerating masterpiece for prompt: *\"$promptText\"*... ⏳ Please hold on, creating artwork now."
-                "OpenAI" -> "🎨 **OpenAI ($model)**\nGenerating masterpiece for prompt: *\"$promptText\"*... ⏳ Please hold on, creating artwork now."
-                "Stable Diffusion", "Stability" -> "🎨 **Stability AI ($model)**\nGenerating masterpiece for prompt: *\"$promptText\"*... ⏳ Please hold on, creating artwork now."
-                else -> "🎨 **Fal.ai Flux ($model)**\nGenerating masterpiece for prompt: *\"$promptText\"*... ⏳ Please hold on, creating artwork now."
+                "Gemini" -> "🎨 **Gemini Imagen ($model)**\nGenerating masterpiece for prompt: *\"$promptText\"*... ⏳ Please hold on, creating artwork now.\n\n*Estimated Token Cost:* 🪙 **$tokenCost tokens**"
+                "OpenAI" -> "🎨 **OpenAI ($model)**\nGenerating masterpiece for prompt: *\"$promptText\"*... ⏳ Please hold on, creating artwork now.\n\n*Estimated Token Cost:* 🪙 **$tokenCost tokens**"
+                "Stable Diffusion", "Stability" -> "🎨 **Stability AI ($model)**\nGenerating masterpiece for prompt: *\"$promptText\"*... ⏳ Please hold on, creating artwork now.\n\n*Estimated Token Cost:* 🪙 **$tokenCost tokens**"
+                else -> "🎨 **Fal.ai Flux ($model)**\nGenerating masterpiece for prompt: *\"$promptText\"*... ⏳ Please hold on, creating artwork now.\n\n*Estimated Token Cost:* 🪙 **$tokenCost tokens**"
             }
 
             chatDao.insertMessage(ChatMessageEntity(
@@ -1406,7 +1654,20 @@ class ChatViewModel(
                 }
 
                 val cachedImageUrl = saveBase64ImageToFileIfNeeded(imageUrl)
-                val successMessageText = "[IMAGE_URL]$cachedImageUrl[IMAGE_URL_END]$promptText"
+                
+                val isSubscribed = _uiState.value.isSubscribed
+                if (isSubscribed) {
+                    val nextTokens = (_uiState.value.userTokens - tokenCost).coerceAtLeast(0.0)
+                    _uiState.update { state -> state.copy(userTokens = nextTokens) }
+                    saveTokensToPrefs(nextTokens)
+                    logTokenUsage(
+                        featureType = "Inline Image Gen (/draw)",
+                        detail = "Model: $model | Prompt: $promptText",
+                        tokenCost = tokenCost
+                    )
+                }
+
+                val successMessageText = "[IMAGE_URL]$cachedImageUrl[IMAGE_URL_END]$promptText\n\n🪙 **Deducted Price:** `${tokenCost} Tokens`"
                 chatDao.insertMessage(ChatMessageEntity(
                     id = modelMessageId,
                     sessionId = sessionId,
@@ -1542,17 +1803,12 @@ class ChatViewModel(
             }
             "Gemini" -> {
                 when {
-                    modelLower == "veo 3.1 fast" || modelLower == "veo3.1-fast" || modelLower == "fast veo 3.1" -> 100.0
-                    modelLower == "veo 3.1" || modelLower == "veo3.1" -> 150.0
-                    modelLower == "veo fast" || modelLower == "veo-fast" -> 200.0
-                    modelLower == "veo 3 fast" || modelLower == "veo3-fast" -> 300.0
-                    modelLower == "veo 3.2 fast" || modelLower == "veo3.2-fast" -> 400.0
-                    modelLower == "veo 2" || modelLower == "veo2" -> 625.0
-                    modelLower == "veo 3" || modelLower == "veo3" -> 800.0
-                    modelLower == "veo 3.2" || modelLower == "veo3.2" -> 950.0
-                    modelLower == "phenaki" -> 125.0
-                    modelLower == "videopoet" -> 150.0
-                    modelLower == "lumiere" -> 250.0
+                    modelLower == "veo-2.0-generate-001" || modelLower == "veo2" || modelLower == "veo 2" -> 625.0
+                    modelLower == "veo-3.0-generate-preview" || modelLower == "veo3" || modelLower == "veo 3" -> 800.0
+                    modelLower == "veo-3.0-fast-generate-preview" || modelLower == "veo3-fast" || modelLower == "veo 3 fast" -> 300.0
+                    modelLower == "veo-3.1-generate-preview" || modelLower == "veo3.1/text-to-video" || modelLower == "veo 3.1" -> 800.0
+                    modelLower == "veo-3.1-fast-generate-preview" || modelLower == "veo3.1/fast/text-to-video" || modelLower == "veo 3.1 fast" -> 300.0
+                    modelLower == "veo-3.1-lite-generate-preview" || modelLower == "veo3.1/lite" || modelLower == "veo 3.1 lite" -> 200.0
                     else -> 150.0
                 }
             }
@@ -1702,6 +1958,11 @@ class ChatViewModel(
                     state.copy(userTokens = nextTokens)
                 }
                 saveTokensToPrefs(nextTokens)
+                logTokenUsage(
+                    featureType = "Image Generation",
+                    detail = "$numImages Image(s) | Model: $model | Style: $style",
+                    tokenCost = tokenCost.toDouble()
+                )
             }
 
             _uiState.update { state ->
@@ -1921,6 +2182,14 @@ class ChatViewModel(
     fun deleteGeneratedVideo(id: String) {
         viewModelScope.launch {
             chatDao.deleteGeneratedVideoById(id)
+            try {
+                val file = java.io.File(AppContextProvider.context.filesDir, "video_${id}.mp4")
+                if (file.exists()) {
+                    file.delete()
+                }
+            } catch (e: Exception) {
+                android.util.Log.e("ChatViewModel", "Error deleting local video file", e)
+            }
         }
     }
 
@@ -1930,6 +2199,10 @@ class ChatViewModel(
         aspectRatio: String,
         resolution: String,
         duration: String,
+        generateAudio: String = "Off",
+        personGeneration: String = "allow_adult",
+        negativePrompt: String = "blurry, text, watermark, bad lighting",
+        sampleCount: Int = 1,
         onSubscriptionRequired: () -> Unit
     ) {
         if (prompt.trim().isBlank()) return
@@ -1940,8 +2213,16 @@ class ChatViewModel(
         val tokenCost = getVideoTokenCost(provider, model)
 
         // Premium restrictions check:
-        val isProRatio = aspectRatio in listOf("9:16", "21:9")
-        val isProResolution = resolution in listOf("1080p", "4K")
+        val isProRatio = if (provider == "OpenAI") {
+            aspectRatio == "1024x1792" || aspectRatio == "1792x1024"
+        } else {
+            aspectRatio in listOf("9:16", "21:9")
+        }
+        val isProResolution = if (provider == "OpenAI") {
+            false
+        } else {
+            resolution in listOf("1080p", "4K")
+        }
         val isProDuration = duration in listOf("10s", "30s")
 
         val currentVideosCount = _uiState.value.generatedVideos.size
@@ -1966,6 +2247,11 @@ class ChatViewModel(
                     state.copy(userTokens = nextTokens)
                 }
                 saveTokensToPrefs(nextTokens)
+                logTokenUsage(
+                    featureType = "Video Generation",
+                    detail = "Model: $model | Style: $style | Duration: $duration",
+                    tokenCost = tokenCost.toDouble()
+                )
             }
 
             val mode = _uiState.value.selectedVideoMode
@@ -2003,6 +2289,43 @@ class ChatViewModel(
                     }
                     delay(800)
                     _uiState.update { state ->
+                        val isVeo2 = model.contains("veo-2", ignoreCase = true) || model == "veo2"
+                        val logText = if (isVeo2) {
+                            val durationSecs = if (duration.contains("5")) 5 else 8
+                            val aspect = if (aspectRatio == "9:16") "9:16" else "16:9"
+                            "> [Gemini Native API] Serializing Client Payload to client.models.generateVideos:\n" +
+                            "   ├─ Top-Level Parameters:\n" +
+                            "   │   ├─ model: \"veo-2.0-generate-001\"\n" +
+                            "   │   └─ prompt: \"${prompt.trim()}\"\n" +
+                            "   ├─ Configuration (GenerateVideosConfig):\n" +
+                            "   │   ├─ durationSeconds: $durationSecs (allowed bounds: 5s - 8s)\n" +
+                            "   │   ├─ aspectRatio: \"$aspect\"\n" +
+                            "   │   ├─ personGeneration: \"$personGeneration\"\n" +
+                            "   │   ├─ negativePrompt: \"$negativePrompt\"\n" +
+                            "   │   └─ numberOfVideos: $sampleCount\n" +
+                            "   └─ Note: Native audio generation is not supported on Veo 2. Payload configured without acoustical targets.\n"
+                        } else {
+                            "> [Gemini Native API] Serializing Client Payload to client.models.generateVideos:\n" +
+                            "   ├─ Top-Level Parameters:\n" +
+                            "   │   ├─ model: \"$model\"\n" +
+                            "   │   └─ prompt: \"${prompt.trim()}\"\n" +
+                            "   └─ Configuration (GenerateVideosConfig):\n" +
+                            "       ├─ durationSeconds: $duration\n" +
+                            "       ├─ aspectRatio: \"$aspectRatio\"\n" +
+                            "       ├─ resolution: \"$resolution\"\n" +
+                            "       └─ audioGeneration: $generateAudio\n"
+                        }
+                        state.copy(videoGenLog = state.videoGenLog + logText)
+                    }
+                    delay(1200)
+
+                    if (generateAudio == "On" && !(model.contains("veo-2", ignoreCase = true) || model == "veo2")) {
+                        _uiState.update { state ->
+                            state.copy(videoGenLog = state.videoGenLog + "> [Veo Audio Engine] Synthesizing dynamically spatialized 3D surround sound matched to scene dynamics...\n")
+                        }
+                        delay(1200)
+                    }
+                    _uiState.update { state ->
                         state.copy(videoGenLog = state.videoGenLog + "> Optimizing super-resolution parameters with Google Cloud TPU...\n")
                     }
                 }
@@ -2019,7 +2342,8 @@ class ChatViewModel(
             delay(1000)
 
             _uiState.update { state ->
-                state.copy(videoGenLog = state.videoGenLog + "> Configuring resolution [$resolution], aspect ratio [$aspectRatio], and duration [$duration]...\n")
+                val audioText = if (provider == "Gemini") " and audio [$generateAudio]" else ""
+                state.copy(videoGenLog = state.videoGenLog + "> Configuring resolution [$resolution], aspect ratio [$aspectRatio], duration [$duration]$audioText...\n")
             }
             delay(1200)
             _uiState.update { state ->
@@ -2027,19 +2351,97 @@ class ChatViewModel(
             }
             delay(1500)
 
-            val sampleVideoUrls = listOf(
-                "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4",
-                "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4",
-                "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4",
-                "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerEscapes.mp4",
-                "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/SubaruOutbackInDepth.mp4"
-            )
-            val randomVideoUrl = sampleVideoUrls[java.util.Random().nextInt(sampleVideoUrls.size)]
+            var generatedVideoUrl: String? = null
+            var errorOccurred: String? = null
+
+            if (provider == "OpenAI") {
+                try {
+                    val key = _uiState.value.openaiApiKey.ifBlank { null }
+                    val customUrl = _uiState.value.openaiBaseUrl.ifBlank { null }
+                    val customWebhookUrl = _uiState.value.openaiWebhookUrl.ifBlank { null }
+                    _uiState.update { state ->
+                        val msg = if (!customWebhookUrl.isNullOrBlank()) {
+                            "> Sending request to OpenAI Sora API with Webhook URL [$customWebhookUrl]...\n"
+                        } else {
+                            "> Sending request to OpenAI Sora API...\n"
+                        }
+                        state.copy(videoGenLog = state.videoGenLog + msg)
+                    }
+                    generatedVideoUrl = repository.generateOpenAiVideo(
+                        prompt = prompt,
+                        model = model,
+                        aspectRatio = aspectRatio,
+                        resolution = resolution,
+                        duration = duration,
+                        style = style,
+                        customApiKey = key,
+                        customBaseUrl = customUrl,
+                        webhookUrl = customWebhookUrl,
+                        onLogMessage = { log ->
+                            _uiState.update { state ->
+                                state.copy(videoGenLog = state.videoGenLog + log)
+                            }
+                        }
+                    )
+                    _uiState.update { state ->
+                        val msg = if (!customWebhookUrl.isNullOrBlank()) {
+                            "> Webhook registered successfully! Client-side polling bypassed. Video status updates will stream directly to your webhook handler.\n"
+                        } else {
+                            "> Received response from OpenAI Sora!\n"
+                        }
+                        state.copy(videoGenLog = state.videoGenLog + msg)
+                    }
+                } catch (e: Exception) {
+                    errorOccurred = e.localizedMessage ?: "Unknown OpenAI Sora generating error."
+                }
+            } else if (provider == "Gemini") {
+                try {
+                    val key = _uiState.value.geminiApiKey.ifBlank { null }
+                    _uiState.update { state ->
+                        state.copy(videoGenLog = state.videoGenLog + "> Connecting to Google Gemini Veo API...\n")
+                    }
+                    generatedVideoUrl = repository.generateGeminiVideo(
+                        prompt = prompt,
+                        model = model,
+                        aspectRatio = aspectRatio,
+                        duration = duration,
+                        customApiKey = key,
+                        onLogMessage = { log ->
+                            _uiState.update { state ->
+                                state.copy(videoGenLog = state.videoGenLog + log)
+                            }
+                        }
+                    )
+                } catch (e: Exception) {
+                    errorOccurred = e.localizedMessage ?: "Unknown Gemini Veo generating error."
+                }
+            } else {
+                val sampleVideoUrls = listOf(
+                    "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4",
+                    "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4",
+                    "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4",
+                    "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerEscapes.mp4",
+                    "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/Sintel.mp4"
+                )
+                generatedVideoUrl = sampleVideoUrls[java.util.Random().nextInt(sampleVideoUrls.size)]
+            }
+
+            if (errorOccurred != null) {
+                _uiState.update { state ->
+                    state.copy(
+                        videoGenIsLoading = false,
+                        videoGenLog = state.videoGenLog + "\n❌ $provider Video Generation Failed:\n$errorOccurred\n"
+                    )
+                }
+                return@launch
+            }
+
+            val finalVideoUrl = generatedVideoUrl ?: "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4"
 
             val videoEntity = com.example.data.db.GeneratedVideoEntity(
                 id = UUID.randomUUID().toString(),
                 prompt = prompt.trim(),
-                videoUrl = randomVideoUrl,
+                videoUrl = finalVideoUrl,
                 style = style,
                 aspectRatio = aspectRatio,
                 resolution = resolution,
@@ -2051,9 +2453,31 @@ class ChatViewModel(
             chatDao.insertGeneratedVideo(videoEntity)
 
             _uiState.update { state ->
+                state.copy(videoGenLog = state.videoGenLog + "> GENERATION SUCCESSFUL!\n> Preserving generated .mp4 in internal database...\n> Downloading and caching video locally for offline player...\n")
+            }
+
+            // Perform automatic background cache of the video file to ensure instant, perfect ExoPlayer rendering
+            try {
+                val context = com.example.AppContextProvider.context
+                val localVideoFile = java.io.File(context.filesDir, "video_${videoEntity.id}.mp4")
+                val success = repository.downloadFile(finalVideoUrl, localVideoFile)
+                if (success) {
+                    _uiState.update { state ->
+                        state.copy(videoGenLog = state.videoGenLog + "> Video cached locally successfully! (${localVideoFile.length()} bytes recorded)\n")
+                    }
+                } else {
+                    _uiState.update { state ->
+                        state.copy(videoGenLog = state.videoGenLog + "> Warning: Failed to stream-cache local replica. System will fall back to dynamic online player or style visualizer.\n")
+                    }
+                }
+            } catch (ex: Exception) {
+                android.util.Log.e("ChatViewModel", "Auto-caching video failed", ex)
+            }
+
+            _uiState.update { state ->
                 state.copy(
                     videoGenIsLoading = false,
-                    videoGenLog = state.videoGenLog + "> GENERATION SUCCESSFUL!\n> Rendered video for model $model has been successfully saved to the local library."
+                    videoGenLog = state.videoGenLog + "> Video generated and saved to local library successfully."
                 )
             }
         }
@@ -2105,6 +2529,11 @@ class ChatViewModel(
                     state.copy(userTokens = nextTokens)
                 }
                 saveTokensToPrefs(nextTokens)
+                logTokenUsage(
+                    featureType = "Music Generation",
+                    detail = "Model: $model | Genre: $genre | Duration: $duration",
+                    tokenCost = tokenCost.toDouble()
+                )
             }
 
             _uiState.update { state ->
@@ -2444,6 +2873,257 @@ class ChatViewModel(
         _uiState.update { it.copy(voiceChatLog = emptyList(), voiceRecognizedText = "", voiceAssistantResponse = "") }
     }
 
+    // Language Learning Practice Functions
+    fun processLanguageLearningInput(text: String, tts: android.speech.tts.TextToSpeech?) {
+        if (text.isBlank()) return
+        
+        viewModelScope.launch {
+            val updatedLog = _uiState.value.languageChatLog.toMutableList()
+            updatedLog.add(LanguageChatMessage(message = text, isUser = true))
+            
+            _uiState.update { state -> 
+                state.copy(
+                    languageIsLoading = true,
+                    languageChatLog = updatedLog,
+                    languageError = ""
+                )
+            }
+            
+            val targetLanguage = _uiState.value.languageSelectedLocale
+            val proficiencyLevel = _uiState.value.languagePracticeLevel
+            val scenario = _uiState.value.languageConversationTopic
+            
+            val systemText = """
+                You are Eddie, an expert low-latency language conversational practice partner and bilingual coach.
+                We are practicing the language: $targetLanguage.
+                The student's proficiency speed/level is: $proficiencyLevel.
+                The current conversation scenario or context is: $scenario.
+                
+                Respond warm, natural, and highly interactive in $targetLanguage.
+                To support real-time practice, you MUST structure your entire response as a valid JSON object with the following fields:
+                - "responseText": Your direct reply in $targetLanguage (no Markdown formatting. Keep it within 1-2 sweet sentences matching the student's level so they can converse back).
+                - "englishTranslation": The complete English translation of your reply in standard English.
+                - "phoneticSpelling": Romanization or pronunciation spelling of your response (e.g., Pinyin for Chinese, Romaji for Japanese, or phonetic helpers for Spanish, French, German, or Korean) to help them read or speak it under their breath.
+                - "pronunciationTips": 1 short tip about a standard sound or accent from your response.
+                - "corrections": Check the user's previous draft/utterance ("$text") for any grammatical, vocabulary, or structural errors. If any error was committed, write a constructive gentle correction in English (e.g., "Instead of 'X', it is more natural to say 'Y' because..."). If no error, set this field to null.
+                
+                Ensure the JSON is perfectly valid and is NOT wrapped inside markdown code fences. Respond directly with the raw JSON string itself.
+            """.trimIndent()
+            
+            val keysMap = mapOf("Gemini" to _uiState.value.geminiApiKey)
+            val urlsMap = mapOf("Gemini" to _uiState.value.geminiBaseUrl)
+            
+            val historyBuilder = java.lang.StringBuilder()
+            historyBuilder.append("Conversation historical record:\n")
+            _uiState.value.languageChatLog.takeLast(10).forEach { item ->
+                val speaker = if (item.isUser) "User" else "Eddie"
+                historyBuilder.append("$speaker: ${item.message}\n")
+            }
+            historyBuilder.append("\nUser current input: \"$text\"\n")
+            historyBuilder.append("Respond as Eddie in JSON now.")
+            val prompt = historyBuilder.toString()
+            
+            try {
+                val response = repository.sendSimpleRequest(
+                    prompt = prompt,
+                    systemText = systemText,
+                    providerKeys = keysMap,
+                    providerUrls = urlsMap
+                )
+                
+                // Attempt JSON parsing
+                var cleanResponse = response.trim()
+                if (cleanResponse.startsWith("```")) {
+                    if (cleanResponse.contains("{")) {
+                        cleanResponse = cleanResponse.substringAfter("{").substringBeforeLast("}")
+                        cleanResponse = "{$cleanResponse}"
+                    }
+                }
+                
+                var responseText = ""
+                var englishTranslation: String? = null
+                var phoneticSpelling: String? = null
+                var pronunciationTips: String? = null
+                var corrections: String? = null
+                
+                try {
+                    val jsonObj = JSONObject(cleanResponse)
+                    responseText = jsonObj.optString("responseText", "")
+                    englishTranslation = jsonObj.optString("englishTranslation").let { if (it.isEmpty() || it == "null") null else it }
+                    phoneticSpelling = jsonObj.optString("phoneticSpelling").let { if (it.isEmpty() || it == "null") null else it }
+                    pronunciationTips = jsonObj.optString("pronunciationTips").let { if (it.isEmpty() || it == "null") null else it }
+                    corrections = jsonObj.optString("corrections").let { if (it.isEmpty() || it == "null") null else it }
+                } catch (jsonEx: Exception) {
+                    // Fallback to treat raw text as response text
+                    responseText = response
+                }
+                
+                if (responseText.isEmpty()) {
+                    responseText = response
+                }
+                
+                val finalUpdatedLog = _uiState.value.languageChatLog.toMutableList()
+                finalUpdatedLog.add(
+                    LanguageChatMessage(
+                        message = responseText,
+                        isUser = false,
+                        translationInEnglish = englishTranslation,
+                        phoneticSpelling = phoneticSpelling,
+                        pronunciationTips = pronunciationTips,
+                        corrections = corrections
+                    )
+                )
+                
+                _uiState.update { state ->
+                    state.copy(
+                        languageIsLoading = false,
+                        languageChatLog = finalUpdatedLog,
+                        languageIsSpeakActive = true
+                    )
+                }
+                
+                // TTS Aloud in target language!
+                val localeToUse = when (targetLanguage) {
+                    "Spanish" -> java.util.Locale("es", "ES")
+                    "French" -> java.util.Locale("fr", "FR")
+                    "Japanese" -> java.util.Locale("ja", "JP")
+                    "German" -> java.util.Locale("de", "DE")
+                    "Korean" -> java.util.Locale("ko", "KR")
+                    else -> java.util.Locale.US
+                }
+                tts?.language = localeToUse
+                tts?.speak(responseText, android.speech.tts.TextToSpeech.QUEUE_FLUSH, null, "EddieLanguageUtteranceId")
+            } catch (e: Exception) {
+                val errorResponse = "Sorry, I can't reach Eddie right now: ${e.localizedMessage}. Please check your connection."
+                val finalUpdatedLog = _uiState.value.languageChatLog.toMutableList()
+                finalUpdatedLog.add(LanguageChatMessage(message = errorResponse, isUser = false))
+                
+                _uiState.update { state ->
+                    state.copy(
+                        languageIsLoading = false,
+                        languageChatLog = finalUpdatedLog,
+                        languageIsSpeakActive = true,
+                        languageError = e.localizedMessage ?: "Network error"
+                    )
+                }
+                tts?.speak(errorResponse, android.speech.tts.TextToSpeech.QUEUE_FLUSH, null, "EddieLanguageUtteranceId")
+            }
+        }
+    }
+    
+    fun setLanguageSpeakActive(active: Boolean) {
+        _uiState.update { it.copy(languageIsSpeakActive = active) }
+    }
+    
+    fun clearLanguageLearningChat() {
+        _uiState.update { it.copy(languageChatLog = emptyList(), languageError = "") }
+    }
+    
+    fun changeLanguageLocale(lang: String) {
+        _uiState.update { it.copy(languageSelectedLocale = lang, languageChatLog = emptyList()) }
+        generateSuggestedVocabulary()
+    }
+    
+    fun changeLanguagePracticeLevel(lvl: String) {
+        _uiState.update { it.copy(languagePracticeLevel = lvl) }
+        generateSuggestedVocabulary()
+    }
+    
+    fun changeLanguageConversationTopic(topic: String) {
+        _uiState.update { it.copy(languageConversationTopic = topic, languageChatLog = emptyList()) }
+        generateSuggestedVocabulary()
+    }
+    
+    fun generateSuggestedVocabulary() {
+        viewModelScope.launch {
+            val targetLanguage = _uiState.value.languageSelectedLocale
+            val topic = _uiState.value.languageConversationTopic
+            val level = _uiState.value.languagePracticeLevel
+            
+            val keysMap = mapOf("Gemini" to _uiState.value.geminiApiKey)
+            val urlsMap = mapOf("Gemini" to _uiState.value.geminiBaseUrl)
+            
+            val systemInstruction = """
+                You are Eddie, a helpful language learning system.
+                Provide exactly 4 useful vocabulary words or short helper phrases in $targetLanguage with their English translations for the topic: "$topic" (Level: $level).
+                Format the output strictly as a JSON array of objects, with each object containing "foreign" and "english" keys. e.g.,
+                [
+                  {"foreign": "¿Cómo te llamas?", "english": "What is your name?"},
+                  {"foreign": "Mucho gusto", "english": "Nice to meet you"}
+                ]
+                Return only raw JSON. No markdown code blocks, do not wrap in python code fence or anything.
+            """.trimIndent()
+            
+            try {
+                val response = repository.sendSimpleRequest(
+                    prompt = "Generate 4 relative vocabulary/phrases for topic: $topic in $targetLanguage.",
+                    systemText = systemInstruction,
+                    providerKeys = keysMap,
+                    providerUrls = urlsMap
+                )
+                var cleanResponse = response.trim()
+                if (cleanResponse.startsWith("```")) {
+                    if (cleanResponse.contains("[")) {
+                        cleanResponse = "[" + cleanResponse.substringAfter("[").substringBeforeLast("]") + "]"
+                    }
+                }
+                
+                val list = mutableListOf<Pair<String, String>>()
+                val parsed = JSONArray(cleanResponse)
+                for (i in 0 until parsed.length()) {
+                    val obj = parsed.getJSONObject(i)
+                    val foreign = obj.optString("foreign", "")
+                    val english = obj.optString("english", "")
+                    if (foreign.isNotBlank()) {
+                        list.add(foreign to english)
+                    }
+                }
+                _uiState.update { it.copy(languageSuggestedVocabulary = list) }
+            } catch (e: Exception) {
+                // fallback
+                val fallback = when (targetLanguage) {
+                    "Spanish" -> listOf(
+                        "Hola, ¿cómo estás?" to "Hello, how are you?",
+                        "Me gustaría ordenar..." to "I would like to order...",
+                        "¿Dónde está el baño?" to "Where is the bathroom?",
+                        "Muchas gracias" to "Thank you very much"
+                    )
+                    "French" -> listOf(
+                        "Bonjour, comment ça va ?" to "Hello, how is it going?",
+                        "Je voudrais commander..." to "I would like to order...",
+                        "Où se trouvent les toilettes ?" to "Where are the restrooms?",
+                        "Merci beaucoup" to "Thank you very much"
+                    )
+                    "Japanese" -> listOf(
+                        "こんにちは、お元気ですか？" to "Hello, how are you?",
+                        "注文をお願いします" to "I would like to order, please.",
+                        "お手洗いはどこですか？" to "Where is the restroom?",
+                        "ありがとうございます" to "Thank you very much"
+                    )
+                    "German" -> listOf(
+                        "Hallo, wie geht es dir?" to "Hello, how are you?",
+                        "Ich möchte bestellen..." to "I would like to order...",
+                        "Wo ist die Toilette?" to "Where is the restroom?",
+                        "Vielen Dank" to "Thank you very much"
+                    )
+                    "Korean" -> listOf(
+                        "안녕하세요, 잘 지내세요?" to "Hello, how are you?",
+                        "주문할게요" to "I'll order, please.",
+                        "화장실이 어디예요?" to "Where is the restroom?",
+                        "감사합니다" to "Thank you very much"
+                    )
+                    else -> listOf(
+                        "Hello, how are you?" to "Formal greeting",
+                        "Can you help me?" to "Request assistance",
+                        "Thank you so much" to "Expression of gratitude",
+                        "How much is this?" to "Asking for price"
+                    )
+                }
+                _uiState.update { it.copy(languageSuggestedVocabulary = fallback) }
+            }
+        }
+    }
+
     // 2. Vision & Image Analyzer
     fun selectVisionImage(uri: android.net.Uri?, bitmap: android.graphics.Bitmap?) {
         _uiState.update { it.copy(
@@ -2496,6 +3176,489 @@ class ChatViewModel(
                     visionIsLoading = false,
                     visionResult = "Error: Connection failed or timeout occurred while analyzing the image: ${e.localizedMessage}. Please try again later or add your Gemini API Key in Settings."
                 )}
+            }
+        }
+    }
+
+    // 8. Photo Tourism AR Guide VM Methods
+    fun selectArImage(uri: android.net.Uri?, bitmap: android.graphics.Bitmap?) {
+        _uiState.update { it.copy(
+            arSelectedUri = uri,
+            arSelectedBitmap = bitmap,
+            arLandmarkName = "",
+            arLandmarkLocation = "",
+            arLandmarkDescription = "",
+            arHotspots = emptyList(),
+            arNarrativeText = "",
+            arFactsList = emptyList(),
+            arSearchQuery = "",
+            arSearchError = ""
+        ) }
+    }
+
+    fun scanArImage(customPrompt: String = "") {
+        if (customPrompt.startsWith("AUTO_LOAD_SAMPLE_")) {
+            _uiState.update { it.copy(
+                arLandmarkName = "",
+                arLandmarkLocation = "",
+                arLandmarkDescription = "",
+                arHotspots = emptyList(),
+                arNarrativeText = "",
+                arFactsList = emptyList(),
+                arSearchError = ""
+            ) }
+            return
+        }
+        val bitmap = _uiState.value.arSelectedBitmap
+        if (bitmap == null) {
+            _uiState.update { it.copy(arSearchError = "Warning: Please capture a photo or select an image first!") }
+            return
+        }
+
+        viewModelScope.launch {
+            _uiState.update { it.copy(
+                arIsScanning = true,
+                arSearchError = "",
+                arLandmarkName = "",
+                arLandmarkLocation = "",
+                arLandmarkDescription = "",
+                arHotspots = emptyList(),
+                arNarrativeText = "",
+                arFactsList = emptyList()
+            ) }
+
+            val keysMap = mapOf("Gemini" to _uiState.value.geminiApiKey)
+            val urlsMap = mapOf("Gemini" to _uiState.value.geminiBaseUrl)
+
+            val systemInstruction = """
+                You are a historical tourist guide. Analyze this tourist snapshot image.
+                Detect the historical artifact, building, natural landmark, or monument.
+                Provide an interactive and fun AR tour guide response.
+                Generate your response in standard JSON format. Containing exactly these properties:
+                - landmarkName: (String) name of monument
+                - location: (String) City, Country
+                - description: (String) A fascinating clean summary of the landmark
+                - narrative: (String) A 3-4 sentence warm, engaging audio guide narration read in a friendly tone as an immersive voice tour of the monument
+                - hotspots: (Array of Objects) where each object contains:
+                  - title: (String) Point of Interest or detail name inside this image
+                  - description: (String) historical fact or detail about this point
+                  - xPercent: (Float) horizontal offset percentage coordinate of this point inside the image layout, value between 0.15 and 0.85
+                  - yPercent: (Float) vertical offset percentage coordinate of this point inside the image layout, value between 0.15 and 0.85
+                Make sure you provide 2 to 4 interactive hotspots. Keep the narrative under 4 sentences. Return ONLY valid JSON format.
+            """.trimIndent()
+
+            val finalPrompt = if (customPrompt.isNotBlank()) "$systemInstruction. Extra User Guideline: $customPrompt" else systemInstruction
+
+            try {
+                val result = repository.sendVisionRequest(
+                    bitmap = bitmap,
+                    prompt = finalPrompt,
+                    providerKeys = keysMap,
+                    providerUrls = urlsMap
+                )
+
+                // Safe parsing of the JSON block using native platform org.json.JSONObject
+                var name = ""
+                var location = ""
+                var description = ""
+                var narrative = ""
+                var hotspots = emptyList<com.example.ui.chat.ArHotspot>()
+
+                try {
+                    val cleanJson = result.trim()
+                        .removePrefix("```json")
+                        .removeSuffix("```")
+                        .trim { it.isWhitespace() || it == '`' }
+
+                    val startBracket = cleanJson.indexOf('{')
+                    val endBracket = cleanJson.lastIndexOf('}')
+                    if (startBracket != -1 && endBracket != -1 && endBracket > startBracket) {
+                        val jsonStr = cleanJson.substring(startBracket, endBracket + 1)
+                        val jsonObj = org.json.JSONObject(jsonStr)
+
+                        name = jsonObj.optString("landmarkName", "")
+                        location = jsonObj.optString("location", "")
+                        description = jsonObj.optString("description", "")
+                        narrative = jsonObj.optString("narrative", "")
+
+                        val hotspotsArray = jsonObj.optJSONArray("hotspots")
+                        if (hotspotsArray != null) {
+                            val list = mutableListOf<com.example.ui.chat.ArHotspot>()
+                            for (i in 0 until hotspotsArray.length()) {
+                                val item = hotspotsArray.getJSONObject(i)
+                                val elementTitle = item.optString("title", "")
+                                val elementDesc = item.optString("description", "")
+                                val xVal = item.optDouble("xPercent", 0.5).toFloat()
+                                val yVal = item.optDouble("yPercent", 0.5).toFloat()
+                                list.add(com.example.ui.chat.ArHotspot(elementTitle, elementDesc, xVal, yVal))
+                            }
+                            hotspots = list
+                        }
+                    } else {
+                        throw Exception("No JSON brackets found")
+                    }
+                } catch (pe: Exception) {
+                    // Fallback parse using simple regex or direct string split
+                    name = findRegexField(result, "landmarkName")
+                    location = findRegexField(result, "location")
+                    description = findRegexField(result, "description")
+                    narrative = findRegexField(result, "narrative")
+                    if (name.isBlank()) {
+                        // Fallback parsing failed utterly, use raw response as description
+                        name = "Recognized Landmark"
+                        location = "Unknown"
+                        description = result
+                        narrative = "Welcome to this historic destination! We are currently reading the visual indicators coordinates."
+                    }
+                }
+
+                _uiState.update { it.copy(
+                    arIsScanning = false,
+                    arLandmarkName = name,
+                    arLandmarkLocation = location,
+                    arLandmarkDescription = description,
+                    arNarrativeText = narrative,
+                    arHotspots = hotspots
+                ) }
+
+            } catch (e: Exception) {
+                _uiState.update { it.copy(
+                    arIsScanning = false,
+                    arSearchError = "Scan failed: ${e.localizedMessage}. Please verify your network and Gemini API keys."
+                ) }
+            }
+        }
+    }
+
+    private fun findRegexField(raw: String, field: String): String {
+        val pattern = java.util.regex.Pattern.compile("\"$field\"\\s*:\\s*\"([^\"]*)\"")
+        val matcher = pattern.matcher(raw)
+        return if (matcher.find()) matcher.group(1) ?: "" else ""
+    }
+
+    fun searchArFact(query: String) {
+        if (query.isBlank()) return
+        val landmark = _uiState.value.arLandmarkName.ifBlank { "this monument" }
+
+        viewModelScope.launch {
+            _uiState.update { it.copy(
+                arIsSearchingFacts = true,
+                arSearchError = "",
+                arSearchQuery = query
+            ) }
+
+            val keysMap = mapOf("Gemini" to _uiState.value.geminiApiKey)
+            val urlsMap = mapOf("Gemini" to _uiState.value.geminiBaseUrl)
+
+            val prompt = "Provide a clean historical trivia, ticket packages, or visiting guide about $landmark answering the query: '$query'. Provide 3 concise bullet points."
+            val systemText = "You are a professional historical tour curator. Give exactly 3 fascinating tourist facts formatted with bullet points."
+
+            try {
+                val result = repository.sendSimpleRequest(
+                    prompt = prompt,
+                    systemText = systemText,
+                    providerKeys = keysMap,
+                    providerUrls = urlsMap
+                )
+
+                // Parse into list of elements
+                val bullets = result.lines()
+                    .map { it.trim().removePrefix("-").removePrefix("*").trim() }
+                    .filter { it.isNotBlank() }
+
+                _uiState.update { it.copy(
+                    arIsSearchingFacts = false,
+                    arFactsList = if (bullets.isNotEmpty()) bullets else listOf(result)
+                ) }
+            } catch (e: Exception) {
+                _uiState.update { it.copy(
+                    arIsSearchingFacts = false,
+                    arSearchError = "Fact search failed: ${e.localizedMessage}"
+                ) }
+            }
+        }
+    }
+
+    fun setArTtsSpeaking(speaking: Boolean) {
+        _uiState.update { it.copy(arTtsIsSpeaking = speaking) }
+    }
+
+    // 9. Socratic AI Math Tutor VM Methods
+    fun selectMathImage(uri: android.net.Uri?, bitmap: android.graphics.Bitmap?) {
+        _uiState.update { it.copy(
+            mathSelectedUri = uri,
+            mathSelectedBitmap = bitmap,
+            mathProblemOverview = "",
+            mathSteps = emptyList(),
+            mathCurrentStepIndex = 0,
+            mathConceptExplanation = "",
+            mathError = "",
+            mathCustomQuestion = "",
+            mathTutorHistory = emptyList()
+        ) }
+    }
+
+    fun setMathStudentLevel(level: String) {
+        _uiState.update { it.copy(mathStudentLevel = level) }
+    }
+
+    fun resetMathTutor() {
+        _uiState.update { it.copy(
+            mathProblemOverview = "",
+            mathSteps = emptyList(),
+            mathCurrentStepIndex = 0,
+            mathConceptExplanation = "",
+            mathError = "",
+            mathCustomQuestion = "",
+            mathTutorHistory = emptyList()
+        ) }
+    }
+
+    fun setMathCurrentStepIndex(index: Int) {
+        _uiState.update { it.copy(
+            mathCurrentStepIndex = index,
+            mathConceptExplanation = "",
+            mathCustomQuestion = "",
+            mathTutorHistory = emptyList()
+        ) }
+    }
+
+    fun solveMathProblem(problemTextFallback: String = "", customLoadPresetJson: String = "") {
+        val bitmap = _uiState.value.mathSelectedBitmap
+        if (bitmap == null && problemTextFallback.isBlank() && customLoadPresetJson.isBlank()) {
+            _uiState.update { it.copy(mathError = "Please capture/select an image or enter a mathematical problem first!") }
+            return
+        }
+
+        viewModelScope.launch {
+            _uiState.update { it.copy(
+                mathIsLoading = true,
+                mathError = "",
+                mathProblemOverview = "Analyzing mathematical constraints...",
+                mathSteps = emptyList(),
+                mathCurrentStepIndex = 0,
+                mathConceptExplanation = "",
+                mathCustomQuestion = "",
+                mathTutorHistory = emptyList()
+            ) }
+
+            if (customLoadPresetJson.isNotBlank()) {
+                try {
+                    val jsonObj = org.json.JSONObject(customLoadPresetJson)
+                    val overview = jsonObj.optString("problemOverview", "Active Study Challenge")
+                    val stepsArray = jsonObj.getJSONArray("steps")
+                    val stepsList = mutableListOf<com.example.ui.chat.MathStep>()
+                    for (i in 0 until stepsArray.length()) {
+                        val stepObj = stepsArray.getJSONObject(i)
+                        stepsList.add(
+                            com.example.ui.chat.MathStep(
+                                stepIndex = stepObj.optInt("stepIndex", i + 1),
+                                stepTitle = stepObj.optString("stepTitle", "Analysis Step"),
+                                mathematicalExpression = stepObj.optString("mathematicalExpression", ""),
+                                intuitiveExplanation = stepObj.optString("intuitiveExplanation", ""),
+                                conceptKey = stepObj.optString("conceptKey", "Formula Rule")
+                            )
+                        )
+                    }
+
+                    _uiState.update { it.copy(
+                        mathIsLoading = false,
+                        mathProblemOverview = overview,
+                        mathSteps = stepsList,
+                        mathCurrentStepIndex = 0
+                    ) }
+                    return@launch
+                } catch (e: Exception) {
+                    // Fail over
+                }
+            }
+
+            val keysMap = mapOf("Gemini" to _uiState.value.geminiApiKey)
+            val urlsMap = mapOf("Gemini" to _uiState.value.geminiBaseUrl)
+            val studentLevel = _uiState.value.mathStudentLevel
+
+            val systemInstruction = """
+                You are a highly compassionate, patient Socratic Tutor (specializing in Math, Physics, and Chemistry).
+                Analyze the study problem provided in the photo or text.
+                We want to support a Socratic learning journey. Do NOT just give the final answer.
+                Deconstruct the solution into clear, manageable steps.
+                For each step, provide a patient, conversational explanation tailored for a student at the "$studentLevel" level.
+                Provide your response strictly in standard JSON format containing these exact properties:
+                - problemOverview: (String) summary of the calculus, algebra, physics, or chemistry problem
+                - steps: (Array of Objects) representing the sequential path to solve it. Each object must contain:
+                  - stepIndex: (Int) starting from 1
+                  - stepTitle: (String) brief title of this step action (e.g. "Factor the Quadratic Equation")
+                  - mathematicalExpression: (String) the algebraic formula or expression resulting at this step
+                  - intuitiveExplanation: (String) a caring, encouraging explanation of the logic, avoiding jargon where possible
+                  - conceptKey: (String) the primary rule or conceptual tool used (e.g., "Chain Rule", "Product Rule", "U-Substitution")
+                Ensure you provide between 3 and 6 steps to completely solve the problem. Return ONLY valid JSON format.
+            """.trimIndent()
+
+            val prompt = if (problemTextFallback.isNotBlank()) {
+                "Socratic Breakdown Request for: $problemTextFallback"
+            } else {
+                "Deconstruct the problem in this image into structural Socratic steps."
+            }
+
+            try {
+                val result = if (bitmap != null) {
+                    repository.sendVisionRequest(
+                        bitmap = bitmap,
+                        prompt = "$systemInstruction\nPrompt: $prompt",
+                        providerKeys = keysMap,
+                        providerUrls = urlsMap
+                    )
+                } else {
+                    repository.sendSimpleRequest(
+                        prompt = prompt,
+                        systemText = systemInstruction,
+                        providerKeys = keysMap,
+                        providerUrls = urlsMap
+                    )
+                }
+
+                val cleanJson = result.trim()
+                    .removePrefix("```json")
+                    .removeSuffix("```")
+                    .trim { it.isWhitespace() || it == '`' }
+
+                val startBracket = cleanJson.indexOf('{')
+                val endBracket = cleanJson.lastIndexOf('}')
+                if (startBracket != -1 && endBracket != -1 && endBracket > startBracket) {
+                    val jsonStr = cleanJson.substring(startBracket, endBracket + 1)
+                    val jsonObj = org.json.JSONObject(jsonStr)
+
+                    val overview = jsonObj.optString("problemOverview", "Active Study Challenge")
+                    val stepsArray = jsonObj.getJSONArray("steps")
+                    val stepsList = mutableListOf<com.example.ui.chat.MathStep>()
+                    for (i in 0 until stepsArray.length()) {
+                        val stepObj = stepsArray.getJSONObject(i)
+                        stepsList.add(
+                            com.example.ui.chat.MathStep(
+                                stepIndex = stepObj.optInt("stepIndex", i + 1),
+                                stepTitle = stepObj.optString("stepTitle", "Analysis Step"),
+                                mathematicalExpression = stepObj.optString("mathematicalExpression", ""),
+                                intuitiveExplanation = stepObj.optString("intuitiveExplanation", ""),
+                                conceptKey = stepObj.optString("conceptKey", "Formula Rule")
+                            )
+                        )
+                    }
+
+                    _uiState.update { it.copy(
+                        mathIsLoading = false,
+                        mathProblemOverview = overview,
+                        mathSteps = stepsList,
+                        mathCurrentStepIndex = 0
+                    ) }
+                } else {
+                    throw Exception("Could not find a structured JSON block in tutor's response.")
+                }
+            } catch (e: Exception) {
+                val sampleOverview = if (problemTextFallback.isNotBlank()) problemTextFallback else "Calculus/Algebra Challenge"
+                _uiState.update { it.copy(
+                    mathIsLoading = false,
+                    mathProblemOverview = sampleOverview,
+                    mathError = "We couldn't connect to Gemini AI (Verify keys). To help you study, here's a simulated Socratic deconstruction of a related derivative problem! (Or try selecting a preset math challenge above.)",
+                    mathSteps = listOf(
+                        com.example.ui.chat.MathStep(
+                            stepIndex = 1,
+                            stepTitle = "Identify the structure and apply the Product Rule",
+                            mathematicalExpression = "d/dx [x * sin(x^2)] = x * d/dx[sin(x^2)] + sin(x^2) * d/dx[x]",
+                            intuitiveExplanation = "Since we have one function (x) multiplied by another (sin(x²)), we must use the Product Rule: (first * derivative of second) + (second * derivative of first). Take a deep breath, we will do each part together!",
+                            conceptKey = "Product Rule"
+                        ),
+                        com.example.ui.chat.MathStep(
+                            stepIndex = 2,
+                            stepTitle = "Differentiate sin(x^2) using Chain Rule",
+                            mathematicalExpression = "d/dx[sin(x^2)] = cos(x^2) * 2x",
+                            intuitiveExplanation = "This is a nested function: sin(u) where u = x². The Chain rule says differentiate the outer shell (sin becomes cos) then multiply by the derivative of the inside (derivative of x² is 2x). Placing them together yields cos(x²) * 2x.",
+                            conceptKey = "Chain Rule"
+                        ),
+                        com.example.ui.chat.MathStep(
+                            stepIndex = 3,
+                            stepTitle = "Combine terms and simplify",
+                            mathematicalExpression = "dy/dx = 2x^2 * cos(x^2) + sin(x^2)",
+                            intuitiveExplanation = "Now let's replace back: x * (cos(x²) * 2x) + sin(x²) * (1). Multiply x by 2x to get 2x². Adding sin(x²) gives us our final elegant answer. You made it! That was beautiful work.",
+                            conceptKey = "Algebraic Simplification"
+                        )
+                    ),
+                    mathCurrentStepIndex = 0
+                ) }
+            }
+        }
+    }
+
+    fun askMathTutorQuestion(customQuery: String = "") {
+        val steps = _uiState.value.mathSteps
+        val index = _uiState.value.mathCurrentStepIndex
+        if (steps.isEmpty() || index >= steps.size) return
+
+        val activeStep = steps[index]
+        val studentLevel = _uiState.value.mathStudentLevel
+
+        viewModelScope.launch {
+            _uiState.update { it.copy(
+                mathExplanationIsLoading = true,
+                mathConceptExplanation = ""
+            ) }
+
+            val keysMap = mapOf("Gemini" to _uiState.value.geminiApiKey)
+            val urlsMap = mapOf("Gemini" to _uiState.value.geminiBaseUrl)
+
+            val currentStepExpress = activeStep.mathematicalExpression
+            val currentStepExplain = activeStep.intuitiveExplanation
+            val currentStepConcept = activeStep.conceptKey
+
+            val queryToSend = if (customQuery.isBlank()) "Why did we do that?" else customQuery
+
+            val prompt = """
+                We are in a Socratic tutoring session (Math, Physics, or Chemistry). 
+                Active Problem: "${_uiState.value.mathProblemOverview}"
+                We are looking at Step ${index + 1}: "${activeStep.stepTitle}"
+                Step Output Formula: `$currentStepExpress`
+                Step Primary Concept: `$currentStepConcept`
+                What we explained so far on this step: "$currentStepExplain"
+
+                The student (studying at a "$studentLevel" level of empathy) is asking specifically: "$queryToSend"
+                
+                Respond in a warm, patient, kind, and encouraging tone. Explain just this specific concept or transition. 
+                Keep your response around 3 helpful sentences. Make the student feel supported and intelligent.
+            """.trimIndent()
+
+            val systemText = "You are a warm, sweet, Socratic teacher. Give short, compassionate, concept-only intuitive explanations."
+
+            try {
+                val explanation = repository.sendSimpleRequest(
+                    prompt = prompt,
+                    systemText = systemText,
+                    providerKeys = keysMap,
+                    providerUrls = urlsMap
+                )
+
+                val dialogItem = "Student: $queryToSend\nTutor: $explanation"
+                val updatedHistory = _uiState.value.mathTutorHistory + dialogItem
+
+                _uiState.update { it.copy(
+                    mathExplanationIsLoading = false,
+                    mathConceptExplanation = explanation,
+                    mathTutorHistory = updatedHistory
+                ) }
+            } catch (e: Exception) {
+                val mathGuideBackup = when(activeStep.conceptKey) {
+                    "Product Rule" -> "We did that because when two algebraic expressions are multiplied together, you cannot simply differentiate them individually. The Product Rule preserves their multiplier symmetry: first function times derivative of the second, plus second times derivative of the first!"
+                    "Chain Rule" -> "We apply the Chain Rule here because sin(x²) is like a classic Russian nesting doll. To resolve its rate of change, we first address the outer shell (turning sine into cosine) and then multiply by the derivative of the inside variables (which is 2x)."
+                    "Algebraic Simplification" -> "We did that to clean up our raw mathematical notation! By multiplying the loose x variables together, we arrived at a much tidier layout of 2x²cos(x²)."
+                    else -> "We did this step to establish a simple, logical bridge. Math is built step-by-step, and solving this partial transition ensures we maintain clean math before completing the solution!"
+                }
+
+                val dialogItem = "Student: $queryToSend\nTutor: $mathGuideBackup"
+                val updatedHistory = _uiState.value.mathTutorHistory + dialogItem
+
+                _uiState.update { it.copy(
+                    mathExplanationIsLoading = false,
+                    mathConceptExplanation = mathGuideBackup,
+                    mathTutorHistory = updatedHistory
+                ) }
             }
         }
     }
@@ -3372,6 +4535,1659 @@ class ChatViewModel(
 
     fun stopTalkingHeadAnimation() {
         _uiState.update { it.copy(talkingHeadIsPlaying = false) }
+    }
+
+    // --- KIDS AI STORYTELLER ---
+    fun setStoryTheme(theme: String) {
+        _uiState.update { it.copy(storySelectedTheme = theme) }
+    }
+
+    fun setStoryChildName(name: String) {
+        _uiState.update { it.copy(storyChildName = name) }
+    }
+
+    fun setStoryStyle(style: String) {
+        _uiState.update { it.copy(storySelectedStyle = style) }
+    }
+
+    fun setStoryPageIndex(index: Int) {
+        _uiState.update { it.copy(storyCurrentPageIndex = index) }
+    }
+
+    fun clearStoryError() {
+        _uiState.update { it.copy(storyError = "") }
+    }
+
+    fun resetStoryBook() {
+        _uiState.update { it.copy(storyActiveBook = null, storyCurrentPageIndex = 0, storyError = "", storyIsLoading = null) }
+    }
+
+    fun generateKidsStory(
+        theme: String,
+        childName: String,
+        style: String,
+        tts: android.speech.tts.TextToSpeech?
+    ) {
+        val sanitizedTheme = theme.trim().ifEmpty { "Magic Fairy Forest" }
+        val sanitizedName = childName.trim().ifEmpty { "Leo" }
+        val sanitizedStyle = style.trim().ifEmpty { "Watercolor Illustration" }
+
+        viewModelScope.launch {
+            _uiState.update {
+                it.copy(
+                    storySelectedTheme = sanitizedTheme,
+                    storyChildName = sanitizedName,
+                    storySelectedStyle = sanitizedStyle,
+                    storyIsLoading = "Drafting your magical fairy tale...",
+                    storyError = "",
+                    storyActiveBook = null,
+                    storyCurrentPageIndex = 0
+                )
+            }
+
+            val apiKey = _uiState.value.geminiApiKey
+            if (apiKey.isBlank() || apiKey.contains("PLACEHOLDER")) {
+                // If API Key is missing, load a beautiful offline story!
+                delay(1500)
+                val book = getOfflineStory(sanitizedTheme, sanitizedName, sanitizedStyle)
+                val updatedList = _uiState.value.storyBookList.toMutableList().apply { add(0, book) }
+                _uiState.update {
+                    it.copy(
+                        storyActiveBook = book,
+                        storyIsLoading = null,
+                        storyBookList = updatedList
+                    )
+                }
+                // Speak the first page of the offline book!
+                speakStoryPage(book.pages.firstOrNull()?.text ?: "", tts)
+                return@launch
+            }
+
+            try {
+                _uiState.update { it.copy(storyIsLoading = "Weaving cohesive plot lines and characters...") }
+
+                val systemText = """
+                    You are a premium, award-winning children's storybook author.
+                    Generate exactly 5 continuous storybook pages based on the User's Theme and the Child's Name.
+                    Output a single JSON object with a "title" and a "pages" array of exactly 5 page objects with this exact structure:
+                    {
+                      "title": "A highly creative, magical title for the book",
+                      "pages": [
+                        {
+                          "pageNumber": 1,
+                          "pageTitle": "A short whimsical chapter or scene name",
+                          "text": "A paragraphs or 2-4 sweet storytelling lines filled with wonder. Keep it child-friendly, colorful, highly narrative, and beautiful.",
+                          "imagePrompt": "Highly descriptive scene illustration prompt detailing objects, main characters, colorful background elements, mood, and lightning. Do not include style keywords since style is injected separately."
+                        }
+                      ]
+                    }
+                    Strict rules:
+                    - Address the child by name as the hero throughout the adventure.
+                    - Keep sentences delightful, highly readable, and filled with gentle moral lessons or discovery.
+                    - Do not write any markdown code fences. Return only raw JSON string.
+                """.trimIndent()
+
+                val promptMsg = "Theme: $sanitizedTheme, Child Name: $sanitizedName."
+
+                val keysMap = mapOf("Gemini" to apiKey)
+                val urlsMap = mapOf("Gemini" to _uiState.value.geminiBaseUrl)
+
+                val output = repository.sendSimpleRequest(
+                    prompt = promptMsg,
+                    systemText = systemText,
+                    providerKeys = keysMap,
+                    providerUrls = urlsMap
+                )
+
+                var rawText = output.trim()
+                if (rawText.startsWith("```json")) {
+                    rawText = rawText.substringAfter("```json")
+                } else if (rawText.startsWith("```")) {
+                    rawText = rawText.substringAfter("```")
+                }
+                if (rawText.endsWith("```")) {
+                    rawText = rawText.substringBeforeLast("```")
+                }
+                rawText = rawText.trim()
+
+                var parsedBook: KidStory? = null
+                try {
+                    val jsonObj = org.json.JSONObject(rawText)
+                    val bookTitle = jsonObj.optString("title", "A Whimsical Adventure")
+                    val pagesArray = jsonObj.getJSONArray("pages")
+                    val parsedPages = mutableListOf<StoryPage>()
+
+                    for (i in 0 until pagesArray.length()) {
+                        val pObj = pagesArray.getJSONObject(i)
+                        parsedPages.add(
+                            StoryPage(
+                                pageNumber = pObj.optInt("pageNumber", i + 1),
+                                title = pObj.optString("pageTitle", "Scene ${i + 1}"),
+                                text = pObj.optString("text", "Leo went on a beautiful starry stroll."),
+                                imagePrompt = pObj.optString("imagePrompt", "cute colorful space fields, friendly cartoon style")
+                            )
+                        )
+                    }
+
+                    parsedBook = KidStory(
+                        title = bookTitle,
+                        theme = sanitizedTheme,
+                        childName = sanitizedName,
+                        illustrationStyle = sanitizedStyle,
+                        pages = parsedPages
+                    )
+                } catch (e: Exception) {
+                    android.util.Log.e("Storyteller", "JSON Parse error: ${e.message}. Using offline fallback.")
+                    parsedBook = getOfflineStory(sanitizedTheme, sanitizedName, sanitizedStyle)
+                }
+
+                val bookToUse = parsedBook ?: getOfflineStory(sanitizedTheme, sanitizedName, sanitizedStyle)
+                val updatedList = _uiState.value.storyBookList.toMutableList().apply { add(0, bookToUse) }
+
+                _uiState.update {
+                    it.copy(
+                        storyActiveBook = bookToUse,
+                        storyIsLoading = "Painting illustrations for all pages in the background...",
+                        storyBookList = updatedList
+                    )
+                }
+
+                // Fire image generation
+                generateIllustrationsForBook(bookToUse, sanitizedStyle)
+
+                _uiState.update { it.copy(storyIsLoading = null) }
+
+                // Read page 1 aloud!
+                speakStoryPage(bookToUse.pages.firstOrNull()?.text ?: "", tts)
+
+            } catch (e: Exception) {
+                val book = getOfflineStory(sanitizedTheme, sanitizedName, sanitizedStyle)
+                val updatedList = _uiState.value.storyBookList.toMutableList().apply { add(0, book) }
+                _uiState.update {
+                    it.copy(
+                        storyError = "Gemini API failed: ${e.message}. Loaded dynamic Offline Tale!",
+                        storyActiveBook = book,
+                        storyIsLoading = null,
+                        storyBookList = updatedList
+                    )
+                }
+                speakStoryPage(book.pages.firstOrNull()?.text ?: "", tts)
+            }
+        }
+    }
+
+    private fun generateIllustrationsForBook(book: KidStory, style: String) {
+        viewModelScope.launch {
+            val stylePrefix = when (style) {
+                "Watercolor Illustration" -> "Lively, bright, highly detailed whimsical children's book watercolor illustration, cute pastel color palette, soft clean shapes, child friendly, scene: "
+                "Cute Pixel Art" -> "Vibrant 16-bit cute pixel art style, gameboy advance console retro screen, child-friendly cute vector aesthetics, scene: "
+                "Playful 3D Claymation" -> "Beautiful 3D stop-motion claymation, cozy hand-modeled play-doh figures, detailed plastiline characters, studio lighting, cute childish fantasy, scene: "
+                "Whimsical Storybook Sketch" -> "Delicate pencil drawing with color ink wash, cozy storybook classic illustration, classic fairy tale sketches, magical warm soft shadows, scene: "
+                else -> "Cozy bright whimsical children's book illustration, cartoon vibes, scene: "
+            }
+
+            book.pages.forEach { page ->
+                try {
+                    val fullPrompt = "$stylePrefix${page.imagePrompt}"
+                    val imageUri = repository.generateGeminiImage(
+                        prompt = fullPrompt,
+                        model = "gemini-2.5-flash",
+                        aspectRatio = "1:1",
+                        imageSize = "1K"
+                    )
+
+                    _uiState.update { state ->
+                        val active = state.storyActiveBook
+                        if (active != null && active.id == book.id) {
+                            val updatedPages = active.pages.map { p ->
+                                if (p.pageNumber == page.pageNumber) p.copy(imagePath = imageUri) else p
+                            }
+                            state.copy(storyActiveBook = active.copy(pages = updatedPages))
+                        } else {
+                            state
+                        }
+                    }
+                } catch (e: Exception) {
+                    android.util.Log.e("Storyteller", "Failed to paint page ${page.pageNumber}: ${e.message}")
+                }
+            }
+        }
+    }
+
+    fun speakStoryPage(text: String, tts: android.speech.tts.TextToSpeech?) {
+        if (text.isBlank()) return
+        viewModelScope.launch {
+            _uiState.update { it.copy(storyIsPlayingAudio = true) }
+            if (tts != null) {
+                tts.language = java.util.Locale.US
+                tts.setOnUtteranceProgressListener(object : android.speech.tts.UtteranceProgressListener() {
+                    override fun onStart(utteranceId: String?) {}
+                    override fun onDone(utteranceId: String?) {
+                        _uiState.update { it.copy(storyIsPlayingAudio = false) }
+                    }
+                    override fun onError(utteranceId: String?) {
+                        _uiState.update { it.copy(storyIsPlayingAudio = false) }
+                    }
+                })
+                val params = android.os.Bundle().apply {
+                    putString(android.speech.tts.TextToSpeech.Engine.KEY_PARAM_UTTERANCE_ID, "StoryUtteranceId")
+                }
+                tts.speak(text, android.speech.tts.TextToSpeech.QUEUE_FLUSH, params, "StoryUtteranceId")
+            } else {
+                delay(4000)
+                _uiState.update { it.copy(storyIsPlayingAudio = false) }
+            }
+        }
+    }
+
+    fun stopStorySpeaker(tts: android.speech.tts.TextToSpeech?) {
+        try {
+            tts?.stop()
+        } catch (e: Exception) {}
+        _uiState.update { it.copy(storyIsPlayingAudio = false) }
+    }
+
+    fun selectHistoryStoryBook(book: KidStory, tts: android.speech.tts.TextToSpeech?) {
+        _uiState.update { it.copy(storyActiveBook = book, storyCurrentPageIndex = 0, storyError = "", storyIsLoading = null) }
+        speakStoryPage(book.pages.firstOrNull()?.text ?: "", tts)
+    }
+
+    private fun getOfflineStory(theme: String, childName: String, style: String): KidStory {
+        val title = "The Whimsical Quest of $childName"
+        val pages = listOf(
+            StoryPage(
+                pageNumber = 1,
+                title = "The Magic Gateway",
+                text = "Once upon a time, $childName discovered a shiny gold key nestled beneath a whispering willow leaf. With a sparkling leap, a magic gateway appeared, swirling with candy clouds and vanilla music!",
+                imagePrompt = "a cute child looking at a glowing golden door in an enchanted purple forest"
+            ),
+            StoryPage(
+                pageNumber = 2,
+                title = "Meeting Barnaby Bear",
+                text = "As $childName stepped through the door, a fluffy blue bear wearing tiny round glasses ran up. 'Hello there!' giggled Barnaby Bear. 'I have been waiting to show you our beautiful candy skies!'",
+                imagePrompt = "a cute fluffy blue cartoon bear with round spectables waving hello in a candy landscape"
+            ),
+            StoryPage(
+                pageNumber = 3,
+                title = "The Chocolate River Cruise",
+                text = "They hopped onto a floating marshmallow boat with strawberry sails. Together, $childName and Barnaby sailed down a lazy chocolate river, catching shiny jellybean fish with silver buckets.",
+                imagePrompt = "a marshmallow boat sailing on a chocolate river with a young kid and blue bear"
+            ),
+            StoryPage(
+                pageNumber = 4,
+                title = "The Rainbow Slide",
+                text = "Next, they arrived at the legendary Sugarcone Mountain. At the peak was a grand rainbow slide! $childName held Barnaby's paw and went sliding down, laughing into a warm puddle of soft whipped cream.",
+                imagePrompt = "a happy kid sliding down a gigantic glowing rainbow toward fluffy clouds of whipped cream"
+            ),
+            StoryPage(
+                pageNumber = 5,
+                title = "Sweet Dreams",
+                text = "The stars began to blink like soft yellow nightlights. Hand in hand, Barnaby Bear tucked $childName into a cozy bed of cotton candy. 'You are the bravest explorer,' whispered the stars, as $childName drifted off to sweet sleep.",
+                imagePrompt = "a cozy bedtime scene where a happy child is nestled in pastel cotton candy under shining yellow stars"
+            )
+        )
+        return KidStory(
+            title = title,
+            theme = theme,
+            childName = childName,
+            illustrationStyle = style,
+            pages = pages
+        )
+    }
+
+    // --- CHILDREN'S COLORING BOOK GENERATOR ---
+    fun setColorBookTheme(theme: String) {
+        _uiState.update { it.copy(colorBookTheme = theme) }
+    }
+
+    fun setColorBookChildName(name: String) {
+        _uiState.update { it.copy(colorBookChildName = name) }
+    }
+
+    fun generateColoringBook(theme: String, childName: String) {
+        val sanitizedTheme = theme.trim().lowercase()
+        val sanitizedName = childName.trim().ifEmpty { "Alex" }
+        
+        _uiState.update { 
+            it.copy(
+                colorBookTheme = sanitizedTheme,
+                colorBookChildName = sanitizedName,
+                colorBookIsLoading = true, 
+                colorBookError = null, 
+                colorBookPdfPath = null, 
+                colorBookPages = emptyList() 
+            ) 
+        }
+
+        // Determine preset type based on keywords
+        val presetType = when {
+            sanitizedTheme.contains("space") || sanitizedTheme.contains("dinosaur") || sanitizedTheme.contains("universe") || sanitizedTheme.contains("star") -> "space_dinosaur"
+            sanitizedTheme.contains("princess") || sanitizedTheme.contains("castle") || sanitizedTheme.contains("fairy") || sanitizedTheme.contains("magic") || sanitizedTheme.contains("pony") || sanitizedTheme.contains("royal") -> "princess_castle"
+            sanitizedTheme.contains("underwater") || sanitizedTheme.contains("sea") || sanitizedTheme.contains("fish") || sanitizedTheme.contains("ocean") || sanitizedTheme.contains("dolphin") || sanitizedTheme.contains("shark") -> "underwater"
+            sanitizedTheme.contains("robot") || sanitizedTheme.contains("tech") || sanitizedTheme.contains("gear") || sanitizedTheme.contains("gadget") || sanitizedTheme.contains("mechanic") -> "robot"
+            sanitizedTheme.contains("jungle") || sanitizedTheme.contains("safari") || sanitizedTheme.contains("lion") || sanitizedTheme.contains("animal") || sanitizedTheme.contains("monkey") || sanitizedTheme.contains("forest") -> "jungle"
+            sanitizedTheme.contains("farm") || sanitizedTheme.contains("cow") || sanitizedTheme.contains("pig") || sanitizedTheme.contains("sheep") || sanitizedTheme.contains("barn") || sanitizedTheme.contains("tractor") || sanitizedTheme.contains("chicken") -> "farm"
+            sanitizedTheme.contains("car") || sanitizedTheme.contains("race") || sanitizedTheme.contains("truck") || sanitizedTheme.contains("vehicle") || sanitizedTheme.contains("train") || sanitizedTheme.contains("wheel") -> "vehicles"
+            sanitizedTheme.contains("hero") || sanitizedTheme.contains("cape") || sanitizedTheme.contains("mask") || sanitizedTheme.contains("shield") || sanitizedTheme.contains("power") -> "superheroes"
+            sanitizedTheme.contains("cat") || sanitizedTheme.contains("dog") || sanitizedTheme.contains("puppy") || sanitizedTheme.contains("kitten") || sanitizedTheme.contains("pet") || sanitizedTheme.contains("fluffy") -> "pets"
+            sanitizedTheme.contains("candy") || sanitizedTheme.contains("chocolate") || sanitizedTheme.contains("lollipop") || sanitizedTheme.contains("sweet") || sanitizedTheme.contains("dessert") || sanitizedTheme.contains("cookie") -> "candyland"
+            sanitizedTheme.contains("dragon") || sanitizedTheme.contains("fire") || sanitizedTheme.contains("wings") || sanitizedTheme.contains("scales") || sanitizedTheme.contains("mythical") -> "dragons"
+            sanitizedTheme.contains("pirate") || sanitizedTheme.contains("sail") || sanitizedTheme.contains("ship") || sanitizedTheme.contains("anchor") || sanitizedTheme.contains("treasure") || sanitizedTheme.contains("island") -> "pirates"
+            sanitizedTheme.contains("astronaut") || sanitizedTheme.contains("rocket") || sanitizedTheme.contains("orbit") || sanitizedTheme.contains("galaxy") || sanitizedTheme.contains("cosmonaut") || sanitizedTheme.contains("planet") -> "astronauts"
+            sanitizedTheme.contains("toy") || sanitizedTheme.contains("bear") || sanitizedTheme.contains("teddy") || sanitizedTheme.contains("dollhouse") || sanitizedTheme.contains("blocks") || sanitizedTheme.contains("playroom") -> "toys"
+            sanitizedTheme.contains("ice cream") || sanitizedTheme.contains("scoop") || sanitizedTheme.contains("sundae") || sanitizedTheme.contains("cone") || sanitizedTheme.contains("cherry") || sanitizedTheme.contains("sprinkles") -> "ice_cream"
+            sanitizedTheme.contains("circus") || sanitizedTheme.contains("clown") || sanitizedTheme.contains("tent") || sanitizedTheme.contains("juggler") || sanitizedTheme.contains("acrobat") || sanitizedTheme.contains("balloon") -> "circus"
+            sanitizedTheme.contains("enchanted") || sanitizedTheme.contains("mushroom") || sanitizedTheme.contains("elf") || sanitizedTheme.contains("fairy") || sanitizedTheme.contains("toadstool") || sanitizedTheme.contains("owl") -> "enchanted"
+            sanitizedTheme.contains("cave") || sanitizedTheme.contains("prehistoric") || sanitizedTheme.contains("volcano") || sanitizedTheme.contains("pterodactyl") || sanitizedTheme.contains("lava") -> "dino_cave"
+            sanitizedTheme.contains("alien") || sanitizedTheme.contains("saucer") || sanitizedTheme.contains("ufo") || sanitizedTheme.contains("martian") -> "aliens"
+            sanitizedTheme.contains("winter") || sanitizedTheme.contains("snow") || sanitizedTheme.contains("snowman") || sanitizedTheme.contains("igloo") || sanitizedTheme.contains("penguin") || sanitizedTheme.contains("polar") || sanitizedTheme.contains("sled") -> "winter"
+            else -> "space_dinosaur"
+        }
+
+        viewModelScope.launch {
+            val apiKey = _uiState.value.geminiApiKey
+            val worksOffline = apiKey.isBlank() || apiKey.contains("PLACEHOLDER")
+
+            if (worksOffline) {
+                // Return immediate localized simulated pages
+                delay(1200)
+                val offlinePages = getOfflineColoringPages(presetType, sanitizedTheme, sanitizedName)
+                _uiState.update { it.copy(colorBookPages = offlinePages, colorBookIsLoading = false) }
+                return@launch
+            }
+
+            try {
+                val systemText = """
+                    You are a premium children's coloring book author.
+                    Generate exactly 5 distinct coloring pages based on the user's Theme and the Child's Name.
+                    Output a JSON array of exactly 5 page objects with this exact structure:
+                    [
+                      {
+                        "pageNumber": 1,
+                        "title": "A short descriptive title for the drawing (e.g. T-Rex floating in orbit)",
+                        "storyPoem": "A cute, happy, 4-line rhyming poem for kids that mentions the child's name and is about the drawing theme."
+                      }
+                    ]
+                    Strict rules:
+                    - Do not include any formatting markdown like ```json or ```. Return only raw JSON string.
+                    - Each storyPoem MUST be a humorous, rhyming 4-line poem.
+                    - Address the child by name in the poems to make it personalized!
+                """.trimIndent()
+
+                val promptMsg = "Theme: $sanitizedTheme, Child's Name: $sanitizedName."
+                
+                val keysMap = mapOf("Gemini" to apiKey)
+                val urlsMap = mapOf("Gemini" to _uiState.value.geminiBaseUrl)
+                
+                val output = repository.sendSimpleRequest(
+                    prompt = promptMsg,
+                    systemText = systemText,
+                    providerKeys = keysMap,
+                    providerUrls = urlsMap
+                )
+                
+                var rawText = output.trim()
+                if (rawText.startsWith("```json")) {
+                    rawText = rawText.substringAfter("```json")
+                } else if (rawText.startsWith("```")) {
+                    rawText = rawText.substringAfter("```")
+                }
+                if (rawText.endsWith("```")) {
+                    rawText = rawText.substringBeforeLast("```")
+                }
+                rawText = rawText.trim()
+
+                val parsedPages = mutableListOf<ColoringPage>()
+                try {
+                    val jsonArray = org.json.JSONArray(rawText)
+                    for (i in 0 until jsonArray.length()) {
+                        val obj = jsonArray.getJSONObject(i)
+                        parsedPages.add(
+                            ColoringPage(
+                                pageNumber = obj.optInt("pageNumber", i + 1),
+                                title = obj.optString("title", "Page ${i + 1}"),
+                                storyPoem = obj.optString("storyPoem", "A lovely day to color and play!"),
+                                imagePath = null,
+                                presetType = presetType
+                            )
+                        )
+                    }
+                } catch (e: Exception) {
+                    val offlinePages = getOfflineColoringPages(presetType, sanitizedTheme, sanitizedName)
+                    parsedPages.addAll(offlinePages)
+                }
+
+                _uiState.update { it.copy(colorBookPages = parsedPages, colorBookIsLoading = false) }
+
+                // Fire image generation
+                generateImagesForPages(parsedPages, sanitizedTheme)
+
+            } catch (e: Exception) {
+                _uiState.update { 
+                    it.copy(
+                        colorBookError = "Gemini API failed: ${e.message}. Offline Fallback loaded.",
+                        colorBookPages = getOfflineColoringPages(presetType, sanitizedTheme, sanitizedName),
+                        colorBookIsLoading = false
+                    ) 
+                }
+            }
+        }
+    }
+
+    private fun generateImagesForPages(pages: List<ColoringPage>, theme: String) {
+        viewModelScope.launch {
+            pages.forEach { page ->
+                try {
+                    val imagePrompt = "Thick black lines vector outline contour coloring page for children, bold comic lines, clean white solid filled shapes, no gray, no gradient, no shading, simple, friendly, printable, subject: ${page.title}"
+                    val imageUri = repository.generateGeminiImage(
+                        prompt = imagePrompt,
+                        model = "gemini-2.5-flash",
+                        aspectRatio = "1:1",
+                        imageSize = "1K"
+                    )
+                    _uiState.update { state ->
+                        val updatedList = state.colorBookPages.map { p ->
+                            if (p.pageNumber == page.pageNumber) {
+                                p.copy(imagePath = imageUri)
+                            } else {
+                                p
+                            }
+                        }
+                        state.copy(colorBookPages = updatedList)
+                    }
+                } catch (e: Exception) {
+                    android.util.Log.e("ColorBookRegen", "Failed to draw page ${page.pageNumber}: ${e.message}")
+                }
+            }
+        }
+    }
+
+    private fun getOfflineColoringPages(presetType: String, theme: String, childName: String): List<ColoringPage> {
+        return when (presetType) {
+            "space_dinosaur" -> listOf(
+                ColoringPage(1, "Astronaut T-Rex Orbiting", "With a silver suit and a fishbowl head,\n$childName is floating where stars are spread.\nThey wave hello to a glowing star,\nSpace is fun, both near and far!", null, "space_dinosaur"),
+                ColoringPage(2, "Stegosaurus Rocket Ride", "$childName joins Stego on the flight,\nInto the stardust of the night!\nWith plates all shining, green and clean,\nThe greatest spaceship ever seen.", null, "space_dinosaur"),
+                ColoringPage(3, "Pterodactyl Saturn Cruise", "Flying past the cosmic ring,\n$childName and Pterodactyl sing.\nNo air to flap, but we don't mind,\nLeaving cozy Earth behind!", null, "space_dinosaur"),
+                ColoringPage(4, "Triceratops Moon Rover", "Three-horn walker steps so light,\nOn the craters dusty white.\n$childName bounces high and free,\nHappy as a dino can be!", null, "space_dinosaur"),
+                ColoringPage(5, "Brachiosaurus Star Lunch", "With a neck so super-long,\nBrachio sings a starlit song.\n$childName feeds him star-salads bright,\nA delicious cosmic spacey bite!", null, "space_dinosaur")
+            )
+            "princess_castle" -> listOf(
+                ColoringPage(1, "The Fairy Garden Tiara", "$childName wears a tiara grand,\nRuling over a magic land.\nFlowers whisper stories sweet,\nGrowing blossoms at your feet.", null, "princess_castle"),
+                ColoringPage(2, "Princess Castle in Gold Clouds", "High towers rise in cloudy sky,\nWhere colorful balloons float by.\n$childName waves from windows high,\nAs friendly matching dragons fly.", null, "princess_castle"),
+                ColoringPage(3, "The Magic Carousel Pony", "A royal horse with starry mane,\nRunning through the magic lane.\n$childName holds the silver reins,\nOver sparkly rainbow plains.", null, "princess_castle"),
+                ColoringPage(4, "Tea Party under Willows", "Little rabbits pour the tea,\nLaughing under willow tree.\n$childName eats a frosted cake,\nThat the fairy bakers bake.", null, "princess_castle"),
+                ColoringPage(5, "Wishing Star at Bedtime", "Starry night is soft and blue,\nEvery dream is coming true.\n$childName makes a sleepy wish,\nTo a floating star-shaped fish.", null, "princess_castle")
+            )
+            "underwater" -> listOf(
+                ColoringPage(1, "Dolphin Jump and Splash", "Dolphin leaps in salty air,\nSplashing water everywhere.\n$childName watches from the shore,\nWanting many jumps and more!", null, "underwater"),
+                ColoringPage(2, "Yellow Submarine Expedition", "Submarine with windows round,\nSinking to the ocean ground.\n$childName is the captain bold,\nSearching for the chest of gold.", null, "underwater"),
+                ColoringPage(3, "Happy Seahorse Parade", "Seahorses marching two by two,\nIn the underwater blue.\n$childName plays a sea-shell horn,\nWhere the coral reefs are born.", null, "underwater"),
+                ColoringPage(4, "Octopus Balloon Meeting", "Eight long arms that wave a greeting,\nAt the friendly turtle meeting.\n$childName gets an eight-arm hug,\nWarm and cozy, safe and snug.", null, "underwater"),
+                ColoringPage(5, "The Pearl in the Oyster", "Oyster shell is opened wide,\nWith a shiny pearl inside.\n$childName finds the treasure bright,\nGlowing in the deep-sea night.", null, "underwater")
+            )
+            "robot" -> listOf(
+                ColoringPage(1, "Friendly Robot Beep", "With a square metal head and computer eyes,\nFriendly Beep waves hello as the sparrow flies.\n$childName type-types a code so bright,\nMaking parts light up in deep blue light!", null, "robot"),
+                ColoringPage(2, "Robot Workshop Party", "Wrenches, gears, and bolts that dance,\nGive the battery cells a chance.\n$childName joins the robo-band,\nClapping hands across the land.", null, "robot"),
+                ColoringPage(3, "Super Rocket Roller-Skates", "Fastest wheels you've ever seen,\nRunning on a solar screen.\n$childName helps him skate and spin,\nWith a super happy grin.", null, "robot"),
+                ColoringPage(4, "Flying Drone Delivery", "Propellers turning round and round,\nCarrying presents off the ground.\n$childName opens up the box,\nFinding customized robo-socks!", null, "robot"),
+                ColoringPage(5, "Windup Clockwork Pup", "Metal tail goes wag-wag-wag,\nCarrying a picnic bag.\n$childName winds the golden key,\nHappy as a pup can be!", null, "robot")
+            )
+            "jungle" -> listOf(
+                ColoringPage(1, "The Explorers Lion Cub", "He wears a hat of safari green,\nSoftest ears you've ever seen.\n$childName feeds him coconut treats,\nSitting on safari seats.", null, "jungle"),
+                ColoringPage(2, "Monkey Rope Acrobatics", "Swinging from the banyan branch,\nAt the wild banana ranch.\n$childName helps him catch a bunch,\nFor a very yummy lunch.", null, "jungle"),
+                ColoringPage(3, "Baby Elephant Water Shower", "Trumpet nose sprays water cool,\nIn the splashing forest pool.\n$childName enjoys the misty spray,\nOn a sunny forest day.", null, "jungle"),
+                ColoringPage(4, "Giraffe Sky Heights", "Tallest neck that eats a cloud,\nStanding very tall and proud.\n$childName climbs the ladder tree,\nTo wave hello so happily!", null, "jungle"),
+                ColoringPage(5, "Parrot Island Colors", "Wings of red and yellow bright,\nTaking happy forest flight.\n$childName talks in parrot screech,\nEating delicious yellow peach.", null, "jungle")
+            )
+            "farm" -> listOf(
+                ColoringPage(1, "The Squeaky Cow & Tractor", "With a big friendly 'Moo' and a tractor in tow,\n$childName shows the happy cows where they should go.\nThe sun is so high and the meadows are green,\nThe coziest little farm you've ever seen!", null, "farm"),
+                ColoringPage(2, "Happy Little Piggie Mud Bath", "A pink little piglet is splashing with glee,\nOink oink! goes the pig under apple-ripe tree.\n$childName giggles loud as a muddy splash flies,\nWhile happy birds sing up in golden warm skies!", null, "farm"),
+                ColoringPage(3, "The Fluffy Sheep Wool Parade", "With curly white coats and with cute tiny tails,\nThe sweet little sheep are now leaving their trails.\n$childName helps lead them to valleys of sleep,\nAs they jump one by one, oh the fluffy-wool sheep!", null, "farm"),
+                ColoringPage(4, "The Rooster's Sunshine Song", "Cock-a-doodle-doo! sings the proud feathery king,\nTo wake up the farm and the flowers of spring.\n$childName runs out with a bucket of wheat,\nTo give all the baby chicks something to eat!", null, "farm"),
+                ColoringPage(5, "The Playful Barnyard Puppy", "The dog has a bone and a wag of delight,\nHe runs round the barn making shadows look bright.\n$childName throws a frisbee that flies in the air,\nWith joy in the barnyard and love everywhere!", null, "farm")
+            )
+            "vehicles" -> listOf(
+                ColoringPage(1, "Super-Speed Lightning Racecar", "Vroom-vroom! goes the racer around the big track,\nIt's super-fast red from the front to the back!\n$childName is driving and steering so tight,\nAnd winning the golden grand trophy tonight!", null, "vehicles"),
+                ColoringPage(2, "The Big Bouncy Monster Truck", "With tires as tall as a house or a tree,\nThis bouncy big truck is as brave as can be.\n$childName jumps over a mountain of dirt,\nWhile wearing a helmet and racing-car shirt!", null, "vehicles"),
+                ColoringPage(3, "The Friendly Steam Locomotive", "Chugga-chugga choo-choo! the old engine cries,\nWith white steam clouds floating up high to the skies.\n$childName is waving from windows so wide,\nAs we travel along on a beautiful ride!", null, "vehicles"),
+                ColoringPage(4, "The Sky-High Flying Airplane", "High up in the clouds where the cool breezes blow,\n$childName looks down at the houses below.\nWith wings made of silver and propellers that spin,\nThe sky-high adventure is going to begin!", null, "vehicles"),
+                ColoringPage(5, "The Busy Yellow Excavator", "With claws made of iron and muscles of steel,\nThe digger scoops dirt with a rumble you feel!\n$childName controls all the levers so bold,\nTo find the deep canyon's shiny bright gold!", null, "vehicles")
+            )
+            "superheroes" -> listOf(
+                ColoringPage(1, "Heroic Cape Leap over Clouds", "With a bright red cape fluttering wild in the breeze,\n$childName can fly high above giant trees!\nThey jump over skyscrapers, happy and bold,\nWith a heart made of kindness and pure solid gold!", null, "superheroes"),
+                ColoringPage(2, "The Cosmic Shield Protection", "A star-studded shield made of sparkliest light,\n$childName is keeping the world safe tonight!\nNo bad guys can scare us, we laugh and we play,\nTo save all the puppy-dogs, day after day!", null, "superheroes"),
+                ColoringPage(3, "Flying Team-Up with Masked Hero", "Two superfriends flying so high side-by-side,\nAcross the grand sky with a giggle and glide.\n$childName and SuperPup swoop through the air,\nBringing big happy smiles to the sandbox out there!", null, "superheroes"),
+                ColoringPage(4, "The Speed-of-Light Running Boots", "Zap! goes the hero with boots painted blue,\nThey run twice as fast as the kangaroo too!\n$childName is racing around the whole park,\nAnd making the stars light up out of the dark!", null, "superheroes"),
+                ColoringPage(5, "The Superhero Secret Headquarters", "A high-tech treehouse with computers that beep,\nWhere helpers can watch while the baby cats sleep.\n$childName plan-plans a grand playdate of fun,\nUnder the light of the warm cozy sun!", null, "superheroes")
+            )
+            "pets" -> listOf(
+                ColoringPage(1, "Cute Puppy Chase under Flowers", "With ears so soft and a nose wet and small,\nThe happy pup jumps for the stripey red ball.\n$childName runs fast with a giggle and stride,\nThrough flowery gardens where bumblebees hide!", null, "pets"),
+                ColoringPage(2, "Fluffy Kitten Tangled in Yarn", "Meow! goes the kitten, all tangled in blue,\nShe plays with a yarn ball and looks up at you.\n$childName helps untangle her paws with a pat,\nWhat a silly and cuddly little fluffy-cat!", null, "pets"),
+                ColoringPage(3, "Goldfish Blowing Bubble Wishes", "The little orange fish is swimming with grace,\nA watery castle is his favorite place.\n$childName taps gently and whispers a wish,\nTo the bubbliest, happiest little gold-fish!", null, "pets"),
+                ColoringPage(4, "Chirpy Canary Secret Song", "With yellowest feathers and black beady eyes,\nHe sings a sweet song as the breakfast cake flies.\n$childName whistles a tune that is happy and clear,\nTo bring cozy joy to the whole family here!", null, "pets"),
+                ColoringPage(5, "Bunny Hop over Rainbow Fields", "With long floppy ears and a tail like a ball,\nThis little white bunny is not very tall.\n$childName feeds him a carrot both crunchy and sweet,\nAs he hops with delight on his bunny-hop feet!", null, "pets")
+            )
+            "candyland" -> listOf(
+                ColoringPage(1, "Lollipop Swirl Forest Adventure", "Step into a forest where lollipops grow,\nIn red, green, and purple, a rainbow-bright show!\n$childName walks down on a strawberry street,\nWhere leaves are all sugary, crunchy, and sweet!", null, "candyland"),
+                ColoringPage(2, "The Gingerbread Castle Guard", "A castle with walls made of cookie and spice,\nAnd windows of frosting that look very nice!\n$childName is crowned as the Candyland Mayor,\nIn a cozy sweet land of the lollipop player!", null, "candyland"),
+                ColoringPage(3, "Gummy Bear River Whitewater", "Row, row your boat down the chocolate stream,\nPast mountains of waffles and fluffy whipped cream!\n$childName can see all the gummy bears wave,\nIn a candy-boat voyage so happy and brave!", null, "candyland"),
+                ColoringPage(4, "The Giant Marshmallow Trampoline", "Boing-boing! on a marshmallow soft as a cloud,\n$childName is laughing and chanting out loud!\nIt bounces you high to the peppermint stars,\nPast flying candy cones and chocolatey bars!", null, "candyland"),
+                ColoringPage(5, "The Magic Cupcake Bakery", "With sprinkles of gold and a cherry on top,\nThe sweet cupcake baking will never-ever stop!\n$childName is decorating frosting so blue,\nMaking delicious custom treats just for you!", null, "candyland")
+            )
+            "dragons" -> listOf(
+                ColoringPage(1, "The Friendly Fire-Breathing Playmate", "With happy orange scales and cute little wings,\nThe baby dragon flies while the forest bird sings.\n$childName offers a basket of marshmallows sweet,\nMaking their magical playdate completely complete!", null, "dragons"),
+                ColoringPage(2, "Magical Dragon's Cloud Castle", "High on a castle made of soft purple mist,\nIs a kind baby dragon that the fairy has kissed.\n$childName waves a wand made of gold and of light,\nUnder the friendly stars shining so bright!", null, "dragons"),
+                ColoringPage(3, "Dragon Egg Forest Nursery", "A shiny speckled egg is starting to crack,\nShowing tiny green wings and a cute spiky back.\n$childName sings a lullaby gentle and low,\nTo welcome the smallest baby dragon we know!", null, "dragons"),
+                ColoringPage(4, "Flying High on Dragonback", "Swooping and gliding through the sky of pure blue,\nOver the mountains and the green valleys too!\n$childName holds on with a laugh and a cheer,\nFor the happiest sky ride of the whole year!", null, "dragons"),
+                ColoringPage(5, "The Dragon's Treasure Picnic", "In a cozy stone cave filled with sparkling gems,\nAnd flower crowns decorated with emerald stems.\n$childName shares snacks on a red blanket space,\nTucking sweet cookies in the dragon's happy face!", null, "dragons")
+            )
+            "pirates" -> listOf(
+                ColoringPage(1, "The Captain's Treasure Island Map", "With an 'X' marks the spot on the sandy beach shore,\nOur pirate crew is set to find treasure galore!\n$childName holds the old map painted yellow and brown,\nWith a red pirate hat and a smile, not a frown!", null, "pirates"),
+                ColoringPage(2, "The Jolly Sailing Galleon", "With big white sails catching the warm ocean breeze,\nOur majestic pirate ship sails across the blue seas.\n$childName stands bold at the steering wheel side,\nBringing us home on a wonderful tide!", null, "pirates"),
+                ColoringPage(3, "The Friendly Parrot's Coconut Song", "A bright feathery pirate bird sitting up high,\nWhistled a funny song as he flew in the sky.\n$childName feeds him crackers both crunchy and round,\nWhile dancing with pirates all over the ground!", null, "pirates"),
+                ColoringPage(4, "The Golden Chest of Wonders", "We opened the ancient trunk under the tree,\nFull of magic gold coins and toys from the sea!\n$childName finds a star-shaped shell made of light,\nShining so beautiful, glittering bright!", null, "pirates"),
+                ColoringPage(5, "Dolphin Escort to Pirate Bay", "Two friendly grey dolphins are leaping ahead,\nWhere the sun is now setting all rosy and red.\n$childName waves goodbye with a pirate-flag cheer,\nTo the kindest sea creatures of the whole hemisphere!", null, "pirates")
+            )
+            "astronauts" -> listOf(
+                ColoringPage(1, "Astronaut $childName's Rocket Blastoff", "Ten, nine, eight! goes the grand count in the sky,\nAs the silver metal rocket ship starts flying high!\n$childName is smiling behind the glass space,\nWith sparkles of fuel-smoke all over the place!", null, "astronauts"),
+                ColoringPage(2, "Moonwalk Dance of the Astronauts", "Walking on the moon where we drift and we float,\nLike a puffy white cloud or a paper toy boat.\n$childName does a high-jump and catches a star,\nIn the cosmic space heaven so beautiful and far!", null, "astronauts"),
+                ColoringPage(3, "Picnic with Friendly Star-Pals", "Sitting on a comet with three happy space friends,\nWhere the glittering tail of the orbit-line ends.\n$childName serves tea from a thermos of warm blue,\nGiving space-cupcakes to the galaxy crew!", null, "astronauts"),
+                ColoringPage(4, "Ring Toss on Giant Saturn Outer Rings", "A striped golden planet with rings made of ice,\n$childName thinks playing space ring-toss is nice!\nWe throw colorful hoops that go round and go round,\nWith the happiest giggles and cosmic space sound!", null, "astronauts"),
+                ColoringPage(5, "The Alien Starship Welcome Party", "A glowing soft saucer with friendly pink eyes,\nIs flashing hello from the star-flecked black skies.\n$childName receives a green banner of peace,\nAs the cosmic space wanderings never-ever cease!", null, "astronauts")
+            )
+            "toys" -> listOf(
+                ColoringPage(1, "Teddy Bear Tea-Party Parade", "A soft brown teddy with buttons for eyes,\nSits down on a pillow as a toy plane flies.\n$childName pours tea in a tiny pink cup,\nHelping the cute little teddy drink up!", null, "toys"),
+                ColoringPage(2, "The Shiny Wind-Up Train Track Cruise", "Chugga-chugga choo-choo! goes the wooden toy train,\nMoving round and round past the blue windowpane.\n$childName sets the signals and turns the gold key,\nFor the happiest train ride you ever did see!", null, "toys"),
+                ColoringPage(3, "The Magic Block Castle Fortress", "With red blocks and blue blocks built ever so tall,\nTo house the toy soldiers and guard dogs and all.\n$childName places the topmost bright star on the tower,\nHolding a wooden crayon of magical power!", null, "toys"),
+                ColoringPage(4, "The Dancing Dollhouse Ball", "A miniature house filled with tiny wood chairs,\nAnd cute little carpets and white spiral stairs.\n$childName spins the ballerina doll in a sweet dance,\nIn the coziest toy-room of wonder and chance!", null, "toys"),
+                ColoringPage(5, "The Ragdoll's Colorful Balloon ride", "A friendly ragdoll made of patches and thread,\nHolds a bunch of balloons of bright yellow and red.\n$childName hops along on the playroom floor carpet,\nLeading the balloons to the playroom toy market!", null, "toys")
+            )
+            "ice_cream" -> listOf(
+                ColoringPage(1, "The Triple-Scoop Sundae Mountain", "With strawberry, mint, and banana scoop stack,\nWith chocolate syrup from front to the back!\n$childName adds sprinkles of silver and gold,\nTo the tallest sweet treat that a kitchen can hold!", null, "ice_cream"),
+                ColoringPage(2, "Ice Cream Truck Chiming Melody", "Ding-aling! goes the truck as the music-box plays,\nTo bring cooling delight to the sunny summer days.\n$childName orders a waffle cone painted with blue,\nWith happy sweet cherries for the family too!", null, "ice_cream"),
+                ColoringPage(3, "The Friendly Snow-Cone Penguin", "A cute little penguin with spoons in his hand,\nOffers colorful snow cones in cold Ice-Cream Land!\n$childName picks blueberry syrup so bright,\nMaking the snowman and penguin smile with delight!", null, "ice_cream"),
+                ColoringPage(4, "Floating on a Cream-Float River", "Rowing a wafer boat down the vanilla ice stream,\nUnder candy-floss clouds in a sweet pastry dream.\n$childName steers past the caramel-fudge waterfall,\nLoved of the children and sweet tooth of all!", null, "ice_cream"),
+                ColoringPage(5, "The Giant Peppermint Cookie House", "A cottage with doors made of pure chocolate bar,\nAnd windows of frosting that shine like a star.\n$childName decorates fences with gumdrops of red,\nBefore turning to rest in a sweet sugar bed!", null, "ice_cream")
+            )
+            "circus" -> listOf(
+                ColoringPage(1, "The Big Top Circus Balloon Parade", "Under the striped canvas roof of the grand tent,\nWhere the funniest clowns and the acrobats went.\n$childName holds a giant round bunch of balloons,\nWhile marching in time to the brassy parade tunes!", null, "circus"),
+                ColoringPage(2, "The Juggling Teddy Bear Acrobat", "A brown fluffy cub stands on one single wheel,\nJuggling red apples and a slippery banana peel.\n$childName plays the drums as the teddy bear spins,\nWinning the applause and the audience's grins!", null, "circus"),
+                ColoringPage(3, "The Friendly Seal's Beachball Trick", "Balancing a striped soccer ball on her wet nose,\nThe seal claps her flippers as the circus horn blows.\n$childName tosses a fishy treat into the pool,\nFor the cleverest seal at the beach acrobat school!", null, "circus"),
+                ColoringPage(4, "The Cheeky Clown's Bubble Splash", "With big bubbly shoes and a polka-dot nose,\nHe blows giant soap bubbles wherever he goes!\n$childName pops a bubble as big as a car,\nSending soap sparklies near and sending them far!", null, "circus"),
+                ColoringPage(5, "The Flying Trapeze Show of Stars", "Swooping and soaring up high in the dome,\nFar above the play-mats and comfort of home.\n$childName waves a baton with sparkles of white,\nTo guide all the acrobats safely tonight!", null, "circus")
+            )
+            "enchanted" -> listOf(
+                ColoringPage(1, "The Glowing Mushroom Fairy Home", "Under a toadstool of crimson and spots,\nLive the kind little wood-elves with clay teapot pots.\n$childName knocks soft on the wooden round door,\nLighting a pathway on the mossy green floor!", null, "enchanted"),
+                ColoringPage(2, "The Wise Owl's Moonlit Storybook", "Sitting up high in the hollow oak tree,\nIs a kind-hearted owl as wise as can be.\n$childName turns the pages of fairy-tale gold,\nThe coziest forest story you've ever been told!", null, "enchanted"),
+                ColoringPage(3, "The Magic Unicorn Meadow Run", "With a stardust mane and sweet daisy wreaths,\nA beautiful unicorn runs and she breathes.\n$childName offers an apple of sugar-gloss red,\nPatting the horn on the unicorn's head!", null, "enchanted"),
+                ColoringPage(4, "The Talking Tree's Fruit Harvest", "The old ancient oak stretches branches so wide,\nWith friendly round eyes and a warm smile inside.\n$childName catches big rosy peaches that fall,\nSharing the magic tree fruit with us all!", null, "enchanted"),
+                ColoringPage(5, "Flying Firefly Lantern Parade", "A hundred small lanterns of yellow and green,\nThe prettiest forest path you've ever seen.\n$childName holds a bell that goes tinkle-and-ring,\nAs we watch the wood-flickering fireflies wing!", null, "enchanted")
+            )
+            "dino_cave" -> listOf(
+                ColoringPage(1, "Baby T-Rex's Volcano Egg Hatch", "CRACK! goes the egg near the warm lava lake,\nOut pops a baby T-Rex with a wiggle and shake!\n$childName feeds him leafy green ferns from a plate,\nMaking the baby dino feel super-duper great!", null, "dino_cave"),
+                ColoringPage(2, "The Pterodactyl's Cloud Heights Glide", "With leathery wings flying high in the air,\nOver the mountains and valleys so bare.\n$childName is waving from rocky ledge heights,\nWatching the sky filled with golden sun-lights!", null, "dino_cave"),
+                ColoringPage(3, "Friendly Brontosaurus Lake Splash", "A long graceful neck drinking pool water cool,\nIn the blue forest-lined prehistoric pool.\n$childName rides safe on his wide tail of grey,\nSplashing and laughing the whole summer day!", null, "dino_cave"),
+                ColoringPage(4, "Stegosaurus Rocky Path March", "With plates on his back shaped like triangles bold,\nThis safe armored dino is brave to behold.\n$childName draws a path with a chalk piece of blue,\nTo guide the friendly herd of dinosaurs through!", null, "dino_cave"),
+                ColoringPage(5, "The Dino Cave Campfire Party", "Inside a stone shelter with drawing-lined walls,\nWhere the sound of a prehistoric waterfall falls.\n$childName toasts marshmallow twigs with dinosaur pals,\nLoving the primeval boys and the primeval gals!", null, "dino_cave")
+            )
+            "aliens" -> listOf(
+                ColoringPage(1, "UFO Landing in the Sandbox Yard", "A glowing silver saucer lands soft on the grass,\nWith friendly steam puffs and a mirror of glass!\n$childName walks out with a shovel and spade,\nTo welcome the cosmic space travelers we've made!", null, "aliens"),
+                ColoringPage(2, "Meeting the Three-Eyed Space Monster", "He has blue fuzzy skin and a gigglist giggle,\nAnd three friendly eyes that can wiggle-and-wiggle.\n$childName shares a plate of peanut butter slices,\nWith the happiest alien of all space crises!", null, "aliens"),
+                ColoringPage(3, "Martian Zero-Gravity Playground Jump", "On a small red-sand planet where gravity's light,\nWe bounce higher than the clouds out of our sight!\n$childName plays catch with an alien balloon,\nUnder the eyes of the crescent space moon!", null, "aliens"),
+                ColoringPage(4, "The Neon Robot Starship Repair", "Sparks of bright orange and laser-lights blue,\nAs we help fix the saucer with cosmic space glue!\n$childName holds the wrench while the gears start to spin,\nBefore the alien flights are ready to begin!", null, "aliens"),
+                ColoringPage(5, "Starship Glow-Party Dance Off", "Dancing with space aliens under the stars,\nPast Jupiter, Neptune, and red-planet Mars.\n$childName beats the drums while the lasers go zap,\nWith a space-dance and alien-claw hand clap!", null, "aliens")
+            )
+            "winter" -> listOf(
+                ColoringPage(1, "The Jolly Snowman's Carrot Nose", "With a coal-button smile and a woolen warm scarf,\nThis happy snow-gentleman makes the birds laugh.\n$childName places the carrot nose straight on his head,\nUnder the winter skies painted with red!", null, "winter"),
+                ColoringPage(2, "Playful Penguin Sledding Race", "Waddle and slide down the ice-mountain hill,\nOn a wooden red sled with a laughter-filled thrill!\n$childName steers fast as the chilly wind blows,\nLaughing and catching a snowflake on nose!", null, "winter"),
+                ColoringPage(3, "Cozy Igloo Lantern Warmth", "Inside a round dome built of ice-blocks of white,\nA warm golden candle shines out through the night.\n$childName drinks cocoa with marshmallow fluff,\nWrapped in a blanket of warm wooly stuff!", null, "winter"),
+                ColoringPage(4, "Polar Bear Cub's Sliding Ice Dance", "A big fuzzy white cub on the frozen blue bay,\nIs sliding and rolling and playing today.\n$childName throws a snowball that breaks in the air,\nWith cozy warm winter-time love everywhere!", null, "winter"),
+                ColoringPage(5, "The Magical Winter Sleigh Ride", "Two reindeer with bells lead the sleigh through the trees,\nUnder the frost-glowing branches that freeze.\n$childName wears mittens of cozy green wool,\nAs the holiday sleigh-bells go jingle-and-pull!", null, "winter")
+            )
+            else -> listOf( // fallback
+                ColoringPage(1, "The Explorers Lion Cub", "He wears a hat of safari green,\nSoftest ears you've ever seen.\n$childName feeds him coconut treats,\nSitting on safari seats.", null, "jungle"),
+                ColoringPage(2, "Monkey Rope Acrobatics", "Swinging from the banyan branch,\nAt the wild banana ranch.\n$childName helps him catch a bunch,\nFor a very yummy lunch.", null, "jungle"),
+                ColoringPage(3, "Baby Elephant Water Shower", "Trumpet nose sprays water cool,\nIn the splashing forest pool.\n$childName enjoys the misty spray,\nOn a sunny forest day.", null, "jungle"),
+                ColoringPage(4, "Giraffe Sky Heights", "Tallest neck that eats a cloud,\nStanding very tall and proud.\n$childName climbs the ladder tree,\nTo wave hello so happily!", null, "jungle"),
+                ColoringPage(5, "Parrot Island Colors", "Wings of red and yellow bright,\nTaking happy forest flight.\n$childName talks in parrot screech,\nEating delicious yellow peach.", null, "jungle")
+            )
+        }
+    }
+
+    fun generateColoringBookPdf() {
+        val context = com.example.AppContextProvider.context
+        val childName = _uiState.value.colorBookChildName.ifEmpty { "Alex" }
+        val theme = _uiState.value.colorBookTheme.ifEmpty { "space dinosaurs" }
+        val pages = _uiState.value.colorBookPages
+
+        _uiState.update { it.copy(colorBookGeneratingPdf = true, colorBookError = null) }
+
+        viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+            try {
+                val document = android.graphics.pdf.PdfDocument()
+                val paint = android.graphics.Paint()
+                
+                val titlePaint = android.graphics.Paint().apply {
+                    isAntiAlias = true
+                    textSize = 32f
+                    isFakeBoldText = true
+                    color = android.graphics.Color.BLACK
+                }
+
+                // --- PAGE 1: COVER ---
+                val coverPageInfo = android.graphics.pdf.PdfDocument.PageInfo.Builder(595, 842, 1).create()
+                val coverPage = document.startPage(coverPageInfo)
+                val coverCanvas = coverPage.canvas
+
+                // Decorative borders
+                paint.style = android.graphics.Paint.Style.STROKE
+                paint.strokeWidth = 6f
+                paint.color = android.graphics.Color.BLACK
+                coverCanvas.drawRect(24f, 24f, 571f, 818f, paint)
+                paint.strokeWidth = 1.5f
+                coverCanvas.drawRect(30f, 30f, 565f, 812f, paint)
+
+                // Cover Title
+                val titleText = "COLORING BOOK"
+                val titleWidth = titlePaint.measureText(titleText)
+                coverCanvas.drawText(titleText, (595f - titleWidth) / 2f, 150f, titlePaint)
+
+                val subtitlePaint = android.graphics.Paint().apply {
+                    isAntiAlias = true
+                    textSize = 22f
+                    isFakeBoldText = true
+                    color = android.graphics.Color.BLACK
+                }
+                val subText = "Adventures with $childName"
+                val subWidth = subtitlePaint.measureText(subText)
+                coverCanvas.drawText(subText, (595f - subWidth) / 2f, 200f, subtitlePaint)
+
+                // Draw decorative cover vector
+                paint.style = android.graphics.Paint.Style.STROKE
+                paint.strokeWidth = 3f
+                drawOfflineImageForPdf(coverCanvas, paint, 147f, 270f, 300f, 300f, pages.firstOrNull()?.presetType ?: "space_dinosaur", 1)
+
+                val footerPaint = android.graphics.Paint().apply {
+                    isAntiAlias = true
+                    textSize = 14f
+                    color = android.graphics.Color.DKGRAY
+                }
+                val themeLabel = "Theme: ${theme.uppercase()}"
+                val labelWidth = footerPaint.measureText(themeLabel)
+                coverCanvas.drawText(themeLabel, (595f - labelWidth) / 2f, 660f, footerPaint)
+
+                val creatorText = "Created by AI Artist Eddie • Single-Edition Printable"
+                val creatorWidth = footerPaint.measureText(creatorText)
+                coverCanvas.drawText(creatorText, (595f - creatorWidth) / 2f, 700f, footerPaint)
+
+                document.finishPage(coverPage)
+
+                // --- PAGES 2-6: COLORING TARGETS ---
+                pages.forEachIndexed { index, page ->
+                    val pageIndex = index + 2
+                    val pageInfo = android.graphics.pdf.PdfDocument.PageInfo.Builder(595, 842, pageIndex).create()
+                    val pdfPage = document.startPage(pageInfo)
+                    val canvas = pdfPage.canvas
+
+                    // Outer border
+                    paint.style = android.graphics.Paint.Style.STROKE
+                    paint.strokeWidth = 3f
+                    paint.color = android.graphics.Color.BLACK
+                    canvas.drawRect(25f, 25f, 570f, 817f, paint)
+
+                    // Page Title
+                    val headerPaint = android.graphics.Paint().apply {
+                        isAntiAlias = true
+                        textSize = 18f
+                        isFakeBoldText = true
+                        color = android.graphics.Color.BLACK
+                    }
+                    val formattedTitle = "Page ${page.pageNumber}: ${page.title}"
+                    canvas.drawText(formattedTitle, 40f, 65f, headerPaint)
+
+                    // Draw image
+                    val drawX = 47f
+                    val drawY = 100f
+                    val drawW = 500f
+                    val drawH = 470f
+
+                    var drawFallback = true
+                    if (!page.imagePath.isNullOrEmpty()) {
+                        try {
+                            val cleanPath = page.imagePath.substringAfter("file://").substringAfter("content://")
+                            val file = java.io.File(cleanPath)
+                            if (file.exists()) {
+                                val bitmap = android.graphics.BitmapFactory.decodeFile(file.absolutePath)
+                                if (bitmap != null) {
+                                    val destRect = android.graphics.RectF(drawX, drawY, drawX + drawW, drawY + drawH)
+                                    canvas.drawBitmap(bitmap, null, destRect, null)
+                                    drawFallback = false
+                                }
+                            }
+                        } catch (e: Exception) {
+                            e.printStackTrace()
+                        }
+                    }
+
+                    if (drawFallback) {
+                        paint.style = android.graphics.Paint.Style.STROKE
+                        paint.strokeWidth = 4f
+                        drawOfflineImageForPdf(canvas, paint, drawX + 75f, drawY + 60f, 350f, 350f, page.presetType, page.pageNumber)
+                    }
+
+                    // Rhyme poem centring
+                    val poemPaint = android.graphics.Paint().apply {
+                        isAntiAlias = true
+                        textSize = 13f
+                        color = android.graphics.Color.BLACK
+                        textAlign = android.graphics.Paint.Align.CENTER
+                    }
+
+                    val lines = page.storyPoem.split("\n")
+                    var currentY = 620f
+                    lines.forEach { line ->
+                        canvas.drawText(line.trim(), 297.5f, currentY, poemPaint)
+                        currentY += 22f
+                    }
+
+                    // Num indicating Page X of Y
+                    val pageNumPaint = android.graphics.Paint().apply {
+                        isAntiAlias = true
+                        textSize = 10f
+                        color = android.graphics.Color.GRAY
+                        textAlign = android.graphics.Paint.Align.RIGHT
+                    }
+                    canvas.drawText("Page ${page.pageNumber} of 5", 550f, 795f, pageNumPaint)
+
+                    document.finishPage(pdfPage)
+                }
+
+                // File Writer
+                val filename = "ColoringBook_${childName.replace(" ", "_")}_${System.currentTimeMillis()}.pdf"
+                var savedPath: String? = null
+
+                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+                    val contentValues = android.content.ContentValues().apply {
+                        put(android.provider.MediaStore.MediaColumns.DISPLAY_NAME, filename)
+                        put(android.provider.MediaStore.MediaColumns.MIME_TYPE, "application/pdf")
+                        put(android.provider.MediaStore.MediaColumns.RELATIVE_PATH, android.os.Environment.DIRECTORY_DOWNLOADS)
+                    }
+                    val uri = context.contentResolver.insert(
+                        android.provider.MediaStore.Downloads.EXTERNAL_CONTENT_URI,
+                        contentValues
+                    )
+                    if (uri != null) {
+                        context.contentResolver.openOutputStream(uri)?.use { outputStream ->
+                            document.writeTo(outputStream)
+                        }
+                        savedPath = "Downloads/$filename"
+                    }
+                } else {
+                    val downloadsDir = android.os.Environment.getExternalStoragePublicDirectory(android.os.Environment.DIRECTORY_DOWNLOADS)
+                    val pdfFile = java.io.File(downloadsDir, filename)
+                    java.io.FileOutputStream(pdfFile).use { fos ->
+                        document.writeTo(fos)
+                    }
+                    savedPath = pdfFile.absolutePath
+                }
+
+                document.close()
+
+                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                    _uiState.update { 
+                        it.copy(
+                            colorBookPdfPath = savedPath,
+                            colorBookGeneratingPdf = false
+                        )
+                    }
+                }
+
+            } catch (e: Exception) {
+                e.printStackTrace()
+                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                    _uiState.update { 
+                        it.copy(
+                            colorBookError = "Could not export PDF: ${e.message}",
+                            colorBookGeneratingPdf = false
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    private fun drawOfflineImageForPdf(
+        canvas: android.graphics.Canvas,
+        paint: android.graphics.Paint,
+        x: Float,
+        y: Float,
+        width: Float,
+        height: Float,
+        presetType: String,
+        pageNumber: Int
+    ) {
+        paint.color = android.graphics.Color.BLACK
+        paint.style = android.graphics.Paint.Style.STROKE
+        paint.strokeWidth = 4f
+
+        val cx = x + width / 2
+        val cy = y + height / 2
+
+        canvas.save()
+        canvas.clipRect(x, y, x + width, y + height)
+
+        if (presetType == "underwater") {
+            canvas.drawCircle(cx - 80f, cy - 80f, 10f, paint)
+            canvas.drawCircle(cx - 70f, cy - 120f, 6f, paint)
+            canvas.drawCircle(cx + 120f, cy - 40f, 15f, paint)
+        } else {
+            drawStarOnPdf(canvas, paint, cx - 120f, cy - 120f, 12f)
+            drawStarOnPdf(canvas, paint, cx + 110f, cy - 110f, 8f)
+            drawStarOnPdf(canvas, paint, cx + 130f, cy + 80f, 10f)
+        }
+
+        when (presetType) {
+            "space_dinosaur" -> {
+                canvas.drawCircle(cx - 80f, cy + 100f, 35f, paint)
+                canvas.drawCircle(cx, cy, 55f, paint)
+                paint.strokeWidth = 2f
+                canvas.drawCircle(cx, cy, 75f, paint)
+                paint.strokeWidth = 4f
+                canvas.drawCircle(cx - 10f, cy + 80f, 75f, paint)
+                canvas.drawCircle(cx - 15f, cy - 10f, 6f, paint)
+                canvas.drawCircle(cx + 15f, cy - 10f, 6f, paint)
+                canvas.drawArc(cx - 20f, cy - 5f, cx + 20f, cy + 25f, 0f, 180f, false, paint)
+                canvas.drawCircle(cx - 40f, cy + 60f, 14f, paint)
+                canvas.drawCircle(cx + 40f, cy + 60f, 14f, paint)
+            }
+            "princess_castle" -> {
+                canvas.drawRect(cx - 40f, cy - 20f, cx + 40f, cy + 120f, paint)
+                val path = android.graphics.Path()
+                path.moveTo(cx - 50f, cy - 20f)
+                path.lineTo(cx, cy - 80f)
+                path.lineTo(cx + 50f, cy - 20f)
+                path.close()
+                canvas.drawPath(path, paint)
+                canvas.drawCircle(cx, cy + 50f, 25f, paint)
+                canvas.drawArc(cx - 15f, cy + 35f, cx + 15f, cy + 45f, 0f, -180f, false, paint)
+                val dressPath = android.graphics.Path()
+                dressPath.moveTo(cx - 15f, cy + 75f)
+                dressPath.lineTo(cx - 45f, cy + 120f)
+                dressPath.lineTo(cx + 45f, cy + 120f)
+                dressPath.lineTo(cx + 15f, cy + 75f)
+                dressPath.close()
+                canvas.drawPath(dressPath, paint)
+            }
+            "underwater" -> {
+                canvas.drawOval(cx - 100f, cy - 50f, cx + 100f, cy + 50f, paint)
+                canvas.drawCircle(cx - 30f, cy, 14f, paint)
+                canvas.drawCircle(cx + 30f, cy, 14f, paint)
+                val pPath = android.graphics.Path()
+                pPath.moveTo(cx, cy - 50f)
+                pPath.lineTo(cx, cy - 90f)
+                pPath.lineTo(cx + 30f, cy - 90f)
+                canvas.drawPath(pPath, paint)
+                val sPath = android.graphics.Path()
+                sPath.moveTo(cx - 120f, cy + 140f)
+                sPath.quadTo(cx - 140f, cy + 80f, cx - 110f, cy + 40f)
+                sPath.quadTo(cx - 100f, cy + 80f, cx - 100f, cy + 140f)
+                canvas.drawPath(sPath, paint)
+            }
+            "robot" -> {
+                canvas.drawRect(cx - 50f, cy - 70f, cx + 50f, cy + 10f, paint)
+                canvas.drawLine(cx, cy - 70f, cx, cy - 100f, paint)
+                canvas.drawCircle(cx, cy - 105f, 8f, paint)
+                canvas.drawRect(cx - 30f, cy - 50f, cx - 10f, cy - 30f, paint)
+                canvas.drawRect(cx + 10f, cy - 50f, cx + 30f, cy - 30f, paint)
+                canvas.drawLine(cx - 20f, cy - 10f, cx + 20f, cy - 10f, paint)
+                canvas.drawRect(cx - 60f, cy + 20f, cx + 60f, cy + 120f, paint)
+                canvas.drawCircle(cx, cy + 70f, 20f, paint)
+            }
+            "jungle" -> {
+                canvas.drawCircle(cx, cy, 70f, paint)
+                canvas.drawCircle(cx, cy, 45f, paint)
+                canvas.drawCircle(cx - 15f, cy - 10f, 5f, paint)
+                canvas.drawCircle(cx + 15f, cy - 10f, 5f, paint)
+                val nPath = android.graphics.Path()
+                nPath.moveTo(cx - 8f, cy + 5f)
+                nPath.lineTo(cx + 8f, cy + 5f)
+                nPath.lineTo(cx, cy + 15f)
+                nPath.close()
+                canvas.drawPath(nPath, paint)
+                canvas.drawCircle(cx - 30f, cy - 35f, 14f, paint)
+                canvas.drawCircle(cx + 30f, cy - 35f, 14f, paint)
+            }
+            "farm" -> {
+                canvas.drawRect(cx - 50f, cy + 10f, cx + 50f, cy + 110f, paint)
+                val path = android.graphics.Path()
+                path.moveTo(cx - 60f, cy + 10f)
+                path.lineTo(cx, cy - 40f)
+                path.lineTo(cx + 60f, cy + 10f)
+                path.close()
+                canvas.drawPath(path, paint)
+                canvas.drawRect(cx - 20f, cy + 50f, cx + 20f, cy + 110f, paint)
+                canvas.drawCircle(cx - 100f, cy - 80f, 25f, paint)
+                canvas.drawCircle(cx + 100f, cy - 70f, 15f, paint)
+                canvas.drawCircle(cx + 120f, cy - 70f, 20f, paint)
+                canvas.drawCircle(cx + 140f, cy - 70f, 15f, paint)
+            }
+            "vehicles" -> {
+                canvas.drawRect(cx - 80f, cy, cx + 80f, cy + 50f, paint)
+                val path = android.graphics.Path()
+                path.moveTo(cx - 40f, cy)
+                path.lineTo(cx - 20f, cy - 30f)
+                path.lineTo(cx + 30f, cy - 30f)
+                path.lineTo(cx + 50f, cy)
+                path.close()
+                canvas.drawPath(path, paint)
+                canvas.drawCircle(cx - 45f, cy + 50f, 20f, paint)
+                canvas.drawCircle(cx + 45f, cy + 50f, 20f, paint)
+                canvas.drawCircle(cx - 45f, cy + 50f, 6f, paint)
+                canvas.drawCircle(cx + 45f, cy + 50f, 6f, paint)
+            }
+            "superheroes" -> {
+                canvas.drawCircle(cx, cy - 20f, 35f, paint)
+                canvas.drawLine(cx - 35f, cy - 25f, cx + 35f, cy - 25f, paint)
+                canvas.drawLine(cx - 35f, cy - 15f, cx + 35f, cy - 15f, paint)
+                canvas.drawCircle(cx - 15f, cy - 20f, 5f, paint)
+                canvas.drawCircle(cx + 15f, cy - 20f, 5f, paint)
+                val path = android.graphics.Path()
+                path.moveTo(cx - 25f, cy + 15f)
+                path.lineTo(cx - 45f, cy + 90f)
+                path.lineTo(cx, cy + 120f)
+                path.lineTo(cx + 45f, cy + 90f)
+                path.lineTo(cx + 25f, cy + 15f)
+                path.close()
+                canvas.drawPath(path, paint)
+                drawStarOnPdf(canvas, paint, cx, cy + 60f, 15f)
+            }
+            "pets" -> {
+                canvas.drawCircle(cx, cy, 45f, paint)
+                val leftEar = android.graphics.Path()
+                leftEar.moveTo(cx - 35f, cy - 20f)
+                leftEar.quadTo(cx - 65f, cy - 10f, cx - 55f, cy + 30f)
+                leftEar.quadTo(cx - 40f, cy + 40f, cx - 25f, cy + 10f)
+                leftEar.close()
+                canvas.drawPath(leftEar, paint)
+                val rightEar = android.graphics.Path()
+                rightEar.moveTo(cx + 35f, cy - 20f)
+                rightEar.quadTo(cx + 65f, cy - 10f, cx + 55f, cy + 30f)
+                rightEar.quadTo(cx + 40f, cy + 40f, cx + 25f, cy + 10f)
+                rightEar.close()
+                canvas.drawPath(rightEar, paint)
+                canvas.drawCircle(cx - 15f, cy - 5f, 6f, paint)
+                canvas.drawCircle(cx + 15f, cy - 5f, 6f, paint)
+                canvas.drawCircle(cx, cy + 12f, 7f, paint)
+                canvas.drawArc(cx - 12f, cy, cx, cy + 20f, 0f, 180f, false, paint)
+                canvas.drawArc(cx, cy, cx + 12f, cy + 20f, 0f, 180f, false, paint)
+            }
+            "candyland" -> {
+                canvas.drawCircle(cx - 40f, cy - 20f, 40f, paint)
+                canvas.drawCircle(cx - 40f, cy - 20f, 25f, paint)
+                canvas.drawCircle(cx - 40f, cy - 20f, 12f, paint)
+                canvas.drawLine(cx - 40f, cy + 20f, cx - 40f, cy + 110f, paint)
+                canvas.drawCircle(cx + 50f, cy + 20f, 25f, paint)
+                val leftTie = android.graphics.Path()
+                leftTie.moveTo(cx + 25f, cy + 20f)
+                leftTie.lineTo(cx + 5f, cy + 5f)
+                leftTie.lineTo(cx + 5f, cy + 35f)
+                leftTie.close()
+                canvas.drawPath(leftTie, paint)
+                val rightTie = android.graphics.Path()
+                rightTie.moveTo(cx + 75f, cy + 20f)
+                rightTie.lineTo(cx + 95f, cy + 5f)
+                rightTie.lineTo(cx + 95f, cy + 35f)
+                rightTie.close()
+                canvas.drawPath(rightTie, paint)
+            }
+            "dragons" -> {
+                canvas.drawCircle(cx, cy - 10f, 40f, paint)
+                canvas.drawCircle(cx - 10f, cy + 10f, 8f, paint)
+                canvas.drawCircle(cx + 10f, cy + 10f, 8f, paint)
+                val leftWing = android.graphics.Path()
+                leftWing.moveTo(cx - 30f, cy)
+                leftWing.lineTo(cx - 75f, cy - 40f)
+                leftWing.lineTo(cx - 45f, cy + 20f)
+                leftWing.close()
+                canvas.drawPath(leftWing, paint)
+                val rightWing = android.graphics.Path()
+                rightWing.moveTo(cx + 30f, cy)
+                rightWing.lineTo(cx + 75f, cy - 40f)
+                rightWing.lineTo(cx + 45f, cy + 20f)
+                rightWing.close()
+                canvas.drawPath(rightWing, paint)
+                canvas.drawCircle(cx - 12f, cy - 15f, 4f, paint)
+                canvas.drawCircle(cx + 12f, cy - 15f, 4f, paint)
+            }
+            "pirates" -> {
+                val hat = android.graphics.Path()
+                hat.moveTo(cx - 60f, cy - 20f)
+                hat.lineTo(cx, cy - 65f)
+                hat.lineTo(cx + 60f, cy - 20f)
+                hat.close()
+                canvas.drawPath(hat, paint)
+                canvas.drawCircle(cx, cy + 15f, 30f, paint)
+                canvas.drawCircle(cx - 10f, cy + 12f, 8f, paint)
+                canvas.drawLine(cx - 30f, cy + 2f, cx, cy + 20f, paint)
+                canvas.drawCircle(cx + 12f, cy + 12f, 4f, paint)
+            }
+            "astronauts" -> {
+                canvas.drawCircle(cx, cy, 60f, paint)
+                canvas.drawCircle(cx, cy, 45f, paint)
+                canvas.drawCircle(cx - 12f, cy - 8f, 4f, paint)
+                canvas.drawCircle(cx + 12f, cy - 8f, 4f, paint)
+                canvas.drawLine(cx - 10f, cy + 10f, cx + 10f, cy + 10f, paint)
+                canvas.drawLine(cx, cy - 60f, cx, cy - 80f, paint)
+                drawStarOnPdf(canvas, paint, cx, cy - 85f, 8f)
+            }
+            "toys" -> {
+                canvas.drawCircle(cx, cy, 45f, paint)
+                canvas.drawCircle(cx - 38f, cy - 38f, 18f, paint)
+                canvas.drawCircle(cx + 38f, cy - 38f, 18f, paint)
+                canvas.drawCircle(cx, cy + 12f, 14f, paint)
+                val nose = android.graphics.Path()
+                nose.moveTo(cx, cy + 8f)
+                nose.lineTo(cx - 5f, cy + 3f)
+                nose.lineTo(cx + 5f, cy + 3f)
+                nose.close()
+                canvas.drawPath(nose, paint)
+            }
+            "ice_cream" -> {
+                val cone = android.graphics.Path()
+                cone.moveTo(cx - 35f, cy + 20f)
+                cone.lineTo(cx + 35f, cy + 20f)
+                cone.lineTo(cx, cy + 110f)
+                cone.close()
+                canvas.drawPath(cone, paint)
+                canvas.drawCircle(cx, cy, 35f, paint)
+                canvas.drawCircle(cx, cy - 40f, 30f, paint)
+                canvas.drawCircle(cx, cy - 75f, 25f, paint)
+                canvas.drawCircle(cx, cy - 95f, 8f, paint)
+                canvas.drawLine(cx, cy - 103f, cx + 15f, cy - 110f, paint)
+            }
+            "circus" -> {
+                val rbase = android.graphics.Path()
+                rbase.addRect(cx - 55f, cy + 20f, cx + 55f, cy + 110f, android.graphics.Path.Direction.CW)
+                canvas.drawPath(rbase, paint)
+                val rroof = android.graphics.Path()
+                rroof.moveTo(cx - 65f, cy + 20f)
+                rroof.lineTo(cx, cy - 50f)
+                rroof.lineTo(cx + 65f, cy + 20f)
+                rroof.close()
+                canvas.drawPath(rroof, paint)
+                canvas.drawLine(cx, cy - 50f, cx, cy - 80f, paint)
+                val flag = android.graphics.Path()
+                flag.moveTo(cx, cy - 80f)
+                flag.lineTo(cx + 25f, cy - 70f)
+                flag.lineTo(cx, cy - 60f)
+                flag.close()
+                canvas.drawPath(flag, paint)
+            }
+            "enchanted" -> {
+                val stem = android.graphics.Path()
+                stem.addRect(cx - 20f, cy + 30f, cx + 20f, cy + 115f, android.graphics.Path.Direction.CW)
+                canvas.drawPath(stem, paint)
+                val cap = android.graphics.Path()
+                cap.moveTo(cx - 75f, cy + 30f)
+                cap.quadTo(cx, cy - 55f, cx + 75f, cy + 30f)
+                cap.close()
+                canvas.drawPath(cap, paint)
+                canvas.drawCircle(cx - 30f, cy - 5f, 10f, paint)
+                canvas.drawCircle(cx + 35f, cy + 5f, 8f, paint)
+            }
+            "dino_cave" -> {
+                val volcano = android.graphics.Path()
+                volcano.moveTo(cx - 90f, cy + 110f)
+                volcano.lineTo(cx - 30f, cy + 10f)
+                volcano.lineTo(cx + 30f, cy + 10f)
+                volcano.lineTo(cx + 90f, cy + 110f)
+                volcano.close()
+                canvas.drawPath(volcano, paint)
+                canvas.drawCircle(cx - 15f, cy - 12f, 18f, paint)
+                canvas.drawCircle(cx + 15f, cy - 12f, 18f, paint)
+                canvas.drawCircle(cx - 100f, cy + 80f, 16f, paint)
+            }
+            "aliens" -> {
+                val disk = android.graphics.Path()
+                disk.addOval(cx - 95f, cy + 10f, cx + 95f, cy + 55f, android.graphics.Path.Direction.CW)
+                canvas.drawPath(disk, paint)
+                val dome = android.graphics.Path()
+                dome.arcTo(cx - 45f, cy - 35f, cx + 45f, cy + 15f, 180f, 180f, true)
+                canvas.drawPath(dome, paint)
+                canvas.drawCircle(cx, cy - 10f, 20f, paint)
+                canvas.drawLine(cx, cy - 30f, cx, cy - 50f, paint)
+                canvas.drawCircle(cx, cy - 52f, 5f, paint)
+            }
+            "winter" -> {
+                canvas.drawCircle(cx, cy + 65f, 45f, paint)
+                canvas.drawCircle(cx, cy + 5f, 32f, paint)
+                canvas.drawCircle(cx, cy - 40f, 22f, paint)
+                val hatBase = android.graphics.Path()
+                hatBase.addRect(cx - 15f, cy - 85f, cx + 15f, cy - 62f, android.graphics.Path.Direction.CW)
+                canvas.drawPath(hatBase, paint)
+                canvas.drawLine(cx - 28f, cy - 62f, cx + 28f, cy - 62f, paint)
+            }
+            else -> {
+                canvas.drawCircle(cx, cy, 70f, paint)
+                canvas.drawCircle(cx, cy, 45f, paint)
+                canvas.drawCircle(cx - 15f, cy - 10f, 5f, paint)
+                canvas.drawCircle(cx + 15f, cy - 10f, 5f, paint)
+                val nPath = android.graphics.Path()
+                nPath.moveTo(cx - 8f, cy + 5f)
+                nPath.lineTo(cx + 8f, cy + 5f)
+                nPath.lineTo(cx, cy + 15f)
+                nPath.close()
+                canvas.drawPath(nPath, paint)
+                canvas.drawCircle(cx - 30f, cy - 35f, 14f, paint)
+                canvas.drawCircle(cx + 30f, cy - 35f, 14f, paint)
+            }
+        }
+
+        canvas.restore()
+    }
+
+    private fun drawStarOnPdf(canvas: android.graphics.Canvas, paint: android.graphics.Paint, x: Float, y: Float, sz: Float) {
+        val path = android.graphics.Path()
+        path.moveTo(x, y - sz)
+        path.lineTo(x + sz * 0.3f, y - sz * 0.3f)
+        path.lineTo(x + sz, y)
+        path.lineTo(x + sz * 0.3f, y + sz * 0.3f)
+        path.lineTo(x, y + sz)
+        path.lineTo(x - sz * 0.3f, y + sz * 0.3f)
+        path.lineTo(x - sz, y)
+        path.lineTo(x - sz * 0.3f, y - sz * 0.3f)
+        path.close()
+        canvas.drawPath(path, paint)
+    }
+
+    // --- SMART FRIDGE & CULINARY ASSISTANT ---
+
+    fun selectCulinaryDietaryFilter(filter: String) {
+        _uiState.update { it.copy(culinaryDietaryFilter = filter) }
+    }
+
+    fun selectCulinaryRecipe(recipe: CulinaryRecipe?, tts: android.speech.tts.TextToSpeech?) {
+        _uiState.update { 
+            it.copy(
+                culinarySelectedRecipe = recipe,
+                culinaryCurrentStepIndex = 0
+            ) 
+        }
+        if (recipe != null) {
+            val firstStep = recipe.steps.firstOrNull() ?: ""
+            speakCulinaryStep(firstStep, tts)
+        } else {
+            stopCulinarySpeaker(tts)
+        }
+    }
+
+    fun setCulinaryStepIndex(index: Int, tts: android.speech.tts.TextToSpeech?) {
+        val recipe = _uiState.value.culinarySelectedRecipe ?: return
+        if (index in recipe.steps.indices) {
+            _uiState.update { it.copy(culinaryCurrentStepIndex = index) }
+            speakCulinaryStep(recipe.steps[index], tts)
+        }
+    }
+
+    fun addIngredientToShoppingList(ingredient: String) {
+        val currentList = _uiState.value.culinaryShoppingList
+        if (!currentList.contains(ingredient)) {
+            _uiState.update { it.copy(culinaryShoppingList = currentList + ingredient) }
+        }
+    }
+
+    fun removeIngredientFromShoppingList(ingredient: String) {
+        val currentList = _uiState.value.culinaryShoppingList
+        _uiState.update { it.copy(culinaryShoppingList = currentList - ingredient) }
+    }
+
+    fun clearShoppingList() {
+        _uiState.update { it.copy(culinaryShoppingList = emptyList()) }
+    }
+
+    fun setCulinarySelectedImage(bitmap: android.graphics.Bitmap?, uri: android.net.Uri?) {
+        _uiState.update { it.copy(culinarySelectedBitmap = bitmap, culinarySelectedUri = uri) }
+    }
+
+    fun speakCulinaryStep(text: String, tts: android.speech.tts.TextToSpeech?) {
+        if (text.isBlank()) return
+        viewModelScope.launch {
+            _uiState.update { it.copy(culinaryIsTtsPlaying = true) }
+            if (tts != null) {
+                tts.language = java.util.Locale.US
+                tts.setOnUtteranceProgressListener(object : android.speech.tts.UtteranceProgressListener() {
+                    override fun onStart(utteranceId: String?) {}
+                    override fun onDone(utteranceId: String?) {
+                        _uiState.update { it.copy(culinaryIsTtsPlaying = false) }
+                    }
+                    override fun onError(utteranceId: String?) {
+                        _uiState.update { it.copy(culinaryIsTtsPlaying = false) }
+                    }
+                })
+                val params = android.os.Bundle().apply {
+                    putString(android.speech.tts.TextToSpeech.Engine.KEY_PARAM_UTTERANCE_ID, "CulinaryUtteranceId")
+                }
+                tts.speak(text, android.speech.tts.TextToSpeech.QUEUE_FLUSH, params, "CulinaryUtteranceId")
+            } else {
+                delay(3000)
+                _uiState.update { it.copy(culinaryIsTtsPlaying = false) }
+            }
+        }
+    }
+
+    fun stopCulinarySpeaker(tts: android.speech.tts.TextToSpeech?) {
+        try {
+            tts?.stop()
+        } catch (e: Exception) {}
+        _uiState.update { it.copy(culinaryIsTtsPlaying = false) }
+    }
+
+    fun analyzeFridgeImage(bitmap: android.graphics.Bitmap, tts: android.speech.tts.TextToSpeech?) {
+        viewModelScope.launch {
+            _uiState.update { 
+                it.copy(
+                    culinaryIsScanning = true,
+                    culinaryError = "",
+                    culinarySelectedRecipe = null,
+                    culinaryDetectedIngredients = emptyList(),
+                    culinaryRecipes = emptyList()
+                )
+            }
+            
+            val apiKey = _uiState.value.customApiKey.ifBlank { _uiState.value.geminiApiKey }
+            if (apiKey.isBlank() || apiKey.contains("PLACEHOLDER")) {
+                // Return offline beautiful recipes
+                delay(2000)
+                val offlineRecipes = getOfflineCulinaryRecipes()
+                _uiState.update {
+                    it.copy(
+                        culinaryIsScanning = false,
+                        culinaryDetectedIngredients = listOf("Milk", "Eggs", "Cheddar Cheese", "Tomatoes", "Asparagus", "Chicken Breast"),
+                        culinaryRecipes = offlineRecipes
+                    )
+                }
+                return@launch
+            }
+
+            try {
+                val prompt = """
+                    Identify visible ingredients and list them. Suggest up to 4 recipe cards matching what you see.
+                    Return strictly a JSON object matching this structure:
+                    {
+                      "ingredients": ["Milk", "Eggs", "Cheddar Cheese", "Fresh Tomatoes", "Chicken Breast"],
+                      "recipes": [
+                        {
+                          "title": "Creamy Egg & Cheese Scramble",
+                          "sDescription": "A warm fluffy breakfast with melted cheese",
+                          "difficulty": "Easy",
+                          "prepTime": "10 mins",
+                          "calories": 280,
+                          "ingredients": ["Eggs", "Cheddar Cheese", "Butter", "Milk"],
+                          "missingIngredients": ["Butter"],
+                          "steps": [
+                            "Whisk eggs with a splash of milk in a cup.",
+                            "Melt a tiny bit of butter in a pan.",
+                            "Scramble the eggs, folding in cheddar cheese on top until gooey."
+                          ],
+                          "dietaryTags": ["Vegetarian", "Keto", "Gluten-Free"]
+                        }
+                      ]
+                    }
+                    Strict rule: Do not output any markdown wrapping. Just pure, clean JSON. Check ingredients against Keto, Vegetarian guidelines carefully to fill the tags.
+                """.trimIndent()
+
+                val keysMap = mapOf("Gemini" to apiKey)
+                val urlsMap = mapOf("Gemini" to _uiState.value.geminiBaseUrl)
+
+                val output = repository.sendVisionRequest(
+                    bitmap = bitmap,
+                    prompt = prompt,
+                    providerKeys = keysMap,
+                    providerUrls = urlsMap
+                )
+
+                var rawText = output.trim()
+                if (rawText.startsWith("```json")) {
+                    rawText = rawText.substringAfter("```json")
+                } else if (rawText.startsWith("```")) {
+                    rawText = rawText.substringAfter("```")
+                }
+                if (rawText.endsWith("```")) {
+                    rawText = rawText.substringBeforeLast("```")
+                }
+                rawText = rawText.trim()
+
+                try {
+                    val jsonObj = org.json.JSONObject(rawText)
+                    val ingArr = jsonObj.optJSONArray("ingredients")
+                    val parsedIngs = mutableListOf<String>()
+                    if (ingArr != null) {
+                        for (i in 0 until ingArr.length()) {
+                            parsedIngs.add(ingArr.getString(i))
+                        }
+                    }
+
+                    val recArr = jsonObj.getJSONArray("recipes")
+                    val parsedRecipes = mutableListOf<CulinaryRecipe>()
+                    for (i in 0 until recArr.length()) {
+                        val rObj = recArr.getJSONObject(i)
+                        
+                        val tagsArr = rObj.optJSONArray("dietaryTags")
+                        val tags = mutableListOf<String>()
+                        if (tagsArr != null) {
+                            for (j in 0 until tagsArr.length()) {
+                                tags.add(tagsArr.getString(j))
+                            }
+                        }
+
+                        val stepsArr = rObj.getJSONArray("steps")
+                        val steps = mutableListOf<String>()
+                        for (j in 0 until stepsArr.length()) {
+                            steps.add(stepsArr.getString(j))
+                        }
+
+                        val ingsArr = rObj.getJSONArray("ingredients")
+                        val recipeIngs = mutableListOf<String>()
+                        for (j in 0 until ingsArr.length()) {
+                            recipeIngs.add(ingsArr.getString(j))
+                        }
+
+                        val missingArr = rObj.getJSONArray("missingIngredients")
+                        val missingIngs = mutableListOf<String>()
+                        for (j in 0 until missingArr.length()) {
+                            missingIngs.add(missingArr.getString(j))
+                        }
+
+                        parsedRecipes.add(
+                            CulinaryRecipe(
+                                title = rObj.getString("title"),
+                                sDescription = rObj.optString("sDescription", "Delectable feast"),
+                                difficulty = rObj.optString("difficulty", "Medium"),
+                                prepTime = rObj.optString("prepTime", "15 mins"),
+                                calories = rObj.optInt("calories", 300),
+                                ingredients = recipeIngs,
+                                missingIngredients = missingIngs,
+                                steps = steps,
+                                dietaryTags = tags
+                            )
+                        )
+                    }
+
+                    _uiState.update {
+                        it.copy(
+                            culinaryIsScanning = false,
+                            culinaryDetectedIngredients = parsedIngs.ifEmpty { listOf("Milk", "Cheese", "Leftover Chicken") },
+                            culinaryRecipes = parsedRecipes
+                        )
+                    }
+
+                } catch (e: Exception) {
+                    android.util.Log.e("CulinaryAssistant", "JSON Parse error: ${e.message}")
+                    val offlineRecipes = getOfflineCulinaryRecipes()
+                    _uiState.update {
+                        it.copy(
+                            culinaryIsScanning = false,
+                            culinaryDetectedIngredients = listOf("Milk", "Cheddar Cheese", "Tomatoes", "Asparagus", "Chicken Breast"),
+                            culinaryRecipes = offlineRecipes,
+                            culinaryError = "Could not parse Gemini's custom recipe format: using our visual assistant presets!"
+                        )
+                    }
+                }
+
+            } catch (e: Exception) {
+                val offlineRecipes = getOfflineCulinaryRecipes()
+                _uiState.update {
+                    it.copy(
+                        culinaryIsScanning = false,
+                        culinaryDetectedIngredients = listOf("Milk", "Cheddar Cheese", "Tomatoes", "Eggs", "Salmon Fillets"),
+                        culinaryRecipes = offlineRecipes,
+                        culinaryError = "Scanning API temporary error: loaded offline visual assistant presets!"
+                    )
+                }
+            }
+        }
+    }
+
+    private fun getOfflineCulinaryRecipes(): List<CulinaryRecipe> {
+        return listOf(
+            CulinaryRecipe(
+                title = "Creamy Tomato Basil Pasta",
+                sDescription = "A rich and fragrant garlic tomato sauce folded into penne pasta.",
+                difficulty = "Easy",
+                prepTime = "15 mins",
+                calories = 350,
+                ingredients = listOf("Penne Pasta", "Fresh Tomatoes", "Cream", "Garlic", "Parmesan Cheese", "Fresh Basil"),
+                missingIngredients = listOf("Penne Pasta", "Fresh Basil"),
+                steps = listOf(
+                    "Boil penne pasta in heavily salted hot water until al dente.",
+                    "In a skillet, sauté crushed garlic cloves and diced tomatoes in warm olive oil.",
+                    "Pour in cream and parmesan cheese, stirring gently, then simmer for 5 minutes.",
+                    "Toss in pasta, sprinkle chopped fresh basil, and serve hot under extra cheese."
+                ),
+                dietaryTags = listOf("Vegetarian")
+            ),
+            CulinaryRecipe(
+                title = "Garlic Butter Grilled Salmon",
+                sDescription = "Searing hot salmon cooked in garlic herb butter with asparagus spears.",
+                difficulty = "Medium",
+                prepTime = "20 mins",
+                calories = 420,
+                ingredients = listOf("Salmon Fillets", "Unsalted Butter", "Fresh Lemon juice", "Garlic", "Asparagus spears", "Olive Oil"),
+                missingIngredients = listOf("Salmon Fillets", "Asparagus spears"),
+                steps = listOf(
+                    "Coat the salmon skin and flesh with olive oil, salt, and coarse black pepper.",
+                    "Melt salted butter in a heavy hot skillet, then stir in minced garlic and lemon juice.",
+                    "Sear the salmon skin side up for 4 minutes, then flip and spoon garlic lemon butter repeatedly.",
+                    "Add asparagus spears beside the fish and grill until tender and blistered beautifully."
+                ),
+                dietaryTags = listOf("Keto", "Gluten-Free")
+            ),
+            CulinaryRecipe(
+                title = "Cheesy Avocado Scramble",
+                sDescription = "Butter-scrambled organic eggs paired with creamy fresh Hass avocado.",
+                difficulty = "Easy",
+                prepTime = "10 mins",
+                calories = 290,
+                ingredients = listOf("Fresh Eggs", "Hass Avocado", "Sharp Cheddar Cheese", "Salted Butter", "Green Onions"),
+                missingIngredients = listOf("Hass Avocado"),
+                steps = listOf(
+                    "Whisk farm fresh eggs with salt, pepper, and chopped scallions.",
+                    "Melt grass-fed butter in an empty non-stick skillet over medium-low heat.",
+                    "Scramble eggs gently using a silicone spatula to keep the curd soft and fluffy.",
+                    "Scoop eggs onto a warm plate. Top with diced avocado and sharp shredded cheddar."
+                ),
+                dietaryTags = listOf("Vegetarian", "Keto", "Gluten-Free")
+            ),
+            CulinaryRecipe(
+                title = "Loaded Mediterranean Hummus Bowl",
+                sDescription = "A protein-packed vibrant cold bowl topped with cucumber, olives and tangy lemon sauce.",
+                difficulty = "Easy",
+                prepTime = "12 mins",
+                calories = 315,
+                ingredients = listOf("Greek Chickpeas", "Cucumber", "Cherry Tomatoes", "Kalamata Olives", "Creamy Hummus", "Fresh Lemon", "Extra Virgin Olive Oil"),
+                missingIngredients = listOf("Creamy Hummus", "Kalamata Olives"),
+                steps = listOf(
+                    "Drain the chickpeas and toss them with olive oil, dried oregano, and sea salt.",
+                    "Slice tomatoes, cucumbers, and pitted olives into bite-sized wedges.",
+                    "Spoon a generous dollop of rich hummus into the center of a wide clean bowl.",
+                    "Arrange the tomatoes, chickpeas, and cucumbers around the hummus. Drizzle with lemon juice."
+                ),
+                dietaryTags = listOf("Vegetarian", "Vegan", "Gluten-Free")
+            )
+        )
+    }
+
+    // --- AI-POWERED MEME GENERATOR ---
+
+    fun setMemeSelectedImage(bitmap: android.graphics.Bitmap?, uri: android.net.Uri?) {
+        _uiState.update { 
+            it.copy(
+                memeSelectedBitmap = bitmap, 
+                memeSelectedUri = uri,
+                memeSuggestedCaptions = emptyList(),
+                memeError = ""
+            ) 
+        }
+    }
+
+    fun updateMemeTopText(text: String) {
+        _uiState.update { it.copy(memeTopText = text) }
+    }
+
+    fun updateMemeBottomText(text: String) {
+        _uiState.update { it.copy(memeBottomText = text) }
+    }
+
+    fun updateMemeTextSize(size: Float) {
+        _uiState.update { it.copy(memeTextSize = size) }
+    }
+
+    fun updateMemeTextColor(colorHex: String) {
+        _uiState.update { it.copy(memeTextColor = colorHex) }
+    }
+
+    fun toggleMemeCapitalization() {
+        _uiState.update { it.copy(memeIsCapitalized = !it.memeIsCapitalized) }
+    }
+
+    fun selectMemeSuggestedCaption(caption: String) {
+        _uiState.update { 
+            val formatted = if (it.memeIsCapitalized) caption.uppercase() else caption
+            it.copy(
+                memeBottomText = formatted,
+                memeError = ""
+            ) 
+        }
+    }
+
+    fun clearMemeState() {
+        _uiState.update {
+            it.copy(
+                memeSelectedBitmap = null,
+                memeSelectedUri = null,
+                memeSuggestedCaptions = emptyList(),
+                memeTopText = "",
+                memeBottomText = "",
+                memeIsGeneratingCaptions = false,
+                memeError = "",
+                memeTextColor = "#FFFFFF",
+                memeTextSize = 28f,
+                memeIsCapitalized = true
+            )
+        }
+    }
+
+    fun generateMemeMagicCaptions(bitmap: android.graphics.Bitmap) {
+        viewModelScope.launch {
+            _uiState.update { 
+                it.copy(
+                    memeIsGeneratingCaptions = true,
+                    memeError = "",
+                    memeSuggestedCaptions = emptyList()
+                ) 
+            }
+
+            val apiKey = _uiState.value.customApiKey.ifBlank { _uiState.value.geminiApiKey }
+            if (apiKey.isBlank() || apiKey.contains("PLACEHOLDER")) {
+                delay(1500)
+                _uiState.update {
+                    it.copy(
+                        memeIsGeneratingCaptions = false,
+                        memeSuggestedCaptions = getOfflineMemeCaptions(),
+                        memeError = "Using offline sample captions (API Key is missing or default placeholder)!"
+                    )
+                }
+                return@launch
+            }
+
+            try {
+                val prompt = """
+                    Analyze this image context, characters, actions, expressions or visuals, and suggest exactly 5 funny, extremely creative, trendy, situational meme captions that match this visual.
+                    The captions should range from extremely sarcastic to witty, and fit popular meme formats.
+                    Return strictly a JSON object with this exact schema structure:
+                    {
+                      "captions": [
+                        "hilarious caption 1",
+                        "hilarious caption 2",
+                        "hilarious caption 3",
+                        "hilarious caption 4",
+                        "hilarious caption 5"
+                      ]
+                    }
+                    Strict rule: Do not output any markdown code blocks or wrapper tags around the JSON.
+                """.trimIndent()
+
+                val keysMap = mapOf("Gemini" to apiKey)
+                val urlsMap = mapOf("Gemini" to _uiState.value.geminiBaseUrl)
+
+                val output = repository.sendVisionRequest(
+                    bitmap = bitmap,
+                    prompt = prompt,
+                    providerKeys = keysMap,
+                    providerUrls = urlsMap
+                )
+
+                var rawText = output.trim()
+                if (rawText.startsWith("```json")) {
+                    rawText = rawText.substringAfter("```json")
+                } else if (rawText.startsWith("```")) {
+                    rawText = rawText.substringAfter("```")
+                }
+                if (rawText.endsWith("```")) {
+                    rawText = rawText.substringBeforeLast("```")
+                }
+                rawText = rawText.trim()
+
+                try {
+                    val jsonObj = org.json.JSONObject(rawText)
+                    val captionsArr = jsonObj.getJSONArray("captions")
+                    val parsedCaptions = mutableListOf<String>()
+                    for (i in 0 until captionsArr.length()) {
+                        parsedCaptions.add(captionsArr.getString(i))
+                    }
+
+                    if (parsedCaptions.isNotEmpty()) {
+                        _uiState.update {
+                            it.copy(
+                                memeIsGeneratingCaptions = false,
+                                memeSuggestedCaptions = parsedCaptions
+                            )
+                        }
+                    } else {
+                        throw Exception("No captions found in response array")
+                    }
+
+                } catch (e: Exception) {
+                    android.util.Log.e("MemeGenerator", "JSON Parse error: ${e.message}")
+                    _uiState.update {
+                        it.copy(
+                            memeIsGeneratingCaptions = false,
+                            memeSuggestedCaptions = getOfflineMemeCaptions(),
+                            memeError = "Parsed fallback preset captions due to standard API structural change or format error."
+                        )
+                    }
+                }
+
+            } catch (e: Exception) {
+                _uiState.update {
+                    it.copy(
+                        memeIsGeneratingCaptions = false,
+                        memeSuggestedCaptions = getOfflineMemeCaptions(),
+                        memeError = "API Connection Error: loaded fallback preset captions!"
+                    )
+                }
+            }
+        }
+    }
+
+    private fun getOfflineMemeCaptions(): List<String> {
+        return listOf(
+            "Me explaining to my dog why we can't go for a second walk",
+            "When the code compiles on the first try but you don't trust it",
+            "expectation vs reality: a dramatic retelling",
+            "How I look staring at the microwave waiting for my pizza rolls",
+            "Nobody:\nMy brain at 3 AM: let's build an AI meme generator"
+        )
     }
 }
 

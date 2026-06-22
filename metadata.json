@@ -1,6 +1,6 @@
 {
   "name": "Eddie",
-  "description": "Eddie Personal Assistant with AI Chat and Premium AI Image Generator Features",
+  "description": "Eddie Personal Assistant featuring Socratic Tutor, real-time Voice Language Partner, magical Kid's AI Storyteller, hands-free Smart Fridge, and experimental AI Meme Lab with instant Magic Caption.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }
