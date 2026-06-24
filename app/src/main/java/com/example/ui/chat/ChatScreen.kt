@@ -1341,7 +1341,7 @@ fun ChatScreen(
                 EddieVideoGeneratorView(
                     uiState = uiState,
                     paddingValues = paddingValues,
-                    onGenerateVideo = { prompt, style, ratio, res, dur, audio, personGen, negPrompt, sampleCount ->
+                    onGenerateVideo = { prompt, style, ratio, res, dur, audio, personGen, negPrompt, sampleCount, imageUrl ->
                         viewModel.generateVideo(
                             prompt = prompt,
                             style = style,
@@ -1352,6 +1352,7 @@ fun ChatScreen(
                             personGeneration = personGen,
                             negativePrompt = negPrompt,
                             sampleCount = sampleCount,
+                            imageUrl = imageUrl,
                             onSubscriptionRequired = {
                                 showSubscriptionDialog = true
                                 Toast.makeText(context, "Free limit reached (max 2) or Eddie Premium is required for this duration, resolution, or aspect ratio!", Toast.LENGTH_LONG).show()
@@ -5559,7 +5560,7 @@ private fun offsetFraction(progress: Float, offset: Int): Float {
 fun EddieVideoGeneratorView(
     uiState: ChatUiState,
     paddingValues: PaddingValues,
-    onGenerateVideo: (String, String, String, String, String, String, String, String, Int) -> Unit,
+    onGenerateVideo: (String, String, String, String, String, String, String, String, Int, String?) -> Unit,
     onDeleteVideo: (String) -> Unit,
     onSaveEditedVideo: (String, String, String, String, String, String, String) -> Unit,
     onModeChange: (String) -> Unit,
@@ -5583,6 +5584,21 @@ fun EddieVideoGeneratorView(
         val modelLower = uiState.selectedVideoModel.lowercase().trim()
         uiState.selectedVideoProvider == "Gemini" && (
             modelLower == "veo-2.0-generate-001" || modelLower == "veo2" || modelLower == "veo 2"
+        )
+    }
+
+    val isFalVeo3 = remember(uiState.selectedVideoModel, uiState.selectedVideoProvider) {
+        val modelLower = uiState.selectedVideoModel.lowercase().trim()
+        uiState.selectedVideoProvider == "FalAI" && (
+            modelLower.contains("veo3.1") || modelLower.contains("veo 3.1") ||
+            modelLower == "veo3" || modelLower == "fal-ai/veo3" || modelLower == "veo 3"
+        )
+    }
+
+    val isFalVeo3FastModel = remember(uiState.selectedVideoModel, uiState.selectedVideoProvider) {
+        val modelLower = uiState.selectedVideoModel.lowercase().trim()
+        uiState.selectedVideoProvider == "FalAI" && (
+            modelLower == "veo3-fast" || modelLower.contains("veo3-fast") || modelLower.contains("veo 3 fast")
         )
     }
 
@@ -5727,8 +5743,14 @@ fun EddieVideoGeneratorView(
         "Cosmic Retrowave" to true
     )
 
-    val aspectRatios = remember(uiState.selectedVideoProvider, uiState.selectedVideoModel, uiState.selectedVideoMode) {
-        if (uiState.selectedVideoProvider == "Gemini" && uiState.selectedVideoMode == "Text to Video") {
+    val aspectRatios = remember(uiState.selectedVideoProvider, uiState.selectedVideoModel, uiState.selectedVideoMode, isFalVeo3, isFalVeo3FastModel) {
+        if (isFalVeo3 || isFalVeo3FastModel) {
+            listOf(
+                "16:9" to false to "Landscape (16:9)",
+                "9:16" to true to "Vertical (9:16)",
+                "1:1" to false to "Square (1:1)"
+            )
+        } else if (uiState.selectedVideoProvider == "Gemini" && uiState.selectedVideoMode == "Text to Video") {
             val modelLower = uiState.selectedVideoModel.lowercase().trim()
             if (modelLower == "veo-2.0-generate-001" || modelLower == "veo2" || modelLower == "veo 2") {
                 listOf(
@@ -5760,15 +5782,25 @@ fun EddieVideoGeneratorView(
         }
     }
 
-    val resolutions = remember(uiState.selectedVideoProvider, uiState.selectedVideoModel, uiState.selectedVideoMode) {
-        if (uiState.selectedVideoProvider == "Gemini" && uiState.selectedVideoMode == "Text to Video") {
+    val resolutions = remember(uiState.selectedVideoProvider, uiState.selectedVideoModel, uiState.selectedVideoMode, isFalVeo3, isFalVeo3FastModel) {
+        if (isFalVeo3FastModel) {
+            listOf(
+                "720p" to false to "High HD (720p)",
+                "1080p" to true to "Full HD (1080p)"
+            )
+        } else if (isFalVeo3) {
+            listOf(
+                "720p" to false to "High HD (720p)",
+                "1080p" to true to "Full HD (1080p)"
+            )
+        } else if (uiState.selectedVideoProvider == "Gemini" && uiState.selectedVideoMode == "Text to Video") {
             val modelLower = uiState.selectedVideoModel.lowercase().trim()
-            if (modelLower == "veo-3.1-generate-preview" || modelLower == "veo-3.1-fast-generate-preview" || modelLower == "veo-3.1-lite-generate-preview") {
+            if (modelLower.startsWith("veo-3.1")) {
                 listOf(
                     "720p" to false to "High HD",
                     "1080p" to true to "Full HD Pro"
                 )
-            } else if (modelLower == "veo-2.0-generate-001" || modelLower == "veo-3.0-generate-preview" || modelLower == "veo-3.0-fast-generate-preview") {
+            } else if (modelLower == "veo-2.0-generate-001" || modelLower.startsWith("veo-3.0")) {
                 emptyList()
             } else {
                 listOf(
@@ -5793,8 +5825,14 @@ fun EddieVideoGeneratorView(
         }
     }
 
-    val durations = remember(uiState.selectedVideoProvider, uiState.selectedVideoModel, uiState.selectedVideoMode) {
-        if (uiState.selectedVideoProvider == "Gemini" && uiState.selectedVideoMode == "Text to Video") {
+    val durations = remember(uiState.selectedVideoProvider, uiState.selectedVideoModel, uiState.selectedVideoMode, isFalVeo3, isFalVeo3FastModel) {
+        if (isFalVeo3 || isFalVeo3FastModel) {
+            listOf(
+                "4s" to false to "Short Loop (4s)",
+                "6s" to false to "Standard Loop (6s)",
+                "8s" to false to "Cinematic Loop (8s)"
+            )
+        } else if (uiState.selectedVideoProvider == "Gemini" && uiState.selectedVideoMode == "Text to Video") {
             val modelLower = uiState.selectedVideoModel.lowercase().trim()
             if (modelLower == "veo-2.0-generate-001" || modelLower == "veo2" || modelLower == "veo 2") {
                 listOf(
@@ -6185,13 +6223,16 @@ fun EddieVideoGeneratorView(
                                 )
                                 "Gemini" -> listOf(
                                     Triple("Veo 2 (625 Tokens)", "veo-2.0-generate-001", 625.0),
-                                    Triple("Veo 3 (800 Tokens)", "veo-3.0-generate-preview", 800.0),
-                                    Triple("Veo 3 Fast (300 Tokens)", "veo-3.0-fast-generate-preview", 300.0),
-                                    Triple("Veo 3.1 (800 Tokens)", "veo-3.1-generate-preview", 800.0),
-                                    Triple("Veo 3.1 Fast (300 Tokens)", "veo-3.1-fast-generate-preview", 300.0),
-                                    Triple("Veo 3.1 Lite (200 Tokens)", "veo-3.1-lite-generate-preview", 200.0)
+                                    Triple("Veo 3 (800 Tokens)", "veo-3.0-generate-001", 800.0),
+                                    Triple("Veo 3 Fast (300 Tokens)", "veo-3.0-fast-generate-001", 300.0),
+                                    Triple("Veo 3.1 (800 Tokens)", "veo-3.1-generate-001", 800.0),
+                                    Triple("Veo 3.1 Fast (300 Tokens)", "veo-3.1-fast-generate-001", 300.0),
+                                    Triple("Veo 3.1 Lite (200 Tokens)", "veo-3.1-lite-generate-001", 200.0)
                                 )
                                 "FalAI" -> listOf(
+                                    Triple("Veo 3.1 (800 Tokens)", "fal-ai/veo3.1", 800.0),
+                                    Triple("Veo 3.1 Lite (200 Tokens)", "fal-ai/veo3.1/lite", 200.0),
+                                    Triple("Veo 3.1 Fast (300 Tokens)", "fal-ai/veo3.1/fast", 300.0),
                                     Triple("Veo 2 (625 Tokens)", "veo2", 625.0),
                                     Triple("Veo 3 (800 Tokens)", "veo3", 800.0),
                                     Triple("Veo 3 Fast (300 Tokens)", "veo3-fast", 300.0),
@@ -6212,6 +6253,9 @@ fun EddieVideoGeneratorView(
                                     Triple("veo 3.1 (150 Tokens)", "veo 3.1", 150.0)
                                 )
                                 "FalAI" -> listOf(
+                                    Triple("Veo 3.1 (800 Tokens)", "fal-ai/veo3.1", 800.0),
+                                    Triple("Veo 3.1 Lite (200 Tokens)", "fal-ai/veo3.1/lite", 200.0),
+                                    Triple("Veo 3.1 Fast (300 Tokens)", "fal-ai/veo3.1/fast", 300.0),
                                     Triple("Luma Dream Machine (125 Tokens)", "luma-dream-machine", 125.0),
                                     Triple("Minimax (125 Tokens)", "minimax", 125.0),
                                     Triple("Hunyuan Video (125 Tokens)", "hunyuan-video", 125.0),
@@ -6296,16 +6340,19 @@ fun EddieVideoGeneratorView(
                     "Gemini" -> {
                         when (uiState.selectedVideoModel.lowercase().trim()) {
                             "veo-2.0-generate-001" -> "Reliable classic Google video generation engine offering consistent photorealism, artistic textures, and style options."
-                            "veo-3.0-generate-preview" -> "Cinematic state-of-the-art generation engine showcasing unmatched physical detail, textures, and fluid, natural dynamics."
-                            "veo-3.0-fast-generate-preview" -> "Efficient iteration engine leveraging the premium Veo 3 architecture with reduced computational steps for speed."
-                            "veo-3.1-generate-preview" -> "Next-generation flagship Google video generation model (v3.1) offering high photorealism, realistic lighting, and advanced temporal stability."
-                            "veo-3.1-fast-generate-preview" -> "Speed-tuned next-gen Google Veo 3.1 engine delivering rapid responsive text-to-video synthesis with balanced visual clarity."
-                            "veo-3.1-lite-generate-preview" -> "Lightweight and efficient version of Veo 3.1 optimized for quick creative drafts and low resource footprint."
+                            "veo-3.0-generate-001", "veo-3.0-generate-preview" -> "Cinematic state-of-the-art generation engine showcasing unmatched physical detail, textures, and fluid, natural dynamics."
+                            "veo-3.0-fast-generate-001", "veo-3.0-fast-generate-preview" -> "Efficient iteration engine leveraging the premium Veo 3 architecture with reduced computational steps for speed."
+                            "veo-3.1-generate-001", "veo-3.1-generate-preview" -> "Next-generation flagship Google video generation model (v3.1) offering high photorealism, realistic lighting, and advanced temporal stability."
+                            "veo-3.1-fast-generate-001", "veo-3.1-fast-generate-preview" -> "Speed-tuned next-gen Google Veo 3.1 engine delivering rapid responsive text-to-video synthesis with balanced visual clarity."
+                            "veo-3.1-lite-generate-001", "veo-3.1-lite-generate-preview" -> "Lightweight and efficient version of Veo 3.1 optimized for quick creative drafts and low resource footprint."
                             else -> null
                         }
                     }
                     "FalAI" -> {
                         when (uiState.selectedVideoModel.lowercase().trim()) {
+                            "fal-ai/veo3.1" -> "Flagship Google Veo 3.1 model on Fal.Ai. Delivers exceptional cinematic realism, advanced lighting, and motion fidelity."
+                            "fal-ai/veo3.1/lite" -> "Lightweight flagship Google Veo 3.1 model on Fal.Ai. Fast and token-efficient video generation."
+                            "fal-ai/veo3.1/fast" -> "Speed-optimized flagship Google Veo 3.1 model on Fal.Ai. High-speed synthesis with great clarity."
                             "veo2" -> "Classic Google Veo 2 model hosted on Fal.Ai. Offers rich video textures and high visual styling options."
                             "veo3" -> "Next-generation Google Veo 3 model on Fal.Ai with cinematic output, advanced fluid mechanics, and realistic lighting."
                             "veo3-fast" -> "Optimized speed version of Veo 3 on Fal.Ai. Delivers quick response times and lower token latency."
@@ -6752,7 +6799,7 @@ fun EddieVideoGeneratorView(
             }
         }
 
-        if (uiState.selectedVideoProvider == "Gemini" && uiState.selectedVideoMode == "Text to Video" && !isVeo2) {
+        if ((uiState.selectedVideoProvider == "Gemini" && uiState.selectedVideoMode == "Text to Video" && !isVeo2) || isFalVeo3 || isFalVeo3FastModel) {
             Column {
                 Text(
                     text = "Generate Audio",
@@ -7043,6 +7090,7 @@ fun EddieVideoGeneratorView(
                     onClick = { 
                         val ratioParam = if (uiState.selectedVideoProvider == "OpenAI") selectedOpenAiSize else selectedAspectRatio
                         val resParam = if (uiState.selectedVideoProvider == "OpenAI" || resolutions.isEmpty()) "Default" else selectedResolution
+                        val selectedImgUrl = (uiState.generatedImages + uploadedImages).find { it.id == selectedImageId }?.imageUrl
                         onGenerateVideo(
                             prompt,
                             selectedStyle,
@@ -7052,7 +7100,8 @@ fun EddieVideoGeneratorView(
                             selectedAudioOption,
                             selectedPersonGeneration,
                             negativePromptText,
-                            sampleCountVideos
+                            sampleCountVideos,
+                            selectedImgUrl
                         )
                         showProgressPanel = true
                     },

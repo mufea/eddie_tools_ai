@@ -1073,7 +1073,7 @@ class ChatViewModel(
         }
         val defaultModel = when (mode) {
             "Text to Video" -> "Sora 2"
-            "Image to Video" -> "veo-3.1-generate-preview"
+            "Image to Video" -> "veo-3.1-generate-001"
             else -> "Sora 2"
         }
         _uiState.update { state ->
@@ -1090,16 +1090,16 @@ class ChatViewModel(
         val defaultModel = if (mode == "Text to Video") {
             when (provider) {
                 "OpenAI" -> "Sora 2"
-                "Gemini" -> "veo-3.0-generate-preview"
-                "FalAI" -> "veed"
+                "Gemini" -> "veo-3.0-generate-001"
+                "FalAI" -> "fal-ai/veo3.1/lite"
                 else -> "Sora 2"
             }
         } else {
             // Image to Video
             when (provider) {
-                "Gemini" -> "veo-3.1-generate-preview"
-                "FalAI" -> "Kling v2.6 pro"
-                else -> "veo-3.1-generate-preview"
+                "Gemini" -> "veo-3.1-generate-001"
+                "FalAI" -> "fal-ai/veo3.1/lite"
+                else -> "veo-3.1-generate-001"
             }
         }
         _uiState.update { state ->
@@ -1804,16 +1804,19 @@ class ChatViewModel(
             "Gemini" -> {
                 when {
                     modelLower == "veo-2.0-generate-001" || modelLower == "veo2" || modelLower == "veo 2" -> 625.0
-                    modelLower == "veo-3.0-generate-preview" || modelLower == "veo3" || modelLower == "veo 3" -> 800.0
-                    modelLower == "veo-3.0-fast-generate-preview" || modelLower == "veo3-fast" || modelLower == "veo 3 fast" -> 300.0
-                    modelLower == "veo-3.1-generate-preview" || modelLower == "veo3.1/text-to-video" || modelLower == "veo 3.1" -> 800.0
-                    modelLower == "veo-3.1-fast-generate-preview" || modelLower == "veo3.1/fast/text-to-video" || modelLower == "veo 3.1 fast" -> 300.0
-                    modelLower == "veo-3.1-lite-generate-preview" || modelLower == "veo3.1/lite" || modelLower == "veo 3.1 lite" -> 200.0
+                    modelLower == "veo-3.0-generate-preview" || modelLower == "veo-3.0-generate-001" || modelLower == "veo3" || modelLower == "veo 3" -> 800.0
+                    modelLower == "veo-3.0-fast-generate-preview" || modelLower == "veo-3.0-fast-generate-001" || modelLower == "veo3-fast" || modelLower == "veo 3 fast" -> 300.0
+                    modelLower == "veo-3.1-generate-preview" || modelLower == "veo-3.1-generate-001" || modelLower == "veo3.1/text-to-video" || modelLower == "veo 3.1" -> 800.0
+                    modelLower == "veo-3.1-fast-generate-preview" || modelLower == "veo-3.1-fast-generate-001" || modelLower == "veo3.1/fast/text-to-video" || modelLower == "veo 3.1 fast" -> 300.0
+                    modelLower == "veo-3.1-lite-generate-preview" || modelLower == "veo-3.1-lite-generate-001" || modelLower == "veo3.1/lite" || modelLower == "veo 3.1 lite" -> 200.0
                     else -> 150.0
                 }
             }
             "FalAI" -> {
                 when {
+                    modelLower == "fal-ai/veo3.1/lite" || modelLower.contains("veo3.1/lite") || modelLower.contains("veo 3.1 lite") -> 200.0
+                    modelLower == "fal-ai/veo3.1/fast" || modelLower.contains("veo3.1/fast") || modelLower.contains("veo 3.1 fast") -> 300.0
+                    modelLower == "fal-ai/veo3.1" || modelLower == "veo3.1" || modelLower.contains("veo3.1") || modelLower.contains("veo 3.1") -> 800.0
                     modelLower == "veo2" -> 625.0
                     modelLower == "veo3" -> 800.0
                     modelLower == "veo3-fast" -> 300.0
@@ -2203,6 +2206,7 @@ class ChatViewModel(
         personGeneration: String = "allow_adult",
         negativePrompt: String = "blurry, text, watermark, bad lighting",
         sampleCount: Int = 1,
+        imageUrl: String? = null,
         onSubscriptionRequired: () -> Unit
     ) {
         if (prompt.trim().isBlank()) return
@@ -2414,6 +2418,31 @@ class ChatViewModel(
                     )
                 } catch (e: Exception) {
                     errorOccurred = e.localizedMessage ?: "Unknown Gemini Veo generating error."
+                }
+            } else if (provider == "FalAI") {
+                try {
+                    val key = _uiState.value.falApiKey.ifBlank { null }
+                    _uiState.update { state ->
+                        state.copy(videoGenLog = state.videoGenLog + "> Connecting to FalAI ($model) API...\n")
+                    }
+                    generatedVideoUrl = repository.generateFalVideo(
+                        prompt = prompt,
+                        imageUrl = imageUrl,
+                        mode = mode,
+                        aspectRatio = aspectRatio,
+                        duration = duration,
+                        model = model,
+                        resolution = resolution,
+                        generateAudio = (generateAudio.trim().lowercase() == "on"),
+                        customApiKey = key,
+                        onLogMessage = { log ->
+                            _uiState.update { state ->
+                                state.copy(videoGenLog = state.videoGenLog + log)
+                            }
+                        }
+                    )
+                } catch (e: Exception) {
+                    errorOccurred = e.localizedMessage ?: "Unknown FalAI Veo generating error."
                 }
             } else {
                 val sampleVideoUrls = listOf(
