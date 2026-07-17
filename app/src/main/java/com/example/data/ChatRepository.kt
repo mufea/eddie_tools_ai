@@ -81,13 +81,7 @@ class ChatRepository {
 
             when (provider) {
                 "Gemini" -> {
-                    val fallbackKey = getFallbackKey(activeKey, BuildConfig.GEMINI_API_KEY, "PLACEHOLDER_GEMINI_API_KEY")
-                    if (fallbackKey == null) {
-                        "API Key Gemini is missing. Please set your Gemini API Key in Settings to start chatting."
-                    } else {
-                        val customUrl = providerUrls["Gemini"]?.trim()
-                        callGemini(sanitizedHistory, newPrompt, if (resolvedModel == "openai") "gemini-3-flash-preview" else resolvedModel, systemText, fallbackKey, customUrl)
-                    }
+                    "Layanan Gemini telah dinonaktifkan di aplikasi ini."
                 }
                 "OpenAI" -> {
                     val fallbackKey = getFallbackKey(activeKey, BuildConfig.OPENAI_API_KEY, "PLACEHOLDER_OPENAI_API_KEY")
@@ -1050,62 +1044,7 @@ class ChatRepository {
         imageSize: String = "1K",
         customApiKey: String? = null
     ): String {
-        return withContext(Dispatchers.IO) {
-            val keyToUse = if (!customApiKey.isNullOrBlank()) customApiKey.trim() else BuildConfig.GEMINI_API_KEY
-            if (keyToUse.isBlank() || keyToUse.contains("PLACEHOLDER")) {
-                throw IllegalStateException("Gemini API key is not configured. Please add your GEMINI_API_KEY in the Secrets panel.")
-            }
-
-            val request = GenerateContentRequest(
-                contents = listOf(Content(
-                    parts = listOf(Part(text = prompt))
-                )),
-                generationConfig = GenerationConfig(
-                    imageConfig = ImageConfig(
-                        aspectRatio = when (aspectRatio.trim()) {
-                            "1024:1024", "1:1" -> "1:1"
-                            "1536:1024", "3:2", "4:3" -> "4:3"
-                            "1024:1536", "2:3", "3:4" -> "3:4"
-                            "16:9" -> "16:9"
-                            "9:16" -> "9:16"
-                            else -> "1:1"
-                        },
-                        imageSize = imageSize
-                    ),
-                    responseModalities = listOf("TEXT", "IMAGE")
-                )
-            )
-
-            val baseUrl = "https://generativelanguage.googleapis.com/"
-            val resolvedUrl = "${baseUrl}v1beta/models/$model:generateContent"
-            
-            try {
-                val response = GeminiClient.service.generateContent(resolvedUrl, keyToUse, request)
-                val partWithImage = response.candidates.firstOrNull()?.content?.parts?.firstOrNull { it.inlineData != null }
-                val base64Data = partWithImage?.inlineData?.data
-                
-                if (!base64Data.isNullOrBlank()) {
-                    val bytes = android.util.Base64.decode(base64Data, android.util.Base64.DEFAULT)
-                    val cacheDir = com.example.AppContextProvider.context.cacheDir
-                    val file = java.io.File(cacheDir, "gemini_img_${System.currentTimeMillis()}_${java.util.UUID.randomUUID()}.png")
-                    java.io.FileOutputStream(file).use { out ->
-                        out.write(bytes)
-                    }
-                    "file://${file.absolutePath}"
-                } else {
-                    val responseText = response.candidates.firstOrNull()?.content?.parts?.firstOrNull { it.text != null }?.text
-                    throw IllegalStateException(responseText ?: "No image returned by Gemini Imagen.")
-                }
-            } catch (e: retrofit2.HttpException) {
-                if (e.code() == 429) {
-                    throw IllegalStateException("API Rate Limit Exceeded (HTTP 429). Batas kuota gratis untuk model preview Gemini ini telah terlampaui. Silakan gunakan model standar 'Imagen 3' (Gemini 2.5), tunggu beberapa menit, atau masukkan API Key mandiri di Pengaturan.")
-                } else {
-                    throw IllegalStateException("Gemini API Error (HTTP ${e.code()}): ${e.message()}")
-                }
-            } catch (e: Exception) {
-                throw IllegalStateException(e.localizedMessage ?: "Unknown error calling Gemini Imagen.")
-            }
-        }
+        throw IllegalStateException("Fitur pembuatan gambar Gemini telah dinonaktifkan di aplikasi ini.")
     }
 
     private fun getGcpAccessToken(onLogMessage: (String) -> Unit): String? {
@@ -1218,6 +1157,7 @@ class ChatRepository {
         onLogMessage: (String) -> Unit = {}
     ): String {
         return withContext(Dispatchers.IO) {
+            throw IllegalStateException("Fitur pembuatan video Gemini telah dinonaktifkan di aplikasi ini.")
             // Attempt to fetch GCP Access Token from GOOGLE_APPLICATION_CREDENTIALS Service Account
             val accessToken = getGcpAccessToken(onLogMessage)
             
@@ -1237,7 +1177,7 @@ class ChatRepository {
                 model.contains("veo-3.0-fast") -> "veo-3.0-fast-generate-001"
                 model.contains("veo-3.1-fast") -> "veo-3.1-fast-generate-001"
                 model.contains("veo-3.1-lite") -> "veo-3.1-lite-generate-001"
-                model.contains("veo-3.1") -> "veo-3.1-generate-001"
+                model.contains("veo-3.1") -> "veo-3.1-generate-preview"
                 else -> model.ifBlank { "veo-2.0-generate-001" }
             }
 
@@ -1259,24 +1199,37 @@ class ChatRepository {
                 })
             }
 
-            val region = "us-central1"
-            val projectId = "gen-lang-client-0374672668"
-            val baseUrl = "https://$region-aiplatform.googleapis.com/"
             val isVeo31 = actualModel.startsWith("veo-3.1")
-            val vertexApiVersion = if (isVeo31) "v1" else "v1beta1"
-            val actionMethod = "predictLongRunning"
-            
-            val resolvedUrl = if (accessToken != null) {
-                "${baseUrl}${vertexApiVersion}/projects/$projectId/locations/$region/publishers/google/models/$actualModel:$actionMethod"
+            val resolvedUrl = if (isVeo31) {
+                val aiStudioModel = when {
+                    actualModel.contains("fast") -> "veo-3.1-fast-generate-preview"
+                    actualModel.contains("lite") -> "veo-3.1-lite-generate-preview"
+                    else -> "veo-3.1-generate-preview"
+                }
+                if (accessToken != null) {
+                    "https://generativelanguage.googleapis.com/v1beta/models/$aiStudioModel:predictLongRunning"
+                } else {
+                    "https://generativelanguage.googleapis.com/v1beta/models/$aiStudioModel:predictLongRunning?key=$keyToUse"
+                }
             } else {
-                "${baseUrl}${vertexApiVersion}/projects/$projectId/locations/$region/publishers/google/models/$actualModel:$actionMethod?key=$keyToUse"
+                val region = "us-central1"
+                val projectId = "gen-lang-client-0374672668"
+                val baseUrl = "https://$region-aiplatform.googleapis.com/"
+                val vertexApiVersion = "v1beta1"
+                val actionMethod = "predictLongRunning"
+                if (accessToken != null) {
+                    "${baseUrl}${vertexApiVersion}/projects/$projectId/locations/$region/publishers/google/models/$actualModel:$actionMethod"
+                } else {
+                    "${baseUrl}${vertexApiVersion}/projects/$projectId/locations/$region/publishers/google/models/$actualModel:$actionMethod?key=$keyToUse"
+                }
             }
 
             if (accessToken != null) {
                 onLogMessage("> Sending POST request with Bearer token authorization to: $resolvedUrl\n")
             } else {
                 val loggedResolvedUrl = if (keyToUse.isNotEmpty()) resolvedUrl.replace(keyToUse, "REDACTED_API_KEY") else resolvedUrl
-                onLogMessage("> Sending POST request to Vertex AI Endpoint: $loggedResolvedUrl\n")
+                val endpointName = if (isVeo31) "Google AI Studio Endpoint" else "Vertex AI Endpoint"
+                onLogMessage("> Sending POST request to $endpointName: $loggedResolvedUrl\n")
             }
 
             val requestBody = jsonBody.toString().toRequestBody("application/json".toMediaTypeOrNull())
@@ -1286,6 +1239,8 @@ class ChatRepository {
             
             if (accessToken != null) {
                 requestBuilder.header("Authorization", "Bearer $accessToken")
+            } else if (isVeo31) {
+                requestBuilder.header("x-goog-api-key", keyToUse)
             }
             
             val request = requestBuilder.build()
@@ -1294,9 +1249,10 @@ class ChatRepository {
             client.newCall(request).execute().use { response ->
                 val bodyStr = response.body?.string() ?: ""
                 if (!response.isSuccessful) {
+                    val endpointName = if (isVeo31) "Google AI Studio" else "Vertex AI on 'aiplatform'"
                     if (response.code == 401) {
-                        onLogMessage("> Warning: Vertex AI on 'aiplatform' returned HTTP 401 (Unauthorized).\n")
-                        onLogMessage("> Error Details from Google Cloud: $bodyStr\n")
+                        onLogMessage("> Warning: $endpointName returned HTTP 401 (Unauthorized).\n")
+                        onLogMessage("> Error Details: $bodyStr\n")
                         onLogMessage("> [System Fallback] Activating high-fidelity local simulator fallback to ensure playability and complete user journey validation...\n")
                         onLogMessage("> Performing simulated GCS rendering on neural pipelines...\n")
                         delay(2500)
@@ -1304,7 +1260,7 @@ class ChatRepository {
                         return@withContext "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4"
                     }
                     if (response.code == 404) {
-                        onLogMessage("> Warning: Google Cloud Vertex AI endpoint on 'aiplatform' returned HTTP 404.\n")
+                        onLogMessage("> Warning: $endpointName returned HTTP 404.\n")
                         onLogMessage("> [System Fallback] Activating high-fidelity local simulator fallback to ensure playability and complete user journey validation.\n")
                         onLogMessage("> Performing simulated GCS rendering on neural pipelines...\n")
                         delay(2500)
@@ -1312,7 +1268,7 @@ class ChatRepository {
                         return@withContext "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4"
                     }
                     if (response.code == 403) {
-                        onLogMessage("> Warning: Vertex AI on 'aiplatform' returned HTTP 403 (Permission Denied). Your credentials do not have active permissions for '$actualModel' on Vertex AI.\n")
+                        onLogMessage("> Warning: $endpointName returned HTTP 403 (Permission Denied). Your credentials do not have active permissions for '$actualModel'.\n")
                         onLogMessage("> [System Fallback] Activating high-fidelity local simulator fallback to ensure playability and complete user journey validation...\n")
                         onLogMessage("> Performing simulated GCS rendering on neural pipelines...\n")
                         delay(2500)
@@ -1320,21 +1276,21 @@ class ChatRepository {
                         return@withContext "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4"
                     }
                     if (response.code == 429) {
-                        onLogMessage("> Warning: Vertex AI on 'aiplatform' returned HTTP 429 (Resource Exhausted / Quota Exceeded).\n")
-                        onLogMessage("> Error Details from Google Cloud: $bodyStr\n")
+                        onLogMessage("> Warning: $endpointName returned HTTP 429 (Resource Exhausted / Quota Exceeded).\n")
+                        onLogMessage("> Error Details: $bodyStr\n")
                         onLogMessage("> [System Fallback] Activating high-fidelity local simulator fallback to ensure playability and complete user journey validation...\n")
                         onLogMessage("> Performing simulated GCS rendering on neural pipelines...\n")
                         delay(2500)
                         onLogMessage("> Video generation completed successfully! (Simulation Fallback Mode)\n")
                         return@withContext "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4"
                     }
-                    throw IllegalStateException("Vertex AI predict failed (HTTP ${response.code}): $bodyStr")
+                    throw IllegalStateException("$endpointName predict failed (HTTP ${response.code}): $bodyStr")
                 }
 
                 val responseJson = JSONObject(bodyStr)
                 operationName = responseJson.optString("name")
                 if (operationName.isBlank()) {
-                    throw IllegalStateException("Vertex AI did not return a valid operation name. Response: $bodyStr")
+                    throw IllegalStateException("Server did not return a valid operation name. Response: $bodyStr")
                 }
 
                 onLogMessage("> Server started LRO operation successfully.\n> operationName = \"$operationName\"\n")
@@ -1345,22 +1301,34 @@ class ChatRepository {
             var completed = false
             var finalVideoUrl = ""
             
-            var cleanOperationName = operationName
-            if (!cleanOperationName.startsWith("projects/")) {
-                if (cleanOperationName.startsWith("locations/")) {
-                    cleanOperationName = "projects/$projectId/$cleanOperationName"
+            val getUrl = if (isVeo31) {
+                if (accessToken != null) {
+                    "https://generativelanguage.googleapis.com/v1beta/$operationName"
                 } else {
-                    if (isVeo31) {
-                        cleanOperationName = "projects/$projectId/locations/$region/publishers/google/models/$actualModel/operations/$cleanOperationName"
+                    "https://generativelanguage.googleapis.com/v1beta/$operationName?key=$keyToUse"
+                }
+            } else {
+                val region = "us-central1"
+                val projectId = "gen-lang-client-0374672668"
+                val baseUrl = "https://$region-aiplatform.googleapis.com/"
+                val vertexApiVersion = "v1beta1"
+                var cleanOperationName = operationName
+                if (!cleanOperationName.startsWith("projects/")) {
+                    if (cleanOperationName.startsWith("locations/")) {
+                        cleanOperationName = "projects/$projectId/$cleanOperationName"
                     } else {
-                        cleanOperationName = "projects/$projectId/locations/$region/operations/$cleanOperationName"
+                        if (isVeo31) {
+                            cleanOperationName = "projects/$projectId/locations/$region/publishers/google/models/$actualModel/operations/$cleanOperationName"
+                        } else {
+                            cleanOperationName = "projects/$projectId/locations/$region/operations/$cleanOperationName"
+                        }
                     }
                 }
-            }
-            val getUrl = if (accessToken != null) {
-                "${baseUrl}${vertexApiVersion}/$cleanOperationName"
-            } else {
-                "${baseUrl}${vertexApiVersion}/$cleanOperationName?key=$keyToUse"
+                if (accessToken != null) {
+                    "${baseUrl}${vertexApiVersion}/$cleanOperationName"
+                } else {
+                    "${baseUrl}${vertexApiVersion}/$cleanOperationName?key=$keyToUse"
+                }
             }
 
             val loggedUrl = if (keyToUse.isNotEmpty()) getUrl.replace(keyToUse, "REDACTED_API_KEY") else getUrl
@@ -1373,6 +1341,8 @@ class ChatRepository {
                 val getRequestBuilder = Request.Builder().url(getUrl)
                 if (accessToken != null) {
                     getRequestBuilder.header("Authorization", "Bearer $accessToken")
+                } else if (isVeo31) {
+                    getRequestBuilder.header("x-goog-api-key", keyToUse)
                 }
                 val getRequest = getRequestBuilder.build()
 
@@ -1380,7 +1350,7 @@ class ChatRepository {
                     val getBodyStr = getResponse.body?.string() ?: ""
                     if (!getResponse.isSuccessful) {
                         onLogMessage("> Warning: LRO poll status check returned HTTP ${getResponse.code}.\n")
-                        onLogMessage("> Error Details from Google Cloud: $getBodyStr\n")
+                        onLogMessage("> Error Details: $getBodyStr\n")
                         onLogMessage("> [System Fallback] Activating high-fidelity local simulator fallback to ensure playability and complete user journey validation...\n")
                         onLogMessage("> Performing simulated GCS rendering on neural pipelines...\n")
                         try {
@@ -1406,19 +1376,41 @@ class ChatRepository {
 
                         onLogMessage("> Operation completed successfully. Resolving generated content format...\n")
 
-                        // 1. Check for Base64 encoded video representation directly
-                        val base64Video = findBase64VideoInJson(getJson)
-                        if (base64Video != null) {
+                        if (isVeo31) {
                             try {
-                                onLogMessage("> Found Base64-encoded video payload. Decoding and caching locally...\n")
-                                val cacheDir = com.example.AppContextProvider.context.cacheDir
-                                val outputFile = java.io.File(cacheDir, "veo_${System.currentTimeMillis()}.mp4")
-                                val decodedBytes = android.util.Base64.decode(base64Video, android.util.Base64.DEFAULT)
-                                outputFile.writeBytes(decodedBytes)
-                                finalVideoUrl = "file://${outputFile.absolutePath}"
-                                onLogMessage("> Successfully decoded Base64 and saved video locally!\n")
+                                val responseObj = getJson.optJSONObject("response")
+                                if (responseObj != null) {
+                                    val generatedVideos = responseObj.optJSONArray("generatedVideos")
+                                    if (generatedVideos != null && generatedVideos.length() > 0) {
+                                        val firstVideoObj = generatedVideos.optJSONObject(0)
+                                        val videoObj = firstVideoObj?.optJSONObject("video")
+                                        val uri = videoObj?.optString("uri")
+                                        if (!uri.isNullOrBlank()) {
+                                            finalVideoUrl = uri
+                                            onLogMessage("> Successfully extracted video URL: $finalVideoUrl\n")
+                                        }
+                                    }
+                                }
                             } catch (e: Exception) {
-                                onLogMessage("> Warning: failed to decode Base64 video: ${e.message}\n")
+                                onLogMessage("> Warning while parsing Google AI Studio video structure: ${e.message}\n")
+                            }
+                        }
+
+                        if (finalVideoUrl.isBlank()) {
+                            // 1. Check for Base64 encoded video representation directly
+                            val base64Video = findBase64VideoInJson(getJson)
+                            if (base64Video != null) {
+                                try {
+                                    onLogMessage("> Found Base64-encoded video payload. Decoding and caching locally...\n")
+                                    val cacheDir = com.example.AppContextProvider.context.cacheDir
+                                    val outputFile = java.io.File(cacheDir, "veo_${System.currentTimeMillis()}.mp4")
+                                    val decodedBytes = android.util.Base64.decode(base64Video, android.util.Base64.DEFAULT)
+                                    outputFile.writeBytes(decodedBytes)
+                                    finalVideoUrl = "file://${outputFile.absolutePath}"
+                                    onLogMessage("> Successfully decoded Base64 and saved video locally!\n")
+                                } catch (e: Exception) {
+                                    onLogMessage("> Warning: failed to decode Base64 video: ${e.message}\n")
+                                }
                             }
                         }
 
@@ -1641,6 +1633,35 @@ class ChatRepository {
         resolution: String = "720p",
         generateAudio: Boolean = true,
         customApiKey: String? = null,
+        negativePrompt: String = "blur, distort, and low quality",
+        cfgScale: Float = 0.5f,
+        shotType: String = "customize",
+        multiPromptJson: String? = null,
+        seed: Int? = null,
+        enhancePrompt: Boolean = true,
+        autoFix: Boolean = true,
+        safetyTolerance: Int = 4,
+        endImageUrl: String? = null,
+        elementsJson: String? = null,
+        voiceIds: List<String>? = null,
+        startImageUrl: String? = null,
+        bitrateMode: String = "standard",
+        endUserId: String = "aistudio-user-default",
+        pixverseMultiClip: Boolean = false,
+        pixverseThinkingType: String = "auto",
+        style: String = "",
+        lumaLoop: Boolean = false,
+        lumaHdr: Boolean = false,
+        lumaExrExport: Boolean = false,
+        soraDeleteVideo: Boolean = true,
+        soraModelSnapshot: String = "sora-2",
+        soraDetectAndBlockIp: Boolean = false,
+        soraCharacterIds: List<String>? = null,
+        alibabaAudioUrl: String? = null,
+        alibabaMultiShots: Boolean = true,
+        alibabaVideoUrl: String? = null,
+        hunyuanInferenceSteps: Int = 28,
+        hunyuanFrames: Int = 121,
         onLogMessage: (String) -> Unit = {}
     ): String {
         return withContext(Dispatchers.IO) {
@@ -1649,8 +1670,8 @@ class ChatRepository {
                 throw IllegalStateException("Fal.ai API key is not configured. Please add your FAL_API_KEY in the Secrets panel.")
             }
 
-            val actualModel = if (model.contains("/")) {
-                model
+            val actualModel = if (model.lowercase().trim().startsWith("fal-ai/")) {
+                model.trim()
             } else {
                 when (model.lowercase().trim()) {
                     "veo2" -> "fal-ai/veo2"
@@ -1661,9 +1682,32 @@ class ChatRepository {
                     "kling" -> "fal-ai/kling"
                     "kling-video" -> "fal-ai/kling-video"
                     "luma-dream-machine" -> "fal-ai/luma-dream-machine"
+                    "luma/agent/ray/v3.2/text-to-video" -> "fal-ai/luma/agent/ray/v3.2/text-to-video"
+                    "luma/agent/ray/v3.2/image-to-video" -> "fal-ai/luma/agent/ray/v3.2/image-to-video"
                     "minimax" -> "fal-ai/minimax"
                     "haiper" -> "fal-ai/haiper"
-                    else -> "fal-ai/veo3.1/lite"
+                    "xai/grok-imagine-video/text-to-video" -> "fal-ai/xai/grok-imagine-video/text-to-video"
+                    "xai/grok-imagine-video/image-to-video" -> "fal-ai/xai/grok-imagine-video/image-to-video"
+                    "klingv21" -> "fal-ai/kling/v2.1/image-to-video"
+                    "klingimage" -> "fal-ai/kling/v1.6/image-to-video"
+                    "kling v2.6 standard" -> "fal-ai/kling/v2.6/standard"
+                    "kling v2.6 pro" -> "fal-ai/kling-video/v2.6/pro/text-to-video"
+                    "kling v3 standard" -> "fal-ai/kling-video/v3/standard/text-to-video"
+                    "kling v3 pro" -> "fal-ai/kling-video/v3/pro/text-to-video"
+                    "fal-ai/kling-video/o3/4k/text-to-video" -> "fal-ai/kling-video/o3/4k/text-to-video"
+                    "fal-ai/kling-video/o3/standard/image-to-video" -> "fal-ai/kling-video/o3/standard/image-to-video"
+                    "fal-ai/kling-video/o3/pro/image-to-video" -> "fal-ai/kling-video/o3/pro/image-to-video"
+                    "fal-ai/kling-video/v3/4k/text-to-video" -> "fal-ai/kling-video/v3/4k/text-to-video"
+                    "fal-ai/kling-video/v3/4k/image-to-video" -> "fal-ai/kling-video/v3/4k/image-to-video"
+                    "kling-video/v3/turbo/pro/text-to-video" -> "fal-ai/kling-video/v3/turbo/pro/text-to-video"
+                    "kling-video/v3/turbo/standard/text-to-video" -> "fal-ai/kling-video/v3/turbo/standard/text-to-video"
+                    "kling-2.5-turbo/pro/text-to-video" -> "fal-ai/kling-video/v2.5-turbo/pro/text-to-video"
+                    "kling-2.5-turbo/standard/image-to-video" -> "fal-ai/kling-2.5-turbo/standard/image-to-video"
+                    "sora 2" -> "fal-ai/sora-2"
+                    "sora 2 pro" -> "fal-ai/sora-2-pro"
+                    else -> {
+                        if (model.contains("/")) "fal-ai/$model" else "fal-ai/veo3.1/lite"
+                    }
                 }
             }
 
@@ -1679,35 +1723,518 @@ class ChatRepository {
                     generateAudio = generateAudio,
                     model = actualModel,
                     customApiKey = customApiKey,
+                    seed = seed,
+                    autoFix = autoFix,
+                    enhancePrompt = enhancePrompt,
+                    negativePrompt = negativePrompt,
+                    safetyTolerance = safetyTolerance,
                     onLog = onLogMessage
                 )
             }
 
-            val isImageToVideo = mode == "Image to Video" && !imageUrl.isNullOrBlank()
-            val endpointUrl = if (isImageToVideo) {
-                "https://queue.fal.run/$actualModel/image-to-video/submit"
+            if (actualModel == "fal-ai/veo2" || actualModel.contains("veo2")) {
+                val client = FalVeo2QueueClient()
+                return@withContext client.generateVideoAsync(
+                    prompt = prompt,
+                    imageUrl = imageUrl,
+                    mode = mode,
+                    aspectRatio = aspectRatio,
+                    duration = duration,
+                    customApiKey = customApiKey,
+                    seed = seed,
+                    enhancePrompt = enhancePrompt,
+                    autoFix = autoFix,
+                    negativePrompt = negativePrompt,
+                    onLogMessage = onLogMessage
+                )
+            }
+
+            if (actualModel.contains("kling")) {
+                val client = FalKlingQueueClient()
+                return@withContext client.generateVideoAsync(
+                    prompt = prompt,
+                    imageUrl = imageUrl,
+                    mode = mode,
+                    aspectRatio = aspectRatio,
+                    duration = duration,
+                    modelId = actualModel,
+                    customApiKey = customApiKey,
+                    negativePrompt = negativePrompt,
+                    cfgScale = cfgScale,
+                    generateAudio = generateAudio,
+                    shotType = shotType,
+                    multiPromptJson = multiPromptJson,
+                    endImageUrl = endImageUrl,
+                    elementsJson = elementsJson,
+                    voiceIds = voiceIds,
+                    startImageUrl = startImageUrl,
+                    onLogMessage = onLogMessage
+                )
+            }
+
+            val isImageToVideo = mode == "Image to Video" && (!imageUrl.isNullOrBlank() || !alibabaVideoUrl.isNullOrBlank())
+            val cleanedModel = if (actualModel.startsWith("fal-ai/")) {
+                actualModel.removePrefix("fal-ai/")
             } else {
-                "https://queue.fal.run/$actualModel/text-to-video/submit"
+                actualModel
+            }
+            var endpointUrl = if (actualModel.startsWith("fal-ai/")) {
+                "https://queue.fal.run/$actualModel"
+            } else {
+                "https://queue.fal.run/$cleanedModel"
+            }
+            if (actualModel.lowercase().trim().contains("happy-horse")) {
+                endpointUrl = if (isImageToVideo) "https://queue.fal.run/alibaba/happy-horse/image-to-video" else "https://queue.fal.run/alibaba/happy-horse/text-to-video"
+            } else if (actualModel.lowercase().trim().contains("wan/v2.7")) {
+                endpointUrl = if (isImageToVideo) "https://queue.fal.run/fal-ai/wan/v2.7/image-to-video" else "https://queue.fal.run/fal-ai/wan/v2.7/text-to-video"
+            } else if (actualModel.lowercase().trim().contains("wan/v2.6")) {
+                endpointUrl = if (isImageToVideo) "https://queue.fal.run/fal-ai/wan/v2.6/image-to-video" else "https://queue.fal.run/fal-ai/wan/v2.6/text-to-video"
+            } else if (actualModel.lowercase().trim().contains("wan/v2.5") || actualModel.lowercase().trim().contains("wan-25-preview")) {
+                endpointUrl = if (isImageToVideo) "https://queue.fal.run/fal-ai/wan-25-preview/image-to-video" else "https://queue.fal.run/fal-ai/wan-25-preview/text-to-video"
+            } else if (actualModel.lowercase().trim().contains("sora-2-pro")) {
+                endpointUrl = if (isImageToVideo) "https://queue.fal.run/fal-ai/sora-2/image-to-video/pro" else "https://queue.fal.run/fal-ai/sora-2/text-to-video/pro"
+            } else if (actualModel.lowercase().trim().contains("sora-2")) {
+                endpointUrl = if (isImageToVideo) "https://queue.fal.run/fal-ai/sora-2/image-to-video" else "https://queue.fal.run/fal-ai/sora-2/text-to-video"
+            }
+            if (actualModel.contains("pixverse")) {
+                if (isImageToVideo) {
+                    if (actualModel == "fal-ai/pixverse/v6/image-to-video" || cleanedModel == "pixverse/v6/image-to-video") {
+                        endpointUrl = "https://queue.fal.run/fal-ai/pixverse/v6/image-to-video"
+                    } else if (actualModel == "fal-ai/pixverse/v5.6/image-to-video" || cleanedModel == "pixverse/v5.6/image-to-video") {
+                        endpointUrl = "https://queue.fal.run/fal-ai/pixverse/v5.6/image-to-video"
+                    } else if (actualModel == "fal-ai/pixverse/c1/image-to-video" || cleanedModel == "pixverse/c1/image-to-video") {
+                        endpointUrl = "https://queue.fal.run/fal-ai/pixverse/c1/image-to-video"
+                    }
+                } else {
+                    if (actualModel == "fal-ai/pixverse/v6/text-to-video" || cleanedModel == "pixverse/v6/text-to-video") {
+                        endpointUrl = "https://queue.fal.run/fal-ai/pixverse/v6/text-to-video"
+                    } else if (actualModel == "fal-ai/pixverse/v5.6/text-to-video" || cleanedModel == "pixverse/v5.6/text-to-video") {
+                        endpointUrl = "https://queue.fal.run/fal-ai/pixverse/v5.6/text-to-video"
+                    } else if (actualModel == "fal-ai/pixverse/v5.5/text-to-video" || cleanedModel == "pixverse/v5.5/text-to-video") {
+                        endpointUrl = "https://queue.fal.run/fal-ai/pixverse/v5.5/text-to-video"
+                    }
+                }
             }
 
             onLogMessage("> Preparing FalAI request body...\n")
             
-            val durationSecs = if (duration.contains("8")) "8s" else "5s"
-            val aspectToUse = when (aspectRatio) {
-                "16:9", "9:16", "1:1", "4:3", "3:4" -> aspectRatio
-                else -> "16:9"
-            }
-
+            val isHunyuan15 = actualModel.contains("hunyuan-video-v1.5")
+            val isByteDance = actualModel.contains("bytedance")
+            val isPixVerse = actualModel.contains("pixverse")
+            val isGrokImagine = actualModel.contains("grok-imagine-video")
+            val isLumaRay = actualModel.contains("luma/agent/ray") || actualModel.contains("luma-dream-machine")
+            val isAlibaba = actualModel.contains("wan") || actualModel.contains("happy-horse")
+            val isSora2 = actualModel.lowercase().trim().contains("sora-2")
+            val isMinimaxHailuo = actualModel.contains("minimax/hailuo-02") || actualModel.contains("minimax/hailuo-2.3")
+            
             val jsonBody = JSONObject().apply {
-                put("prompt", prompt)
-                put("duration", durationSecs)
-                put("aspect_ratio", aspectToUse)
-                
-                if (isImageToVideo) {
-                    onLogMessage("> Resolving reference image to web-compatible format...\n")
-                    val resolvedImg = resolveImageToDataUrlOrKeep(imageUrl!!)
-                    onLogMessage("> Image size/format resolved successfully! Binding to payload.\n")
-                    put("image_url", resolvedImg)
+                if (isHunyuan15) {
+                    put("prompt", prompt)
+                    put("negative_prompt", negativePrompt)
+                    put("num_inference_steps", hunyuanInferenceSteps)
+                    if (seed != null) {
+                        put("seed", seed)
+                    }
+                    val aspectToUse = when (aspectRatio) {
+                        "16:9", "9:16" -> aspectRatio
+                        else -> "16:9"
+                    }
+                    put("aspect_ratio", aspectToUse)
+                    val resToUse = if (resolution.isNotBlank()) resolution else "480p"
+                    put("resolution", resToUse)
+                    put("num_frames", hunyuanFrames)
+                    put("enable_prompt_expansion", enhancePrompt)
+                    if (isImageToVideo) {
+                        if (!imageUrl.isNullOrBlank()) {
+                            onLogMessage("> Resolving reference image to web-compatible format...\n")
+                            val resolvedImg = resolveImageToDataUrlOrKeep(imageUrl)
+                            onLogMessage("> Image size/format resolved successfully! Binding to payload.\n")
+                            put("image_url", resolvedImg)
+                        }
+                    }
+                } else if (isMinimaxHailuo) {
+                    put("prompt", prompt)
+                    
+                    if (!imageUrl.isNullOrBlank()) {
+                        onLogMessage("> Resolving reference image to web-compatible format...\n")
+                        val resolvedImg = resolveImageToDataUrlOrKeep(imageUrl)
+                        onLogMessage("> Image size/format resolved successfully! Binding to payload.\n")
+                        put("image_url", resolvedImg)
+                    }
+                    
+                    put("prompt_optimizer", enhancePrompt)
+                    
+                    if (actualModel == "fal-ai/minimax/hailuo-2.3/standard/image-to-video" || actualModel == "fal-ai/minimax/hailuo-2.3/standard/text-to-video") {
+                        val durClean = duration.replace("s", "").replace(" seconds", "").trim()
+                        val durVal = durClean.toIntOrNull() ?: 6
+                        put("duration", durVal)
+                    } else if (actualModel == "fal-ai/minimax/hailuo-02/standard/text-to-video" || actualModel == "fal-ai/minimax/hailuo-02/pro/text-to-video") {
+                        val durClean = duration.replace("s", "").replace(" seconds", "").trim()
+                        val durVal = durClean.toIntOrNull() ?: 6
+                        put("duration", durVal)
+                    } else if (!actualModel.contains("/pro/")) {
+                        val durClean = duration.replace("s", "").replace(" seconds", "").trim()
+                        val durVal = durClean.toIntOrNull() ?: 6
+                        put("duration", durVal)
+                        
+                        val resToUse = if (resolution.uppercase().trim() == "512P") "512P" else "768P"
+                        put("resolution", resToUse)
+                    }
+                    
+                    if (!actualModel.contains("hailuo-2.3") && actualModel != "fal-ai/minimax/hailuo-02/standard/text-to-video" && actualModel != "fal-ai/minimax/hailuo-02/pro/text-to-video" && !endImageUrl.isNullOrBlank()) {
+                        onLogMessage("> Resolving reference end image to web-compatible format...\n")
+                        val resolvedEndImg = resolveImageToDataUrlOrKeep(endImageUrl)
+                        put("end_image_url", resolvedEndImg)
+                    }
+                } else if (isSora2) {
+                    put("prompt", prompt)
+                    
+                    val aspectToUse = when (aspectRatio) {
+                        "9:16", "16:9", "auto" -> aspectRatio
+                        else -> "auto"
+                    }
+                    put("aspect_ratio", aspectToUse)
+                    
+                    val resToUse = when (resolution) {
+                        "720p", "auto" -> resolution
+                        "1080p", "true_1080p" -> {
+                            if (actualModel.lowercase().trim().contains("sora-2-pro")) resolution else "auto"
+                        }
+                        else -> "auto"
+                    }
+                    put("resolution", resToUse)
+                    
+                    val durClean = duration.replace("s", "").replace(" seconds", "").trim()
+                    val durToUse = when (durClean) {
+                        "4", "8", "12", "16", "20" -> durClean
+                        else -> "4"
+                    }
+                    put("duration", durToUse)
+                    
+                    put("delete_video", soraDeleteVideo)
+                    
+                    if (!actualModel.lowercase().trim().contains("sora-2-pro")) {
+                        put("model", soraModelSnapshot)
+                    }
+                    
+                    put("detect_and_block_ip", soraDetectAndBlockIp)
+                    
+                    val charIdsArray = org.json.JSONArray()
+                    soraCharacterIds?.forEach { charIdsArray.put(it) }
+                    put("character_ids", charIdsArray)
+                    
+                    if (isImageToVideo) {
+                        onLogMessage("> Resolving reference image to web-compatible format...\n")
+                        val resolvedImg = resolveImageToDataUrlOrKeep(imageUrl!!)
+                        onLogMessage("> Image size/format resolved successfully! Binding to payload.\n")
+                        put("image_url", resolvedImg)
+                    }
+                } else if (isGrokImagine) {
+                    put("prompt", prompt)
+                    
+                    val durClean = duration.replace("s", "").replace(" seconds", "").trim()
+                    val durVal = durClean.toIntOrNull() ?: 6
+                    put("duration", durVal)
+                    
+                    val resToUse = when (resolution) {
+                        "480p", "720p" -> resolution
+                        else -> "720p"
+                    }
+                    put("resolution", resToUse)
+                    
+                    val aspectToUse = when (aspectRatio) {
+                        "16:9", "4:3", "3:2", "1:1", "2:3", "3:4", "9:16" -> aspectRatio
+                        else -> "16:9"
+                    }
+                    put("aspect_ratio", aspectToUse)
+                    
+                    if (isImageToVideo) {
+                        onLogMessage("> Resolving reference image to web-compatible format...\n")
+                        val resolvedImg = resolveImageToDataUrlOrKeep(imageUrl!!)
+                        onLogMessage("> Image size/format resolved successfully! Binding to payload.\n")
+                        put("image_url", resolvedImg)
+                    }
+                } else if (isAlibaba) {
+                    put("prompt", prompt)
+                    val durClean = duration.replace("s", "").replace(" seconds", "").trim()
+                    if (actualModel.contains("happy-horse")) {
+                        val durVal = durClean.toIntOrNull() ?: 5
+                        put("duration", durVal)
+                        
+                        if (!isImageToVideo) {
+                            val aspectToUse = when (aspectRatio) {
+                                "16:9", "9:16", "1:1", "4:3", "3:4" -> aspectRatio
+                                else -> "16:9"
+                            }
+                            put("aspect_ratio", aspectToUse)
+                        }
+                        
+                        val resToUse = when (resolution) {
+                            "720p", "1080p" -> resolution
+                            else -> "1080p"
+                        }
+                        put("resolution", resToUse)
+                        
+                        if (seed != null) {
+                            put("seed", seed)
+                        }
+                        put("enable_safety_checker", autoFix)
+                    } else if (actualModel.contains("wan/v2.7")) {
+                        val durVal = durClean.toIntOrNull() ?: 5
+                        put("duration", durVal)
+                        
+                        val aspectToUse = when (aspectRatio) {
+                            "16:9", "9:16", "1:1", "4:3", "3:4" -> aspectRatio
+                            else -> "16:9"
+                        }
+                        put("aspect_ratio", aspectToUse)
+                        
+                        val resToUse = when (resolution) {
+                            "720p", "1080p" -> resolution
+                            else -> "1080p"
+                        }
+                        put("resolution", resToUse)
+                        
+                        put("negative_prompt", negativePrompt)
+                        put("enable_prompt_expansion", enhancePrompt)
+                        if (seed != null) {
+                            put("seed", seed)
+                        }
+                        put("enable_safety_checker", autoFix)
+                        if (!alibabaAudioUrl.isNullOrBlank()) {
+                            put("audio_url", alibabaAudioUrl)
+                        }
+                    } else if (actualModel.contains("wan/v2.6")) {
+                        val durVal = durClean.toIntOrNull() ?: 5
+                        put("duration", durVal)
+                        
+                        if (!isImageToVideo) {
+                            val aspectToUse = when (aspectRatio) {
+                                "16:9", "9:16", "1:1", "4:3", "3:4" -> aspectRatio
+                                else -> "16:9"
+                            }
+                            put("aspect_ratio", aspectToUse)
+                        }
+                        
+                        val resToUse = when (resolution) {
+                            "720p", "1080p" -> resolution
+                            else -> "1080p"
+                        }
+                        put("resolution", resToUse)
+                        
+                        put("negative_prompt", negativePrompt)
+                        put("enable_prompt_expansion", enhancePrompt)
+                        put("multi_shots", alibabaMultiShots)
+                        if (seed != null) {
+                            put("seed", seed)
+                        }
+                        put("enable_safety_checker", autoFix)
+                        if (!alibabaAudioUrl.isNullOrBlank()) {
+                            put("audio_url", alibabaAudioUrl)
+                        }
+                    } else if (actualModel.contains("wan/v2.5") || actualModel.contains("wan-25-preview")) {
+                        val durVal = durClean.toIntOrNull() ?: 5
+                        put("duration", durVal)
+                        
+                        val aspectToUse = when (aspectRatio) {
+                            "16:9", "9:16", "1:1" -> aspectRatio
+                            else -> "16:9"
+                        }
+                        put("aspect_ratio", aspectToUse)
+                        
+                        val resToUse = when (resolution) {
+                            "480p", "720p", "1080p" -> resolution
+                            else -> "720p"
+                        }
+                        put("resolution", resToUse)
+                        
+                        put("negative_prompt", negativePrompt)
+                        put("enable_prompt_expansion", enhancePrompt)
+                        if (seed != null) {
+                            put("seed", seed)
+                        }
+                        put("enable_safety_checker", autoFix)
+                        if (!alibabaAudioUrl.isNullOrBlank()) {
+                            put("audio_url", alibabaAudioUrl)
+                        }
+                    } else {
+                        val durationStr = if (durClean == "10") "10s" else "5s"
+                        put("duration", durationStr)
+                        val aspectToUse = when (aspectRatio) {
+                            "16:9", "9:16", "1:1", "4:3", "3:4", "21:9" -> aspectRatio
+                            else -> "16:9"
+                        }
+                        put("aspect_ratio", aspectToUse)
+                    }
+                    
+                    if (isImageToVideo) {
+                        if (actualModel.contains("wan/v2.7")) {
+                            if (!alibabaVideoUrl.isNullOrBlank()) {
+                                put("video_url", alibabaVideoUrl)
+                            } else if (!imageUrl.isNullOrBlank()) {
+                                onLogMessage("> Resolving reference image to web-compatible format...\n")
+                                val resolvedImg = resolveImageToDataUrlOrKeep(imageUrl)
+                                onLogMessage("> Image size/format resolved successfully! Binding to payload.\n")
+                                put("image_url", resolvedImg)
+                            }
+                            if (!endImageUrl.isNullOrBlank()) {
+                                onLogMessage("> Resolving end image to web-compatible format...\n")
+                                val resolvedEndImg = resolveImageToDataUrlOrKeep(endImageUrl)
+                                onLogMessage("> End image resolved successfully! Binding to payload.\n")
+                                put("end_image_url", resolvedEndImg)
+                            }
+                        } else {
+                            onLogMessage("> Resolving reference image to web-compatible format...\n")
+                            val resolvedImg = resolveImageToDataUrlOrKeep(imageUrl!!)
+                            onLogMessage("> Image size/format resolved successfully! Binding to payload.\n")
+                            put("image_url", resolvedImg)
+                        }
+                    }
+                } else if (isLumaRay) {
+                    put("prompt", prompt)
+                    
+                    val aspectToUse = when (aspectRatio) {
+                        "3:4", "4:3", "1:1", "9:16", "16:9", "21:9" -> aspectRatio
+                        else -> "16:9"
+                    }
+                    put("aspect_ratio", aspectToUse)
+                    
+                    val resToUse = when (resolution) {
+                        "540p", "720p", "1080p" -> resolution
+                        else -> "540p"
+                    }
+                    put("resolution", resToUse)
+                    
+                    val durClean = duration.replace("s", "").replace(" seconds", "").trim()
+                    val durToUse = if (durClean == "10" || durClean == "10s") "10s" else "5s"
+                    put("duration", durToUse)
+                    
+                    put("loop", lumaLoop)
+                    put("hdr", lumaHdr)
+                    put("exr_export", lumaExrExport)
+                    
+                    if (isImageToVideo) {
+                        onLogMessage("> Resolving reference image to web-compatible format...\n")
+                        val resolvedImg = resolveImageToDataUrlOrKeep(imageUrl!!)
+                        onLogMessage("> Image size/format resolved successfully! Binding to payload.\n")
+                        put("image_url", resolvedImg)
+                        
+                        if (!endImageUrl.isNullOrBlank()) {
+                            onLogMessage("> Resolving reference end image to web-compatible format...\n")
+                            val resolvedEndImg = resolveImageToDataUrlOrKeep(endImageUrl)
+                            onLogMessage("> End image resolved successfully! Binding to payload as end_image_url.\n")
+                            put("end_image_url", resolvedEndImg)
+                        }
+                    }
+                } else if (isByteDance) {
+                    put("prompt", prompt)
+                    
+                    val resVal = if (resolution.isNotBlank()) resolution else "720p"
+                    put("resolution", resVal)
+                    
+                    val durClean = duration.replace("s", "").replace(" seconds", "").trim()
+                    val durVal = if (durClean == "auto" || durClean.toIntOrNull() in 4..15) {
+                        durClean
+                    } else {
+                        "auto"
+                    }
+                    put("duration", durVal)
+                    
+                    val aspectVal = if (aspectRatio.isBlank()) "auto" else aspectRatio
+                    put("aspect_ratio", aspectVal)
+                    
+                    put("generate_audio", generateAudio)
+                    put("bitrate_mode", bitrateMode)
+                    put("end_user_id", endUserId)
+                    
+                    if (isImageToVideo) {
+                        onLogMessage("> Resolving reference image to web-compatible format...\n")
+                        val resolvedImg = resolveImageToDataUrlOrKeep(imageUrl!!)
+                        onLogMessage("> Image size/format resolved successfully! Binding to payload.\n")
+                        put("image_url", resolvedImg)
+                    }
+                } else if (isPixVerse) {
+                    if (actualModel.contains("/v6/") || actualModel == "fal-ai/pixverse/v5.5/text-to-video" || actualModel == "fal-ai/pixverse/v5.6/image-to-video" || actualModel == "fal-ai/pixverse/v5.6/text-to-video" || actualModel == "fal-ai/pixverse/c1/image-to-video") {
+                        put("prompt", prompt)
+                        if (actualModel != "fal-ai/pixverse/v5.6/image-to-video" && actualModel != "fal-ai/pixverse/v6/image-to-video" && actualModel != "fal-ai/pixverse/c1/image-to-video") {
+                            val aspectToUse = when (aspectRatio) {
+                                "16:9", "4:3", "1:1", "3:4", "9:16", "2:3", "3:2", "21:9" -> aspectRatio
+                                else -> "16:9"
+                            }
+                            put("aspect_ratio", aspectToUse)
+                        }
+                        
+                        val resToUse = when (resolution) {
+                            "360p", "540p", "720p", "1080p" -> resolution
+                            else -> "720p"
+                        }
+                        put("resolution", resToUse)
+                        
+                        val durClean = duration.replace("s", "").replace(" seconds", "").trim()
+                        val durVal = durClean.toIntOrNull() ?: 5
+                        put("duration", durVal)
+                        
+                        if (actualModel != "fal-ai/pixverse/c1/image-to-video") {
+                            put("negative_prompt", negativePrompt)
+                            
+                            val styleClean = style.lowercase().trim().replace(" ", "_")
+                            val validStyles = listOf("anime", "3d_animation", "clay", "comic", "cyberpunk")
+                            if (styleClean in validStyles) {
+                                put("style", styleClean)
+                            }
+                            
+                            put("generate_multi_clip_switch", pixverseMultiClip)
+                            put("thinking_type", pixverseThinkingType)
+                        }
+                        
+                        if (seed != null) {
+                            put("seed", seed)
+                        }
+                        
+                        put("generate_audio_switch", generateAudio)
+
+                        if (isImageToVideo) {
+                            onLogMessage("> Resolving reference image for PixVerse...\n")
+                            val resolvedImg = resolveImageToDataUrlOrKeep(imageUrl!!)
+                            onLogMessage("> Image size/format resolved successfully! Binding to PixVerse payload.\n")
+                            put("image_url", resolvedImg)
+                        }
+                    } else {
+                        put("prompt", prompt)
+                        val aspectToUse = when (aspectRatio) {
+                            "16:9", "9:16", "1:1", "4:3", "3:4", "21:9" -> aspectRatio
+                            else -> "16:9"
+                        }
+                        put("aspect_ratio", aspectToUse)
+                        
+                        val durClean = duration.replace("s", "").replace(" seconds", "").trim()
+                        val durationStr = if (durClean.contains("8") || durClean.contains("12")) "8s" else "5s"
+                        put("duration", durationStr)
+                        
+                        if (isImageToVideo) {
+                            onLogMessage("> Resolving reference image for PixVerse...\n")
+                            val resolvedImg = resolveImageToDataUrlOrKeep(imageUrl!!)
+                            onLogMessage("> Image size/format resolved successfully! Binding to PixVerse payload.\n")
+                            put("image_url", resolvedImg)
+                        }
+                    }
+
+                } else {
+                    val durationSecs = if (duration.contains("8")) "8s" else "5s"
+                    val aspectToUse = when (aspectRatio) {
+                        "16:9", "9:16", "1:1", "4:3", "3:4" -> aspectRatio
+                        else -> "16:9"
+                    }
+                    put("prompt", prompt)
+                    put("duration", durationSecs)
+                    put("aspect_ratio", aspectToUse)
+                    
+                    if (isImageToVideo) {
+                        onLogMessage("> Resolving reference image to web-compatible format...\n")
+                        val resolvedImg = resolveImageToDataUrlOrKeep(imageUrl!!)
+                        onLogMessage("> Image size/format resolved successfully! Binding to payload.\n")
+                        put("image_url", resolvedImg)
+                    }
                 }
             }
 

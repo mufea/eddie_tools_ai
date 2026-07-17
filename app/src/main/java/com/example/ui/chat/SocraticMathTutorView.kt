@@ -57,9 +57,30 @@ fun SocraticMathTutorView(
     onLevelChange: (String) -> Unit
 ) {
     val context = LocalContext.current
+    val isKeyboardVisible = WindowInsets.isImeVisible
+    val listState = androidx.compose.foundation.lazy.rememberLazyListState()
+    
     var inputQuery by remember { mutableStateOf("") }
     var activePresetTitle by remember { mutableStateOf("") }
     var activeBranch by remember { mutableStateOf("Math") } // "Math", "Physics", "Chemistry"
+
+    LaunchedEffect(isKeyboardVisible) {
+        if (isKeyboardVisible) {
+            val totalItems = listState.layoutInfo.totalItemsCount
+            if (totalItems > 0) {
+                listState.animateScrollToItem(totalItems - 1)
+            }
+        }
+    }
+
+    LaunchedEffect(inputQuery) {
+        if (inputQuery.isNotEmpty()) {
+            val totalItems = listState.layoutInfo.totalItemsCount
+            if (totalItems > 0) {
+                listState.animateScrollToItem(totalItems - 1)
+            }
+        }
+    }
 
     // Preset options
     val mathPresets = remember {
@@ -372,8 +393,10 @@ fun SocraticMathTutorView(
             .padding(paddingValues)
     ) {
         LazyColumn(
+            state = listState,
             modifier = Modifier
                 .fillMaxSize()
+                .imePadding()
                 .padding(horizontal = 16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
             contentPadding = PaddingValues(top = 8.dp, bottom = 80.dp)
@@ -658,111 +681,117 @@ fun SocraticMathTutorView(
             // Active Math Solving Board
             if (uiState.mathSteps.isNotEmpty() && !uiState.mathIsLoading) {
                 item {
-                    Column(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalArrangement = Arrangement.spacedBy(16.dp)
+                    // Title overview of the parsed problem
+                    Text(
+                        text = "Active Tutoring Board",
+                        style = MaterialTheme.typography.headlineSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier.fillMaxWidth().padding(top = 8.dp)
+                    )
+                }
+
+                item {
+                    // Problem chalkboard display
+                    MathChalkboardCard(overviewText = uiState.mathProblemOverview)
+                }
+
+                // Reveal steps sequentially!
+                // "Walk me through the first step first" means we only display steps up to mathCurrentStepIndex
+                val visibleSteps = uiState.mathSteps.filter { it.stepIndex <= (uiState.mathCurrentStepIndex + 1) }
+
+                items(
+                    count = visibleSteps.size,
+                    key = { index -> visibleSteps[index].stepIndex }
+                ) { index ->
+                    val step = visibleSteps[index]
+                    val isActiveStep = step.stepIndex == (uiState.mathCurrentStepIndex + 1)
+                    MathStepRevealCard(
+                        step = step,
+                        isActive = isActiveStep,
+                        studentLevel = uiState.mathStudentLevel,
+                        explanation = uiState.mathConceptExplanation,
+                        explanationLoading = uiState.mathExplanationIsLoading,
+                        onAskClick = { onAskTutorClick("") },
+                        onCustomAskClick = { q -> onAskTutorClick(q) },
+                        history = uiState.mathTutorHistory
+                    )
+                }
+
+                item {
+                    // Bottom navigation step progression controls
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 8.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        // Title overview of the parsed problem
                         Text(
-                            text = "Active Tutoring Board",
-                            style = MaterialTheme.typography.headlineSmall,
+                            text = "Step ${uiState.mathCurrentStepIndex + 1} of ${uiState.mathSteps.size}",
+                            style = MaterialTheme.typography.bodyMedium,
                             fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onSurface
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
 
-                        // Problem chalkboard display
-                        MathChalkboardCard(overviewText = uiState.mathProblemOverview)
-
-                        // Reveal steps sequentially!
-                        // "Walk me through the first step first" means we only display steps up to mathCurrentStepIndex
-                        val visibleSteps = uiState.mathSteps.filter { it.stepIndex <= (uiState.mathCurrentStepIndex + 1) }
-
-                        visibleSteps.forEach { step ->
-                            val isActiveStep = step.stepIndex == (uiState.mathCurrentStepIndex + 1)
-                            MathStepRevealCard(
-                                step = step,
-                                isActive = isActiveStep,
-                                studentLevel = uiState.mathStudentLevel,
-                                explanation = uiState.mathConceptExplanation,
-                                explanationLoading = uiState.mathExplanationIsLoading,
-                                onAskClick = { onAskTutorClick("") },
-                                onCustomAskClick = { q -> onAskTutorClick(q) },
-                                history = uiState.mathTutorHistory
-                            )
-                        }
-
-                        // Bottom navigation step progression controls
                         Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 8.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            Text(
-                                text = "Step ${uiState.mathCurrentStepIndex + 1} of ${uiState.mathSteps.size}",
-                                style = MaterialTheme.typography.bodyMedium,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-
-                            Row(
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                if (uiState.mathCurrentStepIndex > 0) {
-                                    OutlinedButton(
-                                        onClick = { onStepChange(uiState.mathCurrentStepIndex - 1) },
-                                        shape = RoundedCornerShape(8.dp)
-                                    ) {
-                                        Icon(Icons.Default.ArrowBack, contentDescription = null, modifier = Modifier.size(16.dp))
-                                        Spacer(modifier = Modifier.width(4.dp))
-                                        Text("Previous", fontSize = 13.sp)
-                                    }
+                            if (uiState.mathCurrentStepIndex > 0) {
+                                OutlinedButton(
+                                    onClick = { onStepChange(uiState.mathCurrentStepIndex - 1) },
+                                    shape = RoundedCornerShape(8.dp)
+                                ) {
+                                    Icon(Icons.Default.ArrowBack, contentDescription = null, modifier = Modifier.size(16.dp))
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text("Previous", fontSize = 13.sp)
                                 }
+                            }
 
-                                if (uiState.mathCurrentStepIndex < uiState.mathSteps.size - 1) {
-                                    Button(
-                                        onClick = { onStepChange(uiState.mathCurrentStepIndex + 1) },
-                                        modifier = Modifier.testTag("next_step_action"),
-                                        shape = RoundedCornerShape(8.dp)
+                            if (uiState.mathCurrentStepIndex < uiState.mathSteps.size - 1) {
+                                Button(
+                                    onClick = { onStepChange(uiState.mathCurrentStepIndex + 1) },
+                                    modifier = Modifier.testTag("next_step_action"),
+                                    shape = RoundedCornerShape(8.dp)
+                                ) {
+                                    Text("Next Step", fontSize = 13.sp)
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Icon(Icons.Default.ArrowForward, contentDescription = null, modifier = Modifier.size(16.dp))
+                                }
+                            } else {
+                                // Complete badge decoration
+                                Card(
+                                    colors = CardDefaults.cardColors(
+                                        containerColor = MaterialTheme.colorScheme.primaryContainer
+                                    ),
+                                    shape = RoundedCornerShape(8.dp)
+                                ) {
+                                    Row(
+                                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                                        verticalAlignment = Alignment.CenterVertically
                                     ) {
-                                        Text("Next Step", fontSize = 13.sp)
-                                        Spacer(modifier = Modifier.width(4.dp))
-                                        Icon(Icons.Default.ArrowForward, contentDescription = null, modifier = Modifier.size(16.dp))
-                                    }
-                                } else {
-                                    // Complete badge decoration
-                                    Card(
-                                        colors = CardDefaults.cardColors(
-                                            containerColor = MaterialTheme.colorScheme.primaryContainer
-                                        ),
-                                        shape = RoundedCornerShape(8.dp)
-                                    ) {
-                                        Row(
-                                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
-                                            verticalAlignment = Alignment.CenterVertically
-                                        ) {
-                                            Text("🎉 Complete!", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = MaterialTheme.colorScheme.onPrimaryContainer)
-                                        }
+                                        Text("🎉 Complete!", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = MaterialTheme.colorScheme.onPrimaryContainer)
                                     }
                                 }
                             }
                         }
+                    }
+                }
 
-                        // Reset button
-                        OutlinedButton(
-                            onClick = onResetClick,
-                            modifier = Modifier.fillMaxWidth(),
-                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)),
-                            colors = ButtonDefaults.outlinedButtonColors(
-                                contentColor = MaterialTheme.colorScheme.primary
-                            ),
-                            shape = RoundedCornerShape(12.dp)
-                        ) {
-                            Icon(Icons.Default.Refresh, contentDescription = "Clear study session", modifier = Modifier.size(16.dp))
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text("Clear Board to Study Another Problem", fontSize = 13.sp)
-                        }
+                item {
+                    // Reset button
+                    OutlinedButton(
+                        onClick = onResetClick,
+                        modifier = Modifier.fillMaxWidth(),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)),
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            contentColor = MaterialTheme.colorScheme.primary
+                        ),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Icon(Icons.Default.Refresh, contentDescription = "Clear study session", modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("Clear Board to Study Another Problem", fontSize = 13.sp)
                     }
                 }
             }
@@ -1021,6 +1050,7 @@ fun MathStepRevealCard(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Row(
+                    modifier = Modifier.weight(1f),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
@@ -1049,6 +1079,8 @@ fun MathStepRevealCard(
                         color = if (isActive) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
                     )
                 }
+
+                Spacer(modifier = Modifier.width(8.dp))
 
                 // Rule tag
                 Card(

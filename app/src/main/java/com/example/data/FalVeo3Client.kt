@@ -78,6 +78,11 @@ class FalVeo3Client {
         generateAudio: Boolean,
         model: String = "fal-ai/veo3.1/lite",
         customApiKey: String? = null,
+        seed: Int? = null,
+        autoFix: Boolean = true,
+        enhancePrompt: Boolean = true,
+        negativePrompt: String? = null,
+        safetyTolerance: Int = 4,
         onLog: (String) -> Unit = {}
     ): String = withContext(Dispatchers.IO) {
         // Resolve dynamic key
@@ -119,10 +124,15 @@ class FalVeo3Client {
             put("duration", durationSecs)
             put("aspect_ratio", aspectToUse)
             put("generate_audio", generateAudio)
+            put("auto_fix", autoFix)
+            put("enhance_prompt", enhancePrompt)
+            put("safety_tolerance", safetyTolerance)
             
-            // Add enhance_prompt default for veo3 models
-            if (actualModel.contains("veo3")) {
-                put("enhance_prompt", true)
+            if (seed != null) {
+                put("seed", seed)
+            }
+            if (!negativePrompt.isNullOrBlank()) {
+                put("negative_prompt", negativePrompt)
             }
 
             if (isImageToVideo) {

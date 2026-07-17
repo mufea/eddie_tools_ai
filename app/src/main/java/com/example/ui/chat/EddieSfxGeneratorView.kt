@@ -22,7 +22,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import android.widget.Toast
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun EddieSfxGeneratorView(
     uiState: ChatUiState,
@@ -38,6 +38,19 @@ fun EddieSfxGeneratorView(
     
     val context = LocalContext.current
 
+    val scrollState = rememberScrollState()
+    val isKeyboardVisible = WindowInsets.isImeVisible
+    LaunchedEffect(isKeyboardVisible) {
+        if (isKeyboardVisible) {
+            scrollState.animateScrollTo(scrollState.maxValue)
+        }
+    }
+    LaunchedEffect(promptInput) {
+        if (promptInput.isNotEmpty()) {
+            scrollState.animateScrollTo(scrollState.maxValue)
+        }
+    }
+
     val categories = listOf(
         "Sci-Fi Laser Gun",
         "Retro Game (8-Bit Jump)",
@@ -50,12 +63,13 @@ fun EddieSfxGeneratorView(
             .fillMaxSize()
             .padding(paddingValues)
             .background(Color.Transparent)
+            .imePadding()
     ) {
         Column(
             modifier = Modifier
                 .weight(1f)
                 .fillMaxWidth()
-                .verticalScroll(rememberScrollState())
+                .verticalScroll(scrollState)
                 .padding(horizontal = 16.dp, vertical = 8.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {

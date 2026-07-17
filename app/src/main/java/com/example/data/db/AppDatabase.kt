@@ -58,7 +58,8 @@ data class GeneratedVideoEntity(
     val resolution: String,
     val duration: String,
     val timestamp: Long = System.currentTimeMillis(),
-    val userEmail: String? = null
+    val userEmail: String? = null,
+    val model: String = "Unknown"
 )
 
 @Entity(tableName = "generated_music")
@@ -91,6 +92,20 @@ data class TokenUsageEntity(
     val timestamp: Long = System.currentTimeMillis(),
     val userEmail: String? = null
 )
+
+@Entity(tableName = "interior_designs")
+data class InteriorDesignEntity(
+    @PrimaryKey val id: String,
+    val title: String,
+    val originalImageUri: String?, // Stores image URI or base64
+    val selectedStyle: String,
+    val reimaginedImageUrl: String,
+    val chatHistoryJson: String,  // JSON array representing messages
+    val shoppableItemsJson: String, // JSON array representing shoppable items
+    val timestamp: Long = System.currentTimeMillis(),
+    val userEmail: String? = null
+)
+
 
 // --- DAO (Data Access Object) ---
 
@@ -188,6 +203,18 @@ interface ChatDao {
 
     @Query("DELETE FROM chat_sessions")
     suspend fun deleteAllSessions()
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertInteriorDesign(design: InteriorDesignEntity)
+
+    @Query("SELECT * FROM interior_designs ORDER BY timestamp DESC")
+    fun getAllInteriorDesigns(): Flow<List<InteriorDesignEntity>>
+
+    @Query("SELECT * FROM interior_designs WHERE userEmail = :email ORDER BY timestamp DESC")
+    fun getInteriorDesignsForUser(email: String): Flow<List<InteriorDesignEntity>>
+
+    @Query("DELETE FROM interior_designs WHERE id = :designId")
+    suspend fun deleteInteriorDesignById(designId: String)
 }
 
 // --- AppDatabase class ---
@@ -200,9 +227,10 @@ interface ChatDao {
         GeneratedVideoEntity::class,
         GeneratedMusicEntity::class,
         UserMemoryEntity::class,
-        TokenUsageEntity::class
+        TokenUsageEntity::class,
+        InteriorDesignEntity::class
     ],
-    version = 7,
+    version = 8,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {

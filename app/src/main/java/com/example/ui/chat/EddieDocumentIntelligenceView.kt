@@ -21,11 +21,12 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.focus.onFocusChanged
 import java.io.BufferedReader
 import java.io.InputStreamReader
 import kotlinx.coroutines.launch
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
 fun EddieDocumentIntelligenceView(
     uiState: ChatUiState,
@@ -41,6 +42,29 @@ fun EddieDocumentIntelligenceView(
     var summarizationStyle by remember { mutableStateOf("bullet") } // "bullet", "concise", "deep"
     var rawTextContentInput by remember { mutableStateOf("") }
     var userQaPrompt by remember { mutableStateOf("") }
+
+    val scrollState = rememberScrollState()
+    val isKeyboardVisible = WindowInsets.isImeVisible
+    var isQaFocused by remember { mutableStateOf(false) }
+
+    // Scroll up to show Interactive Q&A when keyboard appears or when text changes or when focused
+    LaunchedEffect(isKeyboardVisible) {
+        if (isKeyboardVisible) {
+            scrollState.animateScrollTo(scrollState.maxValue)
+        }
+    }
+
+    LaunchedEffect(userQaPrompt) {
+        if (userQaPrompt.isNotEmpty()) {
+            scrollState.animateScrollTo(scrollState.maxValue)
+        }
+    }
+
+    LaunchedEffect(isQaFocused) {
+        if (isQaFocused) {
+            scrollState.animateScrollTo(scrollState.maxValue)
+        }
+    }
 
     // Launcher to select TXT/PDF files from device
     val documentPickerLauncher = rememberLauncherForActivityResult(
@@ -92,8 +116,9 @@ fun EddieDocumentIntelligenceView(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
+                .imePadding()
                 .padding(16.dp)
-                .verticalScroll(rememberScrollState()),
+                .verticalScroll(scrollState),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
@@ -199,22 +224,24 @@ fun EddieDocumentIntelligenceView(
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(12.dp))
+                    if (uiState.docSelectedName.isBlank()) {
+                        Spacer(modifier = Modifier.height(12.dp))
 
-                    // Raw text area editor
-                    OutlinedTextField(
-                        value = rawTextContentInput,
-                        onValueChange = { rawTextContentInput = it },
-                        placeholder = { Text("Type or paste your long document text here manually...") },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(120.dp),
-                        shape = RoundedCornerShape(12.dp),
-                        textStyle = MaterialTheme.typography.bodySmall,
-                        colors = OutlinedTextFieldDefaults.colors(
-                            unfocusedBorderColor = MaterialTheme.colorScheme.outline
+                        // Raw text area editor
+                        OutlinedTextField(
+                            value = rawTextContentInput,
+                            onValueChange = { rawTextContentInput = it },
+                            placeholder = { Text("Type or paste your long document text here manually...") },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(120.dp),
+                            shape = RoundedCornerShape(12.dp),
+                            textStyle = MaterialTheme.typography.bodySmall,
+                            colors = OutlinedTextFieldDefaults.colors(
+                                unfocusedBorderColor = MaterialTheme.colorScheme.outline
+                            )
                         )
-                    )
+                    }
                 }
             }
 
@@ -342,7 +369,9 @@ fun EddieDocumentIntelligenceView(
                             value = userQaPrompt,
                             onValueChange = { userQaPrompt = it },
                             placeholder = { Text("e.g. 'Who is the largest shareholder?' or 'What is the sales turnover target next year?'") },
-                            modifier = Modifier.fillMaxWidth(),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .onFocusChanged { isQaFocused = it.isFocused },
                             shape = RoundedCornerShape(12.dp),
                             colors = OutlinedTextFieldDefaults.colors(
                                 unfocusedBorderColor = MaterialTheme.colorScheme.outline

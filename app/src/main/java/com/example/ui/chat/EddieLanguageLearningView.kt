@@ -52,11 +52,33 @@ fun EddieLanguageLearningView(
     val listState = rememberLazyListState()
     val scope = rememberCoroutineScope()
     var textInput by remember { mutableStateOf("") }
+    val isKeyboardVisible = WindowInsets.isImeVisible
     
-    // Auto scroll bottom when chat updates
-    LaunchedEffect(uiState.languageChatLog.size) {
+    // Auto scroll bottom when chat updates or loading state toggles
+    LaunchedEffect(uiState.languageChatLog.size, uiState.languageIsLoading) {
         if (uiState.languageChatLog.isNotEmpty()) {
-            listState.animateScrollToItem(uiState.languageChatLog.size - 1)
+            val targetIndex = if (uiState.languageIsLoading) uiState.languageChatLog.size else uiState.languageChatLog.size - 1
+            if (targetIndex >= 0) {
+                listState.animateScrollToItem(targetIndex)
+            }
+        }
+    }
+
+    LaunchedEffect(isKeyboardVisible) {
+        if (isKeyboardVisible && uiState.languageChatLog.isNotEmpty()) {
+            val targetIndex = if (uiState.languageIsLoading) uiState.languageChatLog.size else uiState.languageChatLog.size - 1
+            if (targetIndex >= 0) {
+                listState.animateScrollToItem(targetIndex)
+            }
+        }
+    }
+
+    LaunchedEffect(textInput) {
+        if (textInput.isNotEmpty() && uiState.languageChatLog.isNotEmpty()) {
+            val targetIndex = if (uiState.languageIsLoading) uiState.languageChatLog.size else uiState.languageChatLog.size - 1
+            if (targetIndex >= 0) {
+                listState.animateScrollToItem(targetIndex)
+            }
         }
     }
 
@@ -66,6 +88,7 @@ fun EddieLanguageLearningView(
         "Japanese" to "🇯🇵",
         "German" to "🇩🇪",
         "Korean" to "🇰🇷",
+        "Chinese Mandarin" to "🇨🇳",
         "English" to "🇬🇧"
     )
 
@@ -91,149 +114,152 @@ fun EddieLanguageLearningView(
         Column(
             modifier = Modifier
                 .fillMaxSize()
+                .imePadding()
                 .padding(innerPadding)
                 .padding(12.dp)
         ) {
-            // Header Hero Banner Card
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(bottom = 12.dp),
-                shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.25f)
-                ),
-                border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.15f))
-            ) {
-                Column(modifier = Modifier.padding(14.dp)) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .size(42.dp)
-                                .background(MaterialTheme.colorScheme.primary, CircleShape),
-                            contentAlignment = Alignment.Center
+            if (!isKeyboardVisible) {
+                // Header Hero Banner Card
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 12.dp),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.25f)
+                    ),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.15f))
+                ) {
+                    Column(modifier = Modifier.padding(14.dp)) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
-                            Text("🗣️", fontSize = 22.sp)
-                        }
-                        Column {
-                            Text(
-                                text = "Conversational Partner Eddie",
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onPrimaryContainer
-                            )
-                            Text(
-                                text = "Improve speaking, pronunciation & grammar in real time!",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
-                            )
+                            Box(
+                                modifier = Modifier
+                                    .size(42.dp)
+                                    .background(MaterialTheme.colorScheme.primary, CircleShape),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text("🗣️", fontSize = 22.sp)
+                            }
+                            Column {
+                                Text(
+                                    text = "Conversational Partner Eddie",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onPrimaryContainer
+                                )
+                                Text(
+                                    text = "Improve speaking, pronunciation & grammar in real time!",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
+                                )
+                            }
                         }
                     }
                 }
-            }
 
-            // Learning Setup Accordion Panel inside a Scrollable Row
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(16.dp))
-                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f))
-                    .padding(10.dp)
-            ) {
-                // Topic Selector
-                Text(
-                    text = "1. Select Language Partner Profile:",
-                    style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                
-                // Target Language Horizontal Pills
-                Row(
+                // Learning Setup Accordion Panel inside a Scrollable Row
+                Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .horizontalScroll(rememberScrollState())
-                        .padding(vertical = 4.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f))
+                        .padding(10.dp)
                 ) {
-                    languages.forEach { (lang, flag) ->
-                        val isSelected = uiState.languageSelectedLocale == lang
-                        FilterChip(
-                            selected = isSelected,
-                            onClick = { onLangChange(lang) },
-                            label = { Text("$flag $lang") },
-                            colors = FilterChipDefaults.filterChipColors(
-                                selectedContainerColor = MaterialTheme.colorScheme.primary,
-                                selectedLabelColor = MaterialTheme.colorScheme.onPrimary
-                            )
-                        )
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(6.dp))
-
-                // Scenario Selector
-                Text(
-                    text = "2. Active Conversation Scenario:",
-                    style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .horizontalScroll(rememberScrollState())
-                        .padding(vertical = 4.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    topics.forEach { (topic, emoji) ->
-                        val isSelected = uiState.languageConversationTopic == topic
-                        FilterChip(
-                            selected = isSelected,
-                            onClick = { onTopicChange(topic) },
-                            label = { Text("$emoji $topic") },
-                            colors = FilterChipDefaults.filterChipColors(
-                                selectedContainerColor = MaterialTheme.colorScheme.secondary,
-                                selectedLabelColor = MaterialTheme.colorScheme.onSecondary
-                            )
-                        )
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(6.dp))
-
-                // Skill Proficiency Level
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
+                    // Topic Selector
                     Text(
-                        text = "3. Level:",
+                        text = "1. Select Language Partner Profile:",
                         style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
-                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        levels.forEach { level ->
-                            val isSelected = uiState.languagePracticeLevel == level
-                            val chipBg = if (isSelected) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.surfaceVariant
-                            val chipText = if (isSelected) MaterialTheme.colorScheme.onTertiary else MaterialTheme.colorScheme.onSurfaceVariant
-                            
-                            Box(
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(8.dp))
-                                    .background(chipBg)
-                                    .clickable { onLevelChange(level) }
-                                    .padding(horizontal = 10.dp, vertical = 4.dp)
-                            ) {
-                                Text(
-                                    text = level,
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = chipText
+                    
+                    // Target Language Horizontal Pills
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .horizontalScroll(rememberScrollState())
+                            .padding(vertical = 4.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        languages.forEach { (lang, flag) ->
+                            val isSelected = uiState.languageSelectedLocale == lang
+                            FilterChip(
+                                selected = isSelected,
+                                onClick = { onLangChange(lang) },
+                                label = { Text("$flag $lang") },
+                                colors = FilterChipDefaults.filterChipColors(
+                                    selectedContainerColor = MaterialTheme.colorScheme.primary,
+                                    selectedLabelColor = MaterialTheme.colorScheme.onPrimary
                                 )
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(6.dp))
+
+                    // Scenario Selector
+                    Text(
+                        text = "2. Active Conversation Scenario:",
+                        style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .horizontalScroll(rememberScrollState())
+                            .padding(vertical = 4.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        topics.forEach { (topic, emoji) ->
+                            val isSelected = uiState.languageConversationTopic == topic
+                            FilterChip(
+                                selected = isSelected,
+                                onClick = { onTopicChange(topic) },
+                                label = { Text("$emoji $topic") },
+                                colors = FilterChipDefaults.filterChipColors(
+                                    selectedContainerColor = MaterialTheme.colorScheme.secondary,
+                                    selectedLabelColor = MaterialTheme.colorScheme.onSecondary
+                                )
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(6.dp))
+
+                    // Skill Proficiency Level
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(
+                            text = "3. Level:",
+                            style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            levels.forEach { level ->
+                                val isSelected = uiState.languagePracticeLevel == level
+                                val chipBg = if (isSelected) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.surfaceVariant
+                                val chipText = if (isSelected) MaterialTheme.colorScheme.onTertiary else MaterialTheme.colorScheme.onSurfaceVariant
+                                
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(chipBg)
+                                        .clickable { onLevelChange(level) }
+                                        .padding(horizontal = 10.dp, vertical = 4.dp)
+                                ) {
+                                    Text(
+                                        text = level,
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = chipText
+                                    )
+                                }
                             }
                         }
                     }

@@ -58,7 +58,7 @@ data class SampleLandmark(
     val drawingType: String // "borobudur", "eiffel", "colosseum", "taj", "fuji"
 )
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun EddiePhotoTourismView(
     uiState: ChatUiState,
@@ -244,6 +244,19 @@ fun EddiePhotoTourismView(
     var arCustomPromptText by remember { mutableStateOf("") }
     var searchTextInput by remember { mutableStateOf("") }
 
+    val scrollState = rememberScrollState()
+    val isKeyboardVisible = WindowInsets.isImeVisible
+    LaunchedEffect(isKeyboardVisible) {
+        if (isKeyboardVisible) {
+            scrollState.animateScrollTo(scrollState.maxValue)
+        }
+    }
+    LaunchedEffect(arCustomPromptText, searchTextInput) {
+        if (arCustomPromptText.isNotEmpty() || searchTextInput.isNotEmpty()) {
+            scrollState.animateScrollTo(scrollState.maxValue)
+        }
+    }
+
     // Launcher for selecting tourist photos from local Gallery
     val galleryPicker = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
@@ -315,7 +328,8 @@ fun EddiePhotoTourismView(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
-                .verticalScroll(rememberScrollState()),
+                .imePadding()
+                .verticalScroll(scrollState),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             // Screen Header Title

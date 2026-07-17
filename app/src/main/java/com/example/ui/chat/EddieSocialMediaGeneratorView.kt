@@ -68,17 +68,31 @@ fun EddieSocialMediaGeneratorView(
         Toast.makeText(context, "$label draft copied to clipboard!", Toast.LENGTH_SHORT).show()
     }
 
+    val scrollState = rememberScrollState()
+    val isKeyboardVisible = WindowInsets.isImeVisible
+    LaunchedEffect(isKeyboardVisible) {
+        if (isKeyboardVisible) {
+            scrollState.animateScrollTo(scrollState.maxValue)
+        }
+    }
+    LaunchedEffect(ideaInput) {
+        if (ideaInput.isNotEmpty()) {
+            scrollState.animateScrollTo(scrollState.maxValue)
+        }
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
             .padding(paddingValues)
             .background(Color.Transparent)
+            .imePadding()
     ) {
         Column(
             modifier = Modifier
                 .weight(1f)
                 .fillMaxWidth()
-                .verticalScroll(rememberScrollState())
+                .verticalScroll(scrollState)
                 .padding(horizontal = 16.dp, vertical = 8.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {

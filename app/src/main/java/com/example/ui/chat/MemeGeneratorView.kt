@@ -22,6 +22,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -159,11 +160,25 @@ fun MemeGeneratorView(
         }
     }
 
+    val rightPanelScrollState = rememberScrollState()
+    val isKeyboardVisible = WindowInsets.isImeVisible
+    LaunchedEffect(isKeyboardVisible) {
+        if (isKeyboardVisible) {
+            rightPanelScrollState.animateScrollTo(rightPanelScrollState.maxValue)
+        }
+    }
+    LaunchedEffect(uiState.memeTopText, uiState.memeBottomText) {
+        if (uiState.memeTopText.isNotEmpty() || uiState.memeBottomText.isNotEmpty()) {
+            rightPanelScrollState.animateScrollTo(rightPanelScrollState.maxValue)
+        }
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
             .background(Color(0xFFFAF9FD))
             .padding(paddingValues)
+            .imePadding()
     ) {
         // Upper Title Banner
         Box(
@@ -290,58 +305,46 @@ fun MemeGeneratorView(
                                     .padding(8.dp),
                                 contentAlignment = Alignment.Center
                             ) {
-                                Image(
-                                    bitmap = uiState.memeSelectedBitmap.asImageBitmap(),
-                                    contentDescription = "Active Meme Base",
-                                    modifier = Modifier.fillMaxSize(),
-                                    contentScale = ContentScale.Fit
-                                )
-
-                                // Text Overlays in Real Impact Style!
-                                if (uiState.memeTopText.isNotEmpty()) {
-                                    Text(
-                                        text = if (uiState.memeIsCapitalized) uiState.memeTopText.uppercase() else uiState.memeTopText,
-                                        color = parsedTextColor,
-                                        fontSize = uiState.memeTextSize.sp,
-                                        fontWeight = FontWeight.Black,
-                                        fontFamily = FontFamily.SansSerif,
-                                        textAlign = TextAlign.Center,
-                                        lineHeight = (uiState.memeTextSize + 4f).sp,
-                                        style = TextStyle(
-                                            shadow = Shadow(
-                                                color = Color.Black,
-                                                offset = Offset(3f, 3f),
-                                                blurRadius = 4f
-                                            )
-                                        ),
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .align(Alignment.TopCenter)
-                                            .padding(top = 16.dp, start = 12.dp, end = 12.dp)
+                                val bitmap = uiState.memeSelectedBitmap
+                                val aspectRatio = bitmap.width.toFloat() / bitmap.height.toFloat()
+                                Box(
+                                    modifier = Modifier
+                                        .aspectRatio(aspectRatio),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Image(
+                                        bitmap = bitmap.asImageBitmap(),
+                                        contentDescription = "Active Meme Base",
+                                        modifier = Modifier.fillMaxSize(),
+                                        contentScale = ContentScale.FillBounds
                                     )
-                                }
 
-                                if (uiState.memeBottomText.isNotEmpty()) {
-                                    Text(
-                                        text = if (uiState.memeIsCapitalized) uiState.memeBottomText.uppercase() else uiState.memeBottomText,
-                                        color = parsedTextColor,
-                                        fontSize = uiState.memeTextSize.sp,
-                                        fontWeight = FontWeight.Black,
-                                        fontFamily = FontFamily.SansSerif,
-                                        textAlign = TextAlign.Center,
-                                        lineHeight = (uiState.memeTextSize + 4f).sp,
-                                        style = TextStyle(
-                                            shadow = Shadow(
-                                                color = Color.Black,
-                                                offset = Offset(3f, 3f),
-                                                blurRadius = 4f
-                                            )
-                                        ),
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .align(Alignment.BottomCenter)
-                                            .padding(bottom = 16.dp, start = 12.dp, end = 12.dp)
-                                    )
+                                    // Text Overlays in Real Impact Style!
+                                    if (uiState.memeTopText.isNotEmpty()) {
+                                        AutoFitMemeText(
+                                            text = uiState.memeTopText,
+                                            maxFontSize = uiState.memeTextSize,
+                                            color = parsedTextColor,
+                                            isCapitalized = uiState.memeIsCapitalized,
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .align(Alignment.TopCenter)
+                                                .padding(top = 16.dp, start = 12.dp, end = 12.dp)
+                                        )
+                                    }
+
+                                    if (uiState.memeBottomText.isNotEmpty()) {
+                                        AutoFitMemeText(
+                                            text = uiState.memeBottomText,
+                                            maxFontSize = uiState.memeTextSize,
+                                            color = parsedTextColor,
+                                            isCapitalized = uiState.memeIsCapitalized,
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .align(Alignment.BottomCenter)
+                                                .padding(bottom = 16.dp, start = 12.dp, end = 12.dp)
+                                        )
+                                    }
                                 }
                             }
                         } else {
@@ -380,15 +383,16 @@ fun MemeGeneratorView(
 
                                 Spacer(modifier = Modifier.height(24.dp))
 
-                                Row(
-                                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                                Column(
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    verticalArrangement = Arrangement.spacedBy(12.dp)
                                 ) {
                                     Button(
                                         onClick = { galleryLauncher.launch("image/*") },
                                         colors = ButtonDefaults.buttonColors(containerColor = memePrimaryDark),
                                         shape = RoundedCornerShape(12.dp)
                                     ) {
-                                        Text("🖼️ Gallery", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                        Text("🖼️ Select Gallery", fontSize = 12.sp, fontWeight = FontWeight.Bold)
                                     }
 
                                     Button(
@@ -396,7 +400,7 @@ fun MemeGeneratorView(
                                         colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF311B92)),
                                         shape = RoundedCornerShape(12.dp)
                                     ) {
-                                        Text("📸 Snap", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                        Text("📸 Camera", fontSize = 12.sp, fontWeight = FontWeight.Bold)
                                     }
                                 }
                             }
@@ -509,7 +513,7 @@ fun MemeGeneratorView(
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxHeight()
-                    .verticalScroll(rememberScrollState())
+                    .verticalScroll(rightPanelScrollState)
                     .padding(start = 8.dp, end = 16.dp, bottom = 12.dp)
             ) {
                 // Magic Caption Action Card
@@ -825,4 +829,53 @@ private fun resizeMemeBitmap(bitmap: Bitmap, targetMaxSize: Int): Bitmap {
         (targetMaxSize * ratio).toInt() to targetMaxSize
     }
     return Bitmap.createScaledBitmap(bitmap, targetWidth, targetHeight, true)
+}
+
+@Composable
+private fun AutoFitMemeText(
+    text: String,
+    maxFontSize: Float,
+    color: Color,
+    isCapitalized: Boolean,
+    modifier: Modifier = Modifier,
+    shadowColor: Color = Color.Black
+) {
+    val processedText = if (isCapitalized) text.uppercase() else text
+    var fontSizeValue by remember(processedText, maxFontSize) { mutableStateOf(maxFontSize) }
+    var readyToDraw by remember(processedText, maxFontSize) { mutableStateOf(false) }
+
+    Text(
+        text = processedText,
+        color = color,
+        fontSize = fontSizeValue.sp,
+        fontWeight = FontWeight.Black,
+        fontFamily = FontFamily.SansSerif,
+        textAlign = TextAlign.Center,
+        lineHeight = (fontSizeValue + 4f).sp,
+        style = TextStyle(
+            shadow = Shadow(
+                color = shadowColor,
+                offset = Offset(3f, 3f),
+                blurRadius = 4f
+            )
+        ),
+        maxLines = 3,
+        overflow = TextOverflow.Clip,
+        onTextLayout = { textLayoutResult ->
+            if (textLayoutResult.didOverflowHeight || textLayoutResult.didOverflowWidth) {
+                if (fontSizeValue > 10f) {
+                    fontSizeValue = (fontSizeValue - 1f).coerceAtLeast(10f)
+                } else {
+                    readyToDraw = true
+                }
+            } else {
+                readyToDraw = true
+            }
+        },
+        modifier = modifier.drawWithContent {
+            if (readyToDraw) {
+                drawContent()
+            }
+        }
+    )
 }

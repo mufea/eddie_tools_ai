@@ -38,6 +38,15 @@ fun EddieAiCodeStudioView(
     var targetLanguage by remember { mutableStateOf("Python") }
     var inputCodePrompt by remember { mutableStateOf("") }
     
+    val scrollState = rememberScrollState()
+    val isKeyboardVisible = WindowInsets.isImeVisible
+
+    LaunchedEffect(scrollState.maxValue, isKeyboardVisible) {
+        if (isKeyboardVisible) {
+            scrollState.animateScrollTo(scrollState.maxValue)
+        }
+    }
+    
     // Available popular languages in the world
     val programmingLanguages = listOf(
         "Kotlin" to false,       // Language name to IsPremium
@@ -75,8 +84,9 @@ fun EddieAiCodeStudioView(
             modifier = Modifier
                 .weight(1f)
                 .fillMaxWidth()
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 16.dp, vertical = 8.dp),
+                .verticalScroll(scrollState)
+                .padding(horizontal = 16.dp, vertical = 8.dp)
+                .imePadding(),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             // Header Developer Area (Non-Sticky Header)
@@ -388,7 +398,10 @@ fun EddieAiCodeStudioView(
                 onValueChange = { inputCodePrompt = it },
                 modifier = Modifier
                     .fillMaxWidth()
-                    .heightIn(min = 150.dp, max = 300.dp),
+                    .heightIn(
+                        min = if (isKeyboardVisible) 100.dp else 150.dp,
+                        max = if (isKeyboardVisible) 180.dp else 300.dp
+                    ),
                 placeholder = {
                     Text(
                         text = inputLabelText,

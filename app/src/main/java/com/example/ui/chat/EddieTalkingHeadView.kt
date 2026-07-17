@@ -26,7 +26,7 @@ import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import android.widget.Toast
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun EddieTalkingHeadView(
     uiState: ChatUiState,
@@ -38,6 +38,18 @@ fun EddieTalkingHeadView(
     var scriptInput by remember { mutableStateOf("") }
     val context = LocalContext.current
     val scrollState = rememberScrollState()
+
+    val isKeyboardVisible = WindowInsets.isImeVisible
+    LaunchedEffect(isKeyboardVisible) {
+        if (isKeyboardVisible) {
+            scrollState.animateScrollTo(scrollState.maxValue)
+        }
+    }
+    LaunchedEffect(scriptInput) {
+        if (scriptInput.isNotEmpty()) {
+            scrollState.animateScrollTo(scrollState.maxValue)
+        }
+    }
 
     // Default high-fidelity virtual avatars if user's generated image list is empty or for quick selection
     val presetAvatars = listOf(
@@ -89,6 +101,7 @@ fun EddieTalkingHeadView(
             .fillMaxSize()
             .padding(paddingValues)
             .background(Color.Transparent)
+            .imePadding()
     ) {
         Column(
             modifier = Modifier

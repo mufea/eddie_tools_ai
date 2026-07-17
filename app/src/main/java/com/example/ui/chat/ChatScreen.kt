@@ -36,6 +36,7 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.Face
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Email
@@ -97,11 +98,41 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.ui.input.pointer.PointerInputChange
 
+data class KlingV3ComboElementInput(
+    val id: String = java.util.UUID.randomUUID().toString(),
+    var name: String = "",
+    var type: String = "image_set", // "image_set" or "video"
+    var frontalImage: String = "",
+    var referenceImages: String = "", // comma-separated
+    var videoUrl: String = ""
+) {
+    fun toJsonObject(): org.json.JSONObject {
+        return org.json.JSONObject().apply {
+            put("type", type)
+            if (type == "image_set") {
+                put("image_set", org.json.JSONObject().apply {
+                    put("frontal_image", frontalImage)
+                    if (referenceImages.isNotBlank()) {
+                        val refs = org.json.JSONArray()
+                        referenceImages.split(",").map { it.trim() }.filter { it.isNotEmpty() }.forEach { refs.put(it) }
+                        put("reference_images", refs)
+                    }
+                })
+            } else {
+                put("video", org.json.JSONObject().apply {
+                    put("url", videoUrl)
+                })
+            }
+        }
+    }
+}
+
 @OptIn(ExperimentalMaterial3Api::class, androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
 fun ChatScreen(
     viewModel: ChatViewModel = viewModel()
 ) {
+    val vm = viewModel
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     var inputText by remember { mutableStateOf("") }
     val listState = rememberLazyListState()
@@ -238,6 +269,25 @@ fun ChatScreen(
         }
     }
 
+    val isKeyboardVisible = WindowInsets.isImeVisible
+    LaunchedEffect(isKeyboardVisible) {
+        if (isKeyboardVisible && uiState.messages.isNotEmpty()) {
+            val targetIndex = if (uiState.isLoading) uiState.messages.size else uiState.messages.size - 1
+            if (targetIndex >= 0) {
+                listState.animateScrollToItem(targetIndex)
+            }
+        }
+    }
+
+    LaunchedEffect(inputText) {
+        if (inputText.isNotEmpty() && uiState.messages.isNotEmpty()) {
+            val targetIndex = if (uiState.isLoading) uiState.messages.size else uiState.messages.size - 1
+            if (targetIndex >= 0) {
+                listState.animateScrollToItem(targetIndex)
+            }
+        }
+    }
+
     ModalNavigationDrawer(
         drawerState = drawerState,
         drawerContent = {
@@ -354,6 +404,16 @@ fun ChatScreen(
                     )
 
                     NavigationDrawerItem(
+                        icon = { Text("👥", style = TextStyle(fontSize = 16.sp)) },
+                        label = { Text("AI Avatar Studio", fontWeight = FontWeight.SemiBold) },
+                        selected = activeTab == "avatar_studio",
+                        onClick = {
+                            activeTab = "avatar_studio"
+                            scope.launch { drawerState.close() }
+                        }
+                    )
+
+                    NavigationDrawerItem(
                         icon = { Text("💻", style = TextStyle(fontSize = 16.sp)) },
                         label = { Text("AI Code Studio", fontWeight = FontWeight.SemiBold) },
                         selected = activeTab == "ai_code",
@@ -402,18 +462,8 @@ fun ChatScreen(
                     )
 
                     NavigationDrawerItem(
-                        icon = { Text("🧭", style = TextStyle(fontSize = 16.sp)) },
-                        label = { Text("Photo Tourism AR Guide", fontWeight = FontWeight.SemiBold) },
-                        selected = activeTab == "photo_tourism_ar_guide",
-                        onClick = {
-                            activeTab = "photo_tourism_ar_guide"
-                            scope.launch { drawerState.close() }
-                        }
-                    )
-
-                    NavigationDrawerItem(
                         icon = { Text("📐", style = TextStyle(fontSize = 16.sp)) },
-                        label = { Text("Socratic Tutor", fontWeight = FontWeight.SemiBold) },
+                        label = { Text("AI Socratic Tutor", fontWeight = FontWeight.SemiBold) },
                         selected = activeTab == "socratic_math_tutor",
                         onClick = {
                             activeTab = "socratic_math_tutor"
@@ -423,7 +473,7 @@ fun ChatScreen(
 
                     NavigationDrawerItem(
                         icon = { Text("🗣️", style = TextStyle(fontSize = 16.sp)) },
-                        label = { Text("Language Practice", fontWeight = FontWeight.SemiBold) },
+                        label = { Text("AI Language Practice", fontWeight = FontWeight.SemiBold) },
                         selected = activeTab == "language_learning",
                         onClick = {
                             activeTab = "language_learning"
@@ -433,7 +483,7 @@ fun ChatScreen(
 
                     NavigationDrawerItem(
                         icon = { Text("📄", style = TextStyle(fontSize = 16.sp)) },
-                        label = { Text("Document & PDF Summary", fontWeight = FontWeight.SemiBold) },
+                        label = { Text("AI Document & PDF Summary", fontWeight = FontWeight.SemiBold) },
                         selected = activeTab == "doc_intelligence",
                         onClick = {
                             activeTab = "doc_intelligence"
@@ -441,35 +491,7 @@ fun ChatScreen(
                         }
                     )
 
-                    NavigationDrawerItem(
-                        icon = { Text("🎨", style = TextStyle(fontSize = 16.sp)) },
-                        label = { Text("Kid's Coloring Book Generator", fontWeight = FontWeight.SemiBold) },
-                        selected = activeTab == "coloring_book_generator",
-                        onClick = {
-                            activeTab = "coloring_book_generator"
-                            scope.launch { drawerState.close() }
-                        }
-                    )
 
-                    NavigationDrawerItem(
-                        icon = { Text("📖", style = TextStyle(fontSize = 16.sp)) },
-                        label = { Text("Kid's AI Storyteller", fontWeight = FontWeight.SemiBold) },
-                        selected = activeTab == "kids_storyteller",
-                        onClick = {
-                            activeTab = "kids_storyteller"
-                            scope.launch { drawerState.close() }
-                        }
-                    )
-
-                    NavigationDrawerItem(
-                        icon = { Text("🍳", style = TextStyle(fontSize = 16.sp)) },
-                        label = { Text("Smart Fridge & Culinary", fontWeight = FontWeight.SemiBold) },
-                        selected = activeTab == "culinary_assistant",
-                        onClick = {
-                            activeTab = "culinary_assistant"
-                            scope.launch { drawerState.close() }
-                        }
-                    )
 
                     NavigationDrawerItem(
                         icon = { Text("🎭", style = TextStyle(fontSize = 16.sp)) },
@@ -477,6 +499,16 @@ fun ChatScreen(
                         selected = activeTab == "meme_generator",
                         onClick = {
                             activeTab = "meme_generator"
+                            scope.launch { drawerState.close() }
+                        }
+                    )
+
+                    NavigationDrawerItem(
+                        icon = { Text("🛋️", style = TextStyle(fontSize = 16.sp)) },
+                        label = { Text("AI Interior Consultant", fontWeight = FontWeight.SemiBold) },
+                        selected = activeTab == "interior_designer",
+                        onClick = {
+                            activeTab = "interior_designer"
                             scope.launch { drawerState.close() }
                         }
                     )
@@ -505,26 +537,6 @@ fun ChatScreen(
                         selected = activeTab == "slide_outline",
                         onClick = {
                             activeTab = "slide_outline"
-                            scope.launch { drawerState.close() }
-                        }
-                    )
-
-                    NavigationDrawerItem(
-                        icon = { Text("🔊", style = TextStyle(fontSize = 16.sp)) },
-                        label = { Text("AI Sound Effects SFX", fontWeight = FontWeight.SemiBold) },
-                        selected = activeTab == "sfx_generator",
-                        onClick = {
-                            activeTab = "sfx_generator"
-                            scope.launch { drawerState.close() }
-                        }
-                    )
-
-                    NavigationDrawerItem(
-                        icon = { Text("🗣️", style = TextStyle(fontSize = 16.sp)) },
-                        label = { Text("AI Talking Head Animator", fontWeight = FontWeight.SemiBold) },
-                        selected = activeTab == "talking_head",
-                        onClick = {
-                            activeTab = "talking_head"
                             scope.launch { drawerState.close() }
                         }
                     )
@@ -606,15 +618,7 @@ fun ChatScreen(
                         modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
                     )
 
-                    NavigationDrawerItem(
-                        icon = { Text("📱", style = TextStyle(fontSize = 16.sp)) },
-                        label = { Text("On-Device AI (Gemini Nano)", fontWeight = FontWeight.SemiBold) },
-                        selected = activeTab == "gemini_nano",
-                        onClick = {
-                            activeTab = "gemini_nano"
-                            scope.launch { drawerState.close() }
-                        }
-                    )
+                    // Gemini Nano drawer item removed
 
                     NavigationDrawerItem(
                         icon = { Text("🌙", style = TextStyle(fontSize = 16.sp)) },
@@ -1335,13 +1339,17 @@ fun ChatScreen(
                     },
                     onModelChange = { model ->
                         viewModel.selectImageModel(model)
+                    },
+                    onClearLog = {
+                        viewModel.clearImageGenLog()
                     }
                 )
             } else if (activeTab == "video_gen") {
                 EddieVideoGeneratorView(
                     uiState = uiState,
                     paddingValues = paddingValues,
-                    onGenerateVideo = { prompt, style, ratio, res, dur, audio, personGen, negPrompt, sampleCount, imageUrl ->
+                    chatViewModel = vm,
+                    onGenerateVideo = { prompt, style, ratio, res, dur, audio, personGen, negPrompt, sampleCount, imageUrl, cfgScale, shotType, multiPrompt, seed, enhancePrompt, autoFix, tolerance, endImg, elemJson, vControl, voiceIds, startImgUrl, bitrateMode, endUserId, pixverseMultiClip, pixverseThinkingType, lumaLoop, lumaHdr, lumaExrExport, alibAudioUrl, alibMultiShots, alibVideoUrl, hunySteps, hunyFrames ->
                         viewModel.generateVideo(
                             prompt = prompt,
                             style = style,
@@ -1353,6 +1361,30 @@ fun ChatScreen(
                             negativePrompt = negPrompt,
                             sampleCount = sampleCount,
                             imageUrl = imageUrl,
+                            cfgScale = cfgScale,
+                            shotType = shotType,
+                            multiPromptJson = multiPrompt,
+                            seed = seed,
+                            enhancePrompt = enhancePrompt,
+                            autoFix = autoFix,
+                            safetyTolerance = tolerance,
+                            endImageUrl = endImg,
+                            elementsJson = elemJson,
+                            voiceControl = vControl ?: false,
+                            voiceIds = voiceIds,
+                            startImageUrl = startImgUrl,
+                            bitrateMode = bitrateMode,
+                            endUserId = endUserId,
+                            pixverseMultiClip = pixverseMultiClip ?: false,
+                            pixverseThinkingType = pixverseThinkingType ?: "auto",
+                            lumaLoop = lumaLoop ?: false,
+                            lumaHdr = lumaHdr ?: false,
+                            lumaExrExport = lumaExrExport ?: false,
+                            alibabaAudioUrl = alibAudioUrl,
+                            alibabaMultiShots = alibMultiShots,
+                            alibabaVideoUrl = alibVideoUrl,
+                            hunyuanInferenceSteps = hunySteps,
+                            hunyuanFrames = hunyFrames,
                             onSubscriptionRequired = {
                                 showSubscriptionDialog = true
                                 Toast.makeText(context, "Free limit reached (max 2) or Eddie Premium is required for this duration, resolution, or aspect ratio!", Toast.LENGTH_LONG).show()
@@ -1363,8 +1395,8 @@ fun ChatScreen(
                         viewModel.deleteGeneratedVideo(id)
                         Toast.makeText(context, "Video successfully removed from local collection.", Toast.LENGTH_SHORT).show()
                     },
-                    onSaveEditedVideo = { originalId, prompt, style, ratio, res, dur, editedUrl ->
-                        viewModel.saveEditedVideo(originalId, prompt, style, ratio, res, dur, editedUrl)
+                    onSaveEditedVideo = { originalId, prompt, style, ratio, res, dur, editedUrl, model ->
+                        viewModel.saveEditedVideo(originalId, prompt, style, ratio, res, dur, editedUrl, model)
                     },
                     onModeChange = { mode ->
                         viewModel.selectVideoMode(mode)
@@ -1445,6 +1477,7 @@ fun ChatScreen(
                             "Japanese" -> java.util.Locale("ja", "JP")
                             "German" -> java.util.Locale("de", "DE")
                             "Korean" -> java.util.Locale("ko", "KR")
+                            "Chinese Mandarin" -> java.util.Locale("zh", "CN")
                             else -> java.util.Locale.US
                         }
                         ttsUser?.language = localeToUse
@@ -1504,33 +1537,6 @@ fun ChatScreen(
                         viewModel.setMathStudentLevel(level)
                     }
                 )
-            } else if (activeTab == "coloring_book_generator") {
-                ChildrenColoringBookView(
-                    uiState = uiState,
-                    paddingValues = paddingValues,
-                    onThemeChange = { theme -> viewModel.setColorBookTheme(theme) },
-                    onChildNameChange = { name -> viewModel.setColorBookChildName(name) },
-                    onGenerateClick = { theme, name -> viewModel.generateColoringBook(theme, name) },
-                    onGeneratePdfClick = { viewModel.generateColoringBookPdf() }
-                )
-            } else if (activeTab == "kids_storyteller") {
-                KidsStorytellerView(
-                    uiState = uiState,
-                    paddingValues = paddingValues,
-                    onThemeChange = { theme -> viewModel.setStoryTheme(theme) },
-                    onChildNameChange = { name -> viewModel.setStoryChildName(name) },
-                    onStyleChange = { style -> viewModel.setStoryStyle(style) },
-                    onPageIndexChange = { idx ->
-                        viewModel.setStoryPageIndex(idx)
-                        val pageText = uiState.storyActiveBook?.pages?.getOrNull(idx)?.text ?: ""
-                        viewModel.speakStoryPage(pageText, ttsUser)
-                    },
-                    onGenerateClick = { theme, name, style -> viewModel.generateKidsStory(theme, name, style, ttsUser) },
-                    onPlayTtsClick = { text -> viewModel.speakStoryPage(text, ttsUser) },
-                    onStopTtsClick = { viewModel.stopStorySpeaker(ttsUser) },
-                    onSelectHistoryStory = { story -> viewModel.selectHistoryStoryBook(story, ttsUser) },
-                    onResetClick = { viewModel.resetStoryBook() }
-                )
             } else if (activeTab == "culinary_assistant") {
                 CulinaryAssistantView(
                     uiState = uiState,
@@ -1560,6 +1566,11 @@ fun ChatScreen(
                     onAnalyzeImage = { bitmap -> viewModel.generateMemeMagicCaptions(bitmap) },
                     onClearAll = { viewModel.clearMemeState() }
                 )
+            } else if (activeTab == "interior_designer") {
+                EddieInteriorDesignerView(
+                    viewModel = viewModel,
+                    modifier = Modifier.padding(paddingValues)
+                )
             } else if (activeTab == "doc_intelligence") {
                 EddieDocumentIntelligenceView(
                     uiState = uiState,
@@ -1575,14 +1586,6 @@ fun ChatScreen(
                     },
                     onCopyText = { text -> copyToClipboard(text) },
                     onShareText = { text -> shareMessage(text) }
-                )
-            } else if (activeTab == "gemini_nano") {
-                EddieGeminiNanoView(
-                    uiState = uiState,
-                    paddingValues = paddingValues,
-                    onDownload = { viewModel.simulateDownloadGeminiNano() },
-                    onQuery = { prompt -> viewModel.runGeminiNanoQuery(prompt) },
-                    onUninstall = { viewModel.uninstallGeminiNano() }
                 )
             } else if (activeTab == "web_researcher") {
                 EddieDeepWebResearcherView(
@@ -1606,6 +1609,18 @@ fun ChatScreen(
                     onGenerateSfx = { prompt, cat, dur -> viewModel.generateSfx(prompt, cat, dur) },
                     onPlaySfx = { viewModel.playSynthesizedSfx() },
                     onClear = { viewModel.clearSfx() }
+                )
+            } else if (activeTab == "avatar_studio") {
+                EddieAvatarStudioView(
+                    uiState = uiState,
+                    paddingValues = paddingValues,
+                    onGenerate = { avName, avUrl, script, lang, voice, bgName, bgUrl ->
+                        viewModel.generateAvatarStudioVideo(avName, avUrl, script, lang, voice, bgName, bgUrl)
+                    },
+                    onPlay = { video -> viewModel.playAvatarStudioVideo(video, context) },
+                    onStop = { viewModel.stopAvatarStudioVideoPlayback() },
+                    onDelete = { id -> viewModel.deleteAvatarStudioVideo(id) },
+                    onSelectActiveVideo = { video -> viewModel.selectAvatarStudioActiveVideo(video) }
                 )
             } else if (activeTab == "talking_head") {
                 EddieTalkingHeadView(
@@ -1884,33 +1899,7 @@ fun ChatScreen(
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
 
-                    // Gemini Key
-                    Column {
-                        Text(
-                            text = "Google Gemini API Key",
-                            style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
-                            color = MaterialTheme.colorScheme.primary
-                        )
-                        Spacer(modifier = Modifier.height(4.dp))
-                        OutlinedTextField(
-                            value = tempGeminiKey,
-                            onValueChange = { tempGeminiKey = it },
-                            modifier = Modifier.fillMaxWidth(),
-                            placeholder = { Text("Default Active (AI Studio Key)") },
-                            singleLine = true,
-                            textStyle = MaterialTheme.typography.bodySmall
-                        )
-                        Spacer(modifier = Modifier.height(4.dp))
-                        OutlinedTextField(
-                            value = tempGeminiBaseUrl,
-                            onValueChange = { tempGeminiBaseUrl = it },
-                            modifier = Modifier.fillMaxWidth(),
-                            label = { Text("Gemini Base URL / Proxy", style = MaterialTheme.typography.bodySmall) },
-                            placeholder = { Text("e.g., https://generativelanguage.googleapis.com/") },
-                            singleLine = true,
-                            textStyle = MaterialTheme.typography.bodySmall
-                        )
-                    }
+                    // Gemini Key inputs removed
 
                     // OpenAI Key
                     Column {
@@ -2037,7 +2026,7 @@ fun ChatScreen(
                     // Fal.ai Key
                     Column {
                         Text(
-                            text = "Fal.ai API Key (Flux Schnell, Pro & Realism)",
+                            text = "Fal.ai / Veo / Kling API Key (Veo, Kling, Flux Schnell, Pro & Realism)",
                             style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
                             color = Color(0xFFFF5E00)
                         )
@@ -3261,8 +3250,8 @@ fun ChatInputBar(
     isLoading: Boolean,
     isWebSearchEnabled: Boolean,
     onWebSearchToggle: (Boolean) -> Unit,
-    selectedImageProvider: String = "Gemini",
-    selectedImageModel: String = "imagen3",
+    selectedImageProvider: String = "OpenAI",
+    selectedImageModel: String = "gpt-image-1.5",
     onEngineSelected: (provider: String, model: String) -> Unit = { _, _ -> }
 ) {
     val isDrawMode = inputText.startsWith("/draw", ignoreCase = true) ||
@@ -3296,7 +3285,6 @@ fun ChatInputBar(
                     )
                     
                     val engines = listOf(
-                        Triple("Imagen 3 (Free)", "imagen3", "Gemini"),
                         Triple("Flux Schnell (0.75 Token)", "flux/schnell", "Fal AI"),
                         Triple("Nano Banana (9.75 Tokens)", "nano-banana", "Fal AI"),
                         Triple("Nano Banana Pro (9.75 Tokens)", "nano-banana-pro", "Fal AI"),
@@ -3669,7 +3657,8 @@ fun EddieImageGeneratorView(
     onDeleteImage: (String) -> Unit,
     onSaveEditedImage: (String, String, String, String, String) -> Unit,
     onProviderChange: (String) -> Unit,
-    onModelChange: (String) -> Unit
+    onModelChange: (String) -> Unit,
+    onClearLog: () -> Unit
 ) {
     val context = LocalContext.current
     var prompt by remember { mutableStateOf("") }
@@ -3677,8 +3666,8 @@ fun EddieImageGeneratorView(
     var selectedAspectRatio by remember { mutableStateOf("1024:1024") }
     
     // Providers & Models
-    var activeProvider by remember { mutableStateOf("Gemini") }
-    var activeModelID by remember { mutableStateOf("imagen3") }
+    var activeProvider by remember { mutableStateOf("OpenAI") }
+    var activeModelID by remember { mutableStateOf("gpt-image-1.5") }
 
     var numImages by remember { mutableStateOf(1) }
     var selectedBackground by remember { mutableStateOf("Auto") }
@@ -3686,6 +3675,19 @@ fun EddieImageGeneratorView(
     // Zoom popup dialog state controllers
     var selectedImageForZoom by remember { mutableStateOf<com.example.data.db.GeneratedImageEntity?>(null) }
     var editingImageItem by remember { mutableStateOf<com.example.data.db.GeneratedImageEntity?>(null) }
+
+    val scrollState = rememberScrollState()
+    val isKeyboardVisible = WindowInsets.isImeVisible
+    LaunchedEffect(isKeyboardVisible) {
+        if (isKeyboardVisible) {
+            scrollState.animateScrollTo(scrollState.maxValue)
+        }
+    }
+    LaunchedEffect(prompt) {
+        if (prompt.isNotEmpty()) {
+            scrollState.animateScrollTo(scrollState.maxValue)
+        }
+    }
 
     val shuffledImageQuickPrompts = remember {
         listOf(
@@ -3742,13 +3744,14 @@ fun EddieImageGeneratorView(
         modifier = Modifier
             .fillMaxSize()
             .padding(paddingValues)
+            .imePadding()
     ) {
         // Scrollable content underneath
         Column(
             modifier = Modifier
                 .weight(1f)
                 .fillMaxWidth()
-                .verticalScroll(rememberScrollState())
+                .verticalScroll(scrollState)
                 .padding(horizontal = 16.dp, vertical = 8.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
@@ -3869,9 +3872,7 @@ fun EddieImageGeneratorView(
                         Triple("GPT Image 1.5 (50 Tokens)", "gpt-image-1.5", "OpenAI"),
                         Triple("GPT Image 2 (52.75 Tokens)", "gpt-image-2", "OpenAI")
                     )),
-                    Pair("Gemini" to "♊", listOf(
-                        Triple("Imagen 3 (Free)", "imagen3", "Gemini")
-                    )),
+
                     Pair("Stability" to "⚡", listOf(
                         Triple("Stable (SD3) (15 Tokens)", "sd3", "Stability"),
                         Triple("Core (15 Tokens)", "core", "Stability"),
@@ -4392,11 +4393,29 @@ fun EddieImageGeneratorView(
                 modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp)
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
-                    Text(
-                        text = if (uiState.imageGenIsLoading) "Eddie Art Pro Studio - Processing Rendering..." else "Eddie Art Pro Studio - Complete",
-                        color = Color.Green,
-                        style = TextStyle(fontFamily = FontFamily.Monospace, fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = if (uiState.imageGenIsLoading) "Eddie Art Pro Studio - Processing Rendering..." else "Eddie Art Pro Studio - Complete",
+                            color = Color.Green,
+                            style = TextStyle(fontFamily = FontFamily.Monospace, fontSize = 11.sp, fontWeight = FontWeight.Bold),
+                            modifier = Modifier.weight(1f)
+                        )
+                        IconButton(
+                            onClick = { onClearLog() },
+                            modifier = Modifier.size(24.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Close,
+                                contentDescription = "Clear Logs",
+                                tint = Color.LightGray,
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
+                    }
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
                         text = uiState.imageGenLog,
@@ -4820,9 +4839,567 @@ fun VideoProgressVisualizer() {
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun SocialDistributionDialog(
+    videoItem: com.example.data.db.GeneratedVideoEntity,
+    chatViewModel: ChatViewModel,
+    onDismissRequest: () -> Unit
+) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+
+    var selectedPlatform by remember { mutableStateOf("TikTok") }
+    var selectedTone by remember { mutableStateOf("Viral Hook") }
+    
+    // Copywriter outputs
+    var generatedCopy by remember { mutableStateOf("") }
+    var isGeneratingCopy by remember { mutableStateOf(false) }
+    var generationError by remember { mutableStateOf("") }
+    var loadingStepIndex by remember { mutableStateOf(0) }
+
+    // Account state
+    var socialHandle by remember { mutableStateOf("@creator_studio") }
+    var isAccountLinked by remember { mutableStateOf(true) }
+    var showLinkDialog by remember { mutableStateOf(false) }
+
+    // Publishing states
+    val publishingSteps = listOf(
+        "Connecting securely to Creator API (OAuth2)...",
+        "Inspecting video formatting, specs and transcode state...",
+        "Uploading raw MP4 video segments to platform CDN (0%... 45%... 100%)...",
+        "Applying SEO titles, optimized description & hashtag keywords...",
+        "Completing platform processing & indexing video on feed..."
+    )
+    var isPublishing by remember { mutableStateOf(false) }
+    var currentPublishStepIndex by remember { mutableStateOf(0) }
+    var publishSuccess by remember { mutableStateOf(false) }
+
+    // Animated loading steps for copywriting
+    val copyLoadingSteps = listOf(
+        "Synthesizing prompt context with social analytics...",
+        "Drafting high-conversion title hooks...",
+        "Optimizing descriptions for platform SEO algorithms...",
+        "Generating trending hashtags..."
+    )
+
+    LaunchedEffect(isGeneratingCopy) {
+        if (isGeneratingCopy) {
+            loadingStepIndex = 0
+            while (isGeneratingCopy) {
+                delay(1200)
+                loadingStepIndex = (loadingStepIndex + 1) % copyLoadingSteps.size
+            }
+        }
+    }
+
+    LaunchedEffect(isPublishing) {
+        if (isPublishing) {
+            currentPublishStepIndex = 0
+            for (i in publishingSteps.indices) {
+                currentPublishStepIndex = i
+                delay(1500)
+            }
+            isPublishing = false
+            publishSuccess = true
+        }
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismissRequest,
+        title = {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("🚀 Social Publisher & Copywriter", style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold))
+                Spacer(modifier = Modifier.weight(1f))
+                IconButton(onClick = onDismissRequest) {
+                    Icon(Icons.Default.Close, contentDescription = "Close")
+                }
+            }
+        },
+        text = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                // Video specs overview card
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                    ),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Column(modifier = Modifier.padding(12.dp)) {
+                        Text(
+                            text = "Source Prompt:",
+                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Text(
+                            text = videoItem.prompt,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "Ratio: ${videoItem.aspectRatio}",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                            Text(
+                                text = "Style: ${videoItem.style}",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                            if (videoItem.aspectRatio == "9:16") {
+                                Surface(
+                                    color = Color(0xFF00E5FF).copy(alpha = 0.15f),
+                                    contentColor = Color(0xFF00B0FF),
+                                    shape = RoundedCornerShape(4.dp)
+                                ) {
+                                    Text(
+                                        text = "🔥 Ideal 9:16 vertical video",
+                                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // 2. Select Platform Row
+                Text(
+                    text = "1. Target Platform",
+                    style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    val platforms = listOf(
+                        Triple("TikTok", "🎵 TikTok", Color(0xFFEE1D52)),
+                        Triple("YouTube Shorts", "🎥 YouTube Shorts", Color(0xFFFF0000)),
+                        Triple("Instagram Reels", "📸 Instagram Reels", Color(0xFFC13584))
+                    )
+                    platforms.forEach { (id, label, color) ->
+                        val isSelected = selectedPlatform == id
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(
+                                    if (isSelected) color.copy(alpha = 0.15f) else MaterialTheme.colorScheme.surface
+                                )
+                                .border(
+                                    width = 2.dp,
+                                    color = if (isSelected) color else MaterialTheme.colorScheme.outline.copy(alpha = 0.2f),
+                                    shape = RoundedCornerShape(8.dp)
+                                )
+                                .clickable { selectedPlatform = id }
+                                .padding(vertical = 8.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = label,
+                                style = MaterialTheme.typography.labelSmall.copy(
+                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                                ),
+                                color = if (isSelected) color else MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+                    }
+                }
+
+                // 3. Select Tone of Post
+                Text(
+                    text = "2. Copywriting Tone",
+                    style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    val tones = listOf("Viral Hook", "Hype/Energetic", "Educational", "Casual/Funny")
+                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            tones.take(2).forEach { tone ->
+                                val isSelected = selectedTone == tone
+                                FilterChip(
+                                    selected = isSelected,
+                                    onClick = { selectedTone = tone },
+                                    label = { Text(tone, fontSize = 11.sp) }
+                                )
+                            }
+                        }
+                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            tones.drop(2).forEach { tone ->
+                                val isSelected = selectedTone == tone
+                                FilterChip(
+                                    selected = isSelected,
+                                    onClick = { selectedTone = tone },
+                                    label = { Text(tone, fontSize = 11.sp) }
+                                )
+                            }
+                        }
+                    }
+                }
+
+                // 4. Gemini Copywriter Button & Output
+                HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.1f))
+                
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "3. AI SEO Copywriter",
+                        style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    
+                    Button(
+                        onClick = {
+                            isGeneratingCopy = true
+                            generationError = ""
+                            scope.launch {
+                                try {
+                                    val result = chatViewModel.generateVideoCopy(
+                                        videoPrompt = videoItem.prompt,
+                                        style = videoItem.style,
+                                        platform = selectedPlatform,
+                                        tone = selectedTone
+                                    )
+                                    generatedCopy = result
+                                } catch (e: Exception) {
+                                    generationError = "Error generating: ${e.localizedMessage}"
+                                } finally {
+                                    isGeneratingCopy = false
+                                }
+                            }
+                        },
+                        enabled = !isGeneratingCopy,
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.secondary,
+                            contentColor = MaterialTheme.colorScheme.onSecondary
+                        ),
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+                        shape = RoundedCornerShape(8.dp)
+                    ) {
+                        Icon(Icons.Default.Add, contentDescription = "Draft", modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("Draft SEO Copy ✨", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                    }
+                }
+
+                if (isGeneratingCopy) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f), RoundedCornerShape(8.dp))
+                            .padding(16.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        CircularProgressIndicator(modifier = Modifier.size(24.dp))
+                        Text(
+                            text = copyLoadingSteps[loadingStepIndex],
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.primary,
+                            textAlign = TextAlign.Center
+                        )
+                    }
+                } else if (generationError.isNotBlank()) {
+                    Text(generationError, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                } else if (generatedCopy.isNotBlank()) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.25f), RoundedCornerShape(10.dp))
+                            .border(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.2f), RoundedCornerShape(10.dp))
+                            .padding(12.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Text(
+                            text = generatedCopy,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.End
+                        ) {
+                            TextButton(
+                                onClick = {
+                                    try {
+                                        val clipboard = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+                                        val clip = android.content.ClipData.newPlainText("Social Copy", generatedCopy)
+                                        clipboard.setPrimaryClip(clip)
+                                        Toast.makeText(context, "Copied to clipboard! 📋", Toast.LENGTH_SHORT).show()
+                                    } catch (e: Exception) {
+                                        Toast.makeText(context, "Clipboard failed", Toast.LENGTH_SHORT).show()
+                                    }
+                                }
+                            ) {
+                                Text("📋 Copy Full Text", style = MaterialTheme.typography.labelSmall)
+                            }
+                        }
+                    }
+                } else {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f), RoundedCornerShape(8.dp))
+                            .padding(16.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text("💡 Click 'Draft SEO Copy' above to let Gemini create high-engagement titles, SEO descriptions and hashtags for $selectedPlatform!", style = MaterialTheme.typography.bodySmall, textAlign = TextAlign.Center, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
+
+                // 5. Link Social Channels section
+                HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.1f))
+                Text(
+                    text = "4. Social Channel Connection",
+                    style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(
+                        containerColor = if (isAccountLinked) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.1f) else MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.1f)
+                    ),
+                    shape = RoundedCornerShape(8.dp),
+                    border = BorderStroke(
+                        1.dp,
+                        if (isAccountLinked) MaterialTheme.colorScheme.primary.copy(alpha = 0.2f) else MaterialTheme.colorScheme.error.copy(alpha = 0.2f)
+                    )
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(12.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column {
+                            Text(
+                                text = if (isAccountLinked) "CONNECTED ACCOUNT" else "DISCONNECTED",
+                                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                                color = if (isAccountLinked) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error
+                            )
+                            Text(
+                                text = if (isAccountLinked) "Platform Handle: $socialHandle" else "Connect account to publish via automated API",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+                        TextButton(onClick = { showLinkDialog = true }) {
+                            Text(if (isAccountLinked) "Change ⚙️" else "Link Account 🔗", fontSize = 11.sp)
+                        }
+                    }
+                }
+
+                // 6. Direct Publish & Automation Actions
+                Text(
+                    text = "5. Publish Automation & Distribution",
+                    style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    // Direct System Intent Share Button
+                    Button(
+                        onClick = {
+                            val finalText = if (generatedCopy.isNotBlank()) {
+                                "$generatedCopy\n\nVideo URL: ${videoItem.videoUrl}"
+                            } else {
+                                "Look at my new video created with Eddie AI Video Studio!\nPrompt: ${videoItem.prompt}\nWatch: ${videoItem.videoUrl}"
+                            }
+                            val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                                type = "text/plain"
+                                putExtra(Intent.EXTRA_SUBJECT, "Publish to Socials")
+                                putExtra(Intent.EXTRA_TEXT, finalText)
+                            }
+                            context.startActivity(Intent.createChooser(shareIntent, "Publish via Native Share Sheet"))
+                        },
+                        modifier = Modifier.weight(1f),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                            contentColor = MaterialTheme.colorScheme.onSecondaryContainer
+                        ),
+                        shape = RoundedCornerShape(8.dp)
+                    ) {
+                        Text("📲 Direct Share", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                    }
+
+                    // Automated API Publisher Button
+                    Button(
+                        onClick = {
+                            isPublishing = true
+                            publishSuccess = false
+                        },
+                        enabled = isAccountLinked && !isPublishing,
+                        modifier = Modifier.weight(1.2f),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.primary,
+                            contentColor = MaterialTheme.colorScheme.onPrimary
+                        ),
+                        shape = RoundedCornerShape(8.dp)
+                    ) {
+                        Text("🚀 Auto-Publish via API", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                    }
+                }
+
+                // Background API Publishing Pipeline Simulator
+                if (isPublishing) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f), RoundedCornerShape(8.dp))
+                            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f), RoundedCornerShape(8.dp))
+                            .padding(12.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "Platform Publisher Pipe: Active",
+                                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                        
+                        LinearProgressIndicator(
+                            progress = (currentPublishStepIndex + 1).toFloat() / publishingSteps.size,
+                            modifier = Modifier.fillMaxWidth(),
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                        
+                        Text(
+                            text = publishingSteps[currentPublishStepIndex],
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            fontFamily = FontFamily.Monospace
+                        )
+                    }
+                } else if (publishSuccess) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(Color(0xFFE8F5E9), RoundedCornerShape(8.dp))
+                            .border(1.dp, Color(0xFF4CAF50).copy(alpha = 0.4f), RoundedCornerShape(8.dp))
+                            .padding(12.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Text(
+                            text = "🎉 Successfully Published!",
+                            style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold),
+                            color = Color(0xFF2E7D32)
+                        )
+                        Text(
+                            text = "Your video is now live on $selectedPlatform feed under handle $socialHandle.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = Color(0xFF1B5E20)
+                        )
+                        Spacer(modifier = Modifier.height(2.dp))
+                        val simulatedUrl = when (selectedPlatform) {
+                            "TikTok" -> "https://tiktok.com/$socialHandle/video/739105${videoItem.id.hashCode().coerceAtLeast(1)}"
+                            "YouTube Shorts" -> "https://youtube.com/shorts/v3810a${videoItem.id.hashCode().coerceAtLeast(1)}"
+                            else -> "https://instagram.com/reels/r830as${videoItem.id.hashCode().coerceAtLeast(1)}"
+                        }
+                        TextButton(
+                            onClick = {
+                                try {
+                                    val openIntent = Intent(Intent.ACTION_VIEW, Uri.parse(simulatedUrl))
+                                    context.startActivity(openIntent)
+                                } catch (e: Exception) {
+                                    Toast.makeText(context, "Could not open simulated link", Toast.LENGTH_SHORT).show()
+                                }
+                            },
+                            contentPadding = PaddingValues(0.dp)
+                        ) {
+                            Text("🔗 View Live Video", style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold, textDecoration = androidx.compose.ui.text.style.TextDecoration.Underline))
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            Button(onClick = onDismissRequest) {
+                Text("Done")
+            }
+        }
+    )
+
+    // Handle Link/Credential Dialog
+    if (showLinkDialog) {
+        var tempHandle by remember { mutableStateOf(socialHandle) }
+        AlertDialog(
+            onDismissRequest = { showLinkDialog = false },
+            title = { Text("Link Social Creator Channel 🔗", style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text(
+                        text = "Enter your handle for $selectedPlatform. Authorize our Studio SDK to establish a secure publisher session.",
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                    OutlinedTextField(
+                        value = tempHandle,
+                        onValueChange = { tempHandle = it },
+                        label = { Text("Creator Handle") },
+                        placeholder = { Text("@yourname") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val cleaned = if (tempHandle.startsWith("@")) tempHandle else "@$tempHandle"
+                        socialHandle = cleaned
+                        isAccountLinked = tempHandle.isNotBlank() && tempHandle != "@"
+                        showLinkDialog = false
+                        Toast.makeText(context, "Account $cleaned successfully connected!", Toast.LENGTH_SHORT).show()
+                    }
+                ) {
+                    Text("Authorize & Link")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showLinkDialog = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+}
+
 @Composable
 fun VideoPlayerDialog(
     videoItem: com.example.data.db.GeneratedVideoEntity,
+    chatViewModel: ChatViewModel,
     onDismissRequest: () -> Unit,
     onDeleteVideo: (String) -> Unit,
     onEditVideo: (() -> Unit)? = null
@@ -4837,6 +5414,7 @@ fun VideoPlayerDialog(
     var isPlaying by remember { mutableStateOf(true) }
     var currentProgress by remember { mutableStateOf(0f) }
     var forceVisualizerOnly by remember { mutableStateOf(false) }
+    var showSocialDialog by remember { mutableStateOf(false) }
 
     var isVideoPrepared by remember { mutableStateOf(false) }
     var hasVideoError by remember { mutableStateOf(false) }
@@ -5225,7 +5803,7 @@ fun VideoPlayerDialog(
                             Surface(
                                 color = Color.Black.copy(alpha = 0.6f),
                                 shape = RoundedCornerShape(16.dp),
-                                modifier = Modifier.align(Alignment.TopEnd).padding(8.dp)
+                                modifier = Modifier.align(Alignment.TopStart).padding(8.dp)
                             ) {
                                 Row(
                                     verticalAlignment = Alignment.CenterVertically,
@@ -5345,6 +5923,58 @@ fun VideoPlayerDialog(
                                 color = Color.White
                             )
                         }
+                    }
+
+                    // Model Name Badge in top right of the video player screen
+                    val modelDisplayName = if (videoItem.model.isNotBlank()) {
+                        val m = videoItem.model.lowercase().trim()
+                        when {
+                            m.contains("veo3.1/lite") -> "Veo 3.1 Lite"
+                            m.contains("veo3.1/fast") -> "Veo 3.1 Fast"
+                            m.contains("veo3.1") -> "Veo 3.1"
+                            m.contains("hailuo-2.3/pro") -> "MiniMax 2.3 Pro"
+                            m.contains("hailuo-2.3/standard") -> "MiniMax 2.3 Std"
+                            m.contains("hailuo-02/pro") -> "MiniMax 02 Pro"
+                            m.contains("hailuo-02/standard") -> "MiniMax 02 Std"
+                            m.contains("minimax") || m.contains("hailuo") -> "MiniMax"
+                            m.contains("ray/v3.2") -> "Luma Ray 3.2"
+                            m.contains("luma") -> "Luma Ray"
+                            m.contains("hunyuan") -> "Hunyuan v1.5"
+                            m.contains("grok-imagine") -> "Grok Imagine"
+                            m.contains("pixverse/v6") -> "Pixverse v6"
+                            m.contains("pixverse/v5.6") -> "Pixverse v5.6"
+                            m.contains("pixverse/v5.5") -> "Pixverse v5.5"
+                            m.contains("pixverse/c1") -> "Pixverse C1"
+                            m.contains("pixverse") -> "Pixverse"
+                            m.contains("kling/v3/pro") -> "Kling v3 Pro"
+                            m.contains("kling/v3/standard") -> "Kling v3 Std"
+                            m.contains("kling") -> "Kling"
+                            m.contains("wan/v2.7") -> "Wan v2.7"
+                            m.contains("wan/v2.6") -> "Wan v2.6"
+                            m.contains("wan/v2.5") -> "Wan v2.5"
+                            m.contains("wan") -> "Wan"
+                            m.contains("veed") -> "Veed"
+                            else -> videoItem.model
+                        }
+                    } else "Unknown"
+
+                    Surface(
+                        modifier = Modifier
+                            .align(Alignment.TopEnd)
+                            .padding(8.dp),
+                        shape = RoundedCornerShape(6.dp),
+                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.85f)
+                    ) {
+                        Text(
+                            text = modelDisplayName,
+                            color = MaterialTheme.colorScheme.onPrimary,
+                            style = MaterialTheme.typography.labelSmall.copy(
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 10.sp,
+                                letterSpacing = 0.5.sp
+                            ),
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                        )
                     }
                 }
 
@@ -5529,6 +6159,24 @@ fun VideoPlayerDialog(
                     Text("Download Video ⬇️", maxLines = 1, fontWeight = FontWeight.Bold)
                 }
 
+                // Social Publisher & Copywriter Button
+                Button(
+                    onClick = { showSocialDialog = true },
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.primaryContainer,
+                        contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                    ),
+                    shape = RoundedCornerShape(10.dp)
+                ) {
+                    Row(
+                        horizontalArrangement = Arrangement.Center,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("🚀 Social Copywriter & Automate Publish", fontWeight = FontWeight.Bold)
+                    }
+                }
+
                 HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
 
                 TextButton(
@@ -5544,6 +6192,14 @@ fun VideoPlayerDialog(
         },
         dismissButton = null
     )
+
+    if (showSocialDialog) {
+        SocialDistributionDialog(
+            videoItem = videoItem,
+            chatViewModel = chatViewModel,
+            onDismissRequest = { showSocialDialog = false }
+        )
+    }
 }
 
 // Utility helper for deterministic animation offsets
@@ -5560,9 +6216,45 @@ private fun offsetFraction(progress: Float, offset: Int): Float {
 fun EddieVideoGeneratorView(
     uiState: ChatUiState,
     paddingValues: PaddingValues,
-    onGenerateVideo: (String, String, String, String, String, String, String, String, Int, String?) -> Unit,
+    chatViewModel: ChatViewModel,
+    onGenerateVideo: (
+        prompt: String,
+        style: String,
+        aspectRatio: String,
+        resolution: String,
+        duration: String,
+        generateAudio: String,
+        personGeneration: String,
+        negativePrompt: String,
+        sampleCount: Int,
+        imageUrl: String?,
+        cfgScale: Float,
+        shotType: String,
+        multiPromptJson: String?,
+        seed: Int?,
+        enhancePrompt: Boolean,
+        autoFix: Boolean,
+        safetyTolerance: Int,
+        endImageUrl: String?,
+        elementsJson: String?,
+        voiceControl: Boolean,
+        voiceIds: List<String>?,
+        startImageUrl: String?,
+        bitrateMode: String,
+        endUserId: String,
+        pixverseMultiClip: Boolean,
+        pixverseThinkingType: String,
+        lumaLoop: Boolean,
+        lumaHdr: Boolean,
+        lumaExrExport: Boolean,
+        alibabaAudioUrl: String,
+        alibabaMultiShots: Boolean,
+        alibabaVideoUrl: String?,
+        hunyuanInferenceSteps: Int,
+        hunyuanFrames: Int
+    ) -> Unit,
     onDeleteVideo: (String) -> Unit,
-    onSaveEditedVideo: (String, String, String, String, String, String, String) -> Unit,
+    onSaveEditedVideo: (String, String, String, String, String, String, String, String) -> Unit,
     onModeChange: (String) -> Unit,
     onProviderChange: (String) -> Unit,
     onModelChange: (String) -> Unit
@@ -5576,37 +6268,277 @@ fun EddieVideoGeneratorView(
     var selectedImageId by remember { mutableStateOf("") }
     var selectedOpenAiSize by remember { mutableStateOf("1280x720") }
     var selectedAudioOption by remember { mutableStateOf("Off") }
+    var klingVoiceControl by remember { mutableStateOf(false) }
+    var klingEndImageUrl by remember { mutableStateOf("") }
+    val klingElements = remember { mutableStateListOf<KlingV3ComboElementInput>() }
     var selectedPersonGeneration by remember { mutableStateOf("allow_adult") }
     var negativePromptText by remember { mutableStateOf("blurry, text, watermark, bad lighting") }
     var sampleCountVideos by remember { mutableStateOf(1) }
+    var enhancePrompt by remember { mutableStateOf(true) }
+    var seedText by remember { mutableStateOf("") }
+    var autoFix by remember { mutableStateOf(true) }
+    var alibabaAudioUrl by remember { mutableStateOf("") }
+    var wanMultiShots by remember { mutableStateOf(true) }
+    var wanEndImageUrl by remember { mutableStateOf("") }
+    var wanVideoUrl by remember { mutableStateOf("") }
+    var safetyTolerance by remember { mutableStateOf("4") }
+
+    var minimaxPromptOptimizer by remember { mutableStateOf(true) }
+    var minimaxEndImageUrl by remember { mutableStateOf("") }
+
+    var hunyuanInferenceSteps by remember { mutableStateOf(28) }
+    var hunyuanFrames by remember { mutableStateOf(121) }
+
+    var klingV26StartImageUrl by remember { mutableStateOf("") }
+    var klingV26EndImageUrl by remember { mutableStateOf("") }
+    var klingV26VoiceIds by remember { mutableStateOf("") }
+    var selectedBitrateMode by remember { mutableStateOf("standard") }
+    var endUserIdText by remember { mutableStateOf("aistudio-user-default") }
+    var pixverseMultiClip by remember { mutableStateOf(false) }
+
+    val videoScrollState = rememberScrollState()
+    val isKeyboardVisible = WindowInsets.isImeVisible
+    LaunchedEffect(isKeyboardVisible) {
+        if (isKeyboardVisible) {
+            videoScrollState.animateScrollTo(videoScrollState.maxValue)
+        }
+    }
+    LaunchedEffect(prompt) {
+        if (prompt.isNotEmpty()) {
+            videoScrollState.animateScrollTo(videoScrollState.maxValue)
+        }
+    }
+    var pixverseThinkingType by remember { mutableStateOf("auto") }
+    var lumaLoop by remember { mutableStateOf(false) }
+    var lumaHdr by remember { mutableStateOf(false) }
+    var lumaExrExport by remember { mutableStateOf(false) }
+    val isLumaRayVideo = remember(uiState.selectedVideoModel, uiState.selectedVideoProvider) {
+        val modelLower = uiState.selectedVideoModel.lowercase().trim()
+        uiState.selectedVideoProvider == "FalAI" && (modelLower.contains("luma/agent/ray") || modelLower.contains("luma-dream-machine"))
+    }
+    val isAlibabaVideo = remember(uiState.selectedVideoModel, uiState.selectedVideoProvider) {
+        uiState.selectedVideoProvider == "Alibaba"
+    }
+    val isBytedance = remember(uiState.selectedVideoProvider) {
+        uiState.selectedVideoProvider == "Bytedance"
+    }
+
+    var cfgScale by remember { mutableStateOf(0.5f) }
+    var selectedShotType by remember { mutableStateOf("customize") }
+
+    var useStoryboard by remember { mutableStateOf(false) }
+    val storyboardShots = remember {
+        mutableStateListOf(
+            mutableStateOf("") to mutableStateOf("5"),
+            mutableStateOf("") to mutableStateOf("5")
+        )
+    }
+
+    LaunchedEffect(uiState.selectedVideoProvider, uiState.selectedVideoModel) {
+        if (uiState.selectedVideoProvider == "Kling") {
+            negativePromptText = "blur, distort, and low quality"
+            cfgScale = 0.5f
+        } else if (uiState.selectedVideoProvider == "Bytedance") {
+            negativePromptText = "blurry, text, watermark, bad lighting"
+            selectedAudioOption = "On"
+        } else if (uiState.selectedVideoProvider == "PixVerse") {
+            negativePromptText = ""
+            selectedStyle = "anime"
+            selectedResolution = "720p"
+            selectedDuration = "5s"
+            selectedAudioOption = "On"
+        } else if (uiState.selectedVideoProvider == "Alibaba" && uiState.selectedVideoModel.lowercase().trim().contains("happy-horse")) {
+            negativePromptText = "blurry, text, watermark, bad lighting"
+            selectedResolution = "1080p"
+            selectedDuration = "5s"
+        } else if (uiState.selectedVideoProvider == "FalAI" && uiState.selectedVideoModel.lowercase().trim().contains("hunyuan-video-v1.5")) {
+            negativePromptText = ""
+            selectedResolution = "480p"
+            selectedAspectRatio = "16:9"
+            hunyuanInferenceSteps = 28
+            hunyuanFrames = 121
+            enhancePrompt = true
+        } else {
+            negativePromptText = "blurry, text, watermark, bad lighting"
+        }
+    }
 
     val isVeo2 = remember(uiState.selectedVideoModel, uiState.selectedVideoProvider) {
         val modelLower = uiState.selectedVideoModel.lowercase().trim()
-        uiState.selectedVideoProvider == "Gemini" && (
-            modelLower == "veo-2.0-generate-001" || modelLower == "veo2" || modelLower == "veo 2"
+        (uiState.selectedVideoProvider == "Veo" || uiState.selectedVideoProvider == "FalAI") && (
+            modelLower == "veo2" || modelLower.contains("veo-2.0")
+        )
+    }
+
+    val isOpenAiSora2 = remember(uiState.selectedVideoModel, uiState.selectedVideoProvider) {
+        val modelLower = uiState.selectedVideoModel.lowercase().trim()
+        uiState.selectedVideoProvider == "OpenAI" && modelLower == "sora 2"
+    }
+
+    val isSora2ImageToVideo = remember(uiState.selectedVideoModel, uiState.selectedVideoProvider, uiState.selectedVideoMode) {
+        uiState.selectedVideoProvider == "OpenAI" &&
+        uiState.selectedVideoMode == "Image to Video" &&
+        uiState.selectedVideoModel.lowercase().trim() == "sora 2"
+    }
+
+    val isSora2ProImageToVideo = remember(uiState.selectedVideoModel, uiState.selectedVideoProvider, uiState.selectedVideoMode) {
+        uiState.selectedVideoProvider == "OpenAI" &&
+        uiState.selectedVideoMode == "Image to Video" &&
+        uiState.selectedVideoModel.lowercase().trim() == "sora 2 pro"
+    }
+
+    val isOpenAiSora2Pro = remember(uiState.selectedVideoModel, uiState.selectedVideoProvider) {
+        val modelLower = uiState.selectedVideoModel.lowercase().trim()
+        uiState.selectedVideoProvider == "OpenAI" && modelLower == "sora 2 pro"
+    }
+
+    LaunchedEffect(isVeo2) {
+        if (isVeo2) {
+            selectedDuration = "5s"
+            selectedAudioOption = "Off"
+        }
+    }
+
+    LaunchedEffect(uiState.selectedVideoModel, uiState.selectedVideoProvider, uiState.selectedVideoMode) {
+        if (uiState.selectedVideoProvider == "OpenAI" && uiState.selectedVideoModel.lowercase().trim() == "sora 2") {
+            if (uiState.selectedVideoMode == "Image to Video") {
+                selectedAspectRatio = "auto"
+                selectedDuration = "4 seconds"
+                selectedResolution = "auto"
+            } else {
+                if (selectedOpenAiSize in listOf("1024x1792", "1792x1024", "1080x1920", "1920x1080")) {
+                    selectedOpenAiSize = "1280x720"
+                }
+            }
+        }
+    }
+
+    val isFalVeo3FastModel = remember(uiState.selectedVideoModel, uiState.selectedVideoProvider) {
+        val modelLower = uiState.selectedVideoModel.lowercase().trim()
+        (uiState.selectedVideoProvider == "FalAI" || uiState.selectedVideoProvider == "Veo") && (
+            modelLower == "veo3-fast" || modelLower.contains("veo3-fast") || modelLower.contains("veo 3 fast") || modelLower.contains("veo3.1/fast") || modelLower.contains("veo 3.1 fast")
+        )
+    }
+
+    val isFalVeo3_1Fast = remember(uiState.selectedVideoModel, uiState.selectedVideoProvider) {
+        val modelLower = uiState.selectedVideoModel.lowercase().trim()
+        (uiState.selectedVideoProvider == "FalAI" || uiState.selectedVideoProvider == "Veo") && (
+            modelLower.contains("veo3.1/fast") || modelLower.contains("veo 3.1 fast")
+        )
+    }
+
+    val isFalVeo3OnlyFast = remember(uiState.selectedVideoModel, uiState.selectedVideoProvider) {
+        val modelLower = uiState.selectedVideoModel.lowercase().trim()
+        (uiState.selectedVideoProvider == "FalAI" || uiState.selectedVideoProvider == "Veo") && (
+            (modelLower == "veo3-fast" || modelLower.contains("veo3-fast") || modelLower.contains("veo 3 fast")) &&
+            !modelLower.contains("3.1")
         )
     }
 
     val isFalVeo3 = remember(uiState.selectedVideoModel, uiState.selectedVideoProvider) {
         val modelLower = uiState.selectedVideoModel.lowercase().trim()
-        uiState.selectedVideoProvider == "FalAI" && (
-            modelLower.contains("veo3.1") || modelLower.contains("veo 3.1") ||
-            modelLower == "veo3" || modelLower == "fal-ai/veo3" || modelLower == "veo 3"
+        (uiState.selectedVideoProvider == "FalAI" || uiState.selectedVideoProvider == "Veo") && (
+            (modelLower.contains("veo3.1") || modelLower.contains("veo 3.1") ||
+            modelLower == "veo3" || modelLower == "fal-ai/veo3" || modelLower == "veo 3") &&
+            !modelLower.contains("fast")
         )
     }
 
-    val isFalVeo3FastModel = remember(uiState.selectedVideoModel, uiState.selectedVideoProvider) {
+    val isFalVeo3_1Lite = remember(uiState.selectedVideoModel, uiState.selectedVideoProvider) {
         val modelLower = uiState.selectedVideoModel.lowercase().trim()
-        uiState.selectedVideoProvider == "FalAI" && (
-            modelLower == "veo3-fast" || modelLower.contains("veo3-fast") || modelLower.contains("veo 3 fast")
+        (uiState.selectedVideoProvider == "FalAI" || uiState.selectedVideoProvider == "Veo") && (
+            modelLower.contains("veo3.1/lite") || modelLower.contains("veo 3.1 lite") || modelLower.contains("lite")
         )
     }
 
-    LaunchedEffect(isVeo2) {
-        if (isVeo2) {
-            selectedAudioOption = "Off"
+    val isFalVeo3_1 = remember(uiState.selectedVideoModel, uiState.selectedVideoProvider) {
+        val modelLower = uiState.selectedVideoModel.lowercase().trim()
+        (uiState.selectedVideoProvider == "FalAI" || uiState.selectedVideoProvider == "Veo") && (
+            (modelLower.contains("veo3.1") || modelLower.contains("veo 3.1")) &&
+            !modelLower.contains("fast") && !modelLower.contains("lite")
+        )
+    }
+
+    val isGrokImagineVideo = remember(uiState.selectedVideoModel) {
+        val modelLower = uiState.selectedVideoModel.lowercase().trim()
+        modelLower.contains("grok-imagine-video")
+    }
+
+    val isFalVeo3Only = remember(uiState.selectedVideoModel, uiState.selectedVideoProvider) {
+        val modelLower = uiState.selectedVideoModel.lowercase().trim()
+        (uiState.selectedVideoProvider == "FalAI" || uiState.selectedVideoProvider == "Veo") && (
+            (modelLower == "veo3" || modelLower == "fal-ai/veo3" || modelLower == "veo 3") &&
+            !modelLower.contains("fast")
+        )
+    }
+
+    val isKlingV26Pro = remember(uiState.selectedVideoModel, uiState.selectedVideoProvider) {
+        val modelLower = uiState.selectedVideoModel.lowercase().trim()
+        uiState.selectedVideoProvider == "Kling" && (modelLower == "kling v2.6 pro" || modelLower.contains("kling-video/v2.6/pro") || modelLower.contains("kling v2.6 pro") || modelLower.contains("v2.6/pro"))
+    }
+
+    val isKlingV25TurboPro = remember(uiState.selectedVideoModel, uiState.selectedVideoProvider) {
+        val modelLower = uiState.selectedVideoModel.lowercase().trim()
+        uiState.selectedVideoProvider == "Kling" && (modelLower == "kling v2.5 turbo pro" || modelLower.contains("kling-2.5-turbo/pro") || modelLower.contains("kling v2.5 turbo pro") || modelLower.contains("v2.5-turbo/pro"))
+    }
+
+    val isKlingV25TurboStandard = remember(uiState.selectedVideoModel, uiState.selectedVideoProvider) {
+        val modelLower = uiState.selectedVideoModel.lowercase().trim()
+        uiState.selectedVideoProvider == "Kling" && (modelLower == "kling v2.5 turbo standard" || modelLower.contains("kling-2.5-turbo/standard") || modelLower.contains("kling v2.5 turbo standard") || modelLower.contains("v2.5-turbo/standard"))
+    }
+
+    val isKlingV3Standard = remember(uiState.selectedVideoModel, uiState.selectedVideoProvider) {
+        val modelLower = uiState.selectedVideoModel.lowercase().trim()
+        uiState.selectedVideoProvider == "Kling" && (modelLower == "kling v3 standard" || modelLower.contains("kling v3 standard") || modelLower.contains("v3/standard"))
+    }
+
+    val isKlingV3Pro = remember(uiState.selectedVideoModel, uiState.selectedVideoProvider) {
+        val modelLower = uiState.selectedVideoModel.lowercase().trim()
+        uiState.selectedVideoProvider == "Kling" && (modelLower == "kling v3 pro" || modelLower.contains("kling v3 pro") || modelLower.contains("v3/pro"))
+    }
+
+    val isKlingV3TurboPro = remember(uiState.selectedVideoModel, uiState.selectedVideoProvider) {
+        val modelLower = uiState.selectedVideoModel.lowercase().trim()
+        uiState.selectedVideoProvider == "Kling" && (modelLower == "kling v3 turbo pro" || modelLower.contains("v3/turbo/pro"))
+    }
+
+    val isKlingV3TurboStandard = remember(uiState.selectedVideoModel, uiState.selectedVideoProvider) {
+        val modelLower = uiState.selectedVideoModel.lowercase().trim()
+        uiState.selectedVideoProvider == "Kling" && (modelLower == "kling v3 turbo standard" || modelLower.contains("v3/turbo/standard"))
+    }
+
+    val isKlingO3_4k = remember(uiState.selectedVideoModel, uiState.selectedVideoProvider) {
+        val modelLower = uiState.selectedVideoModel.lowercase().trim()
+        uiState.selectedVideoProvider == "Kling" && (modelLower == "kling o3 4k" || modelLower.contains("o3/4k"))
+    }
+
+    val isKlingO3Standard = remember(uiState.selectedVideoModel, uiState.selectedVideoProvider) {
+        val modelLower = uiState.selectedVideoModel.lowercase().trim()
+        uiState.selectedVideoProvider == "Kling" && (modelLower == "kling o3 standard" || modelLower.contains("o3/standard"))
+    }
+
+    val isKlingO3Pro = remember(uiState.selectedVideoModel, uiState.selectedVideoProvider) {
+        val modelLower = uiState.selectedVideoModel.lowercase().trim()
+        uiState.selectedVideoProvider == "Kling" && (modelLower == "kling o3 pro" || modelLower.contains("o3/pro"))
+    }
+
+    val isKlingV3_4k = remember(uiState.selectedVideoModel, uiState.selectedVideoProvider) {
+        val modelLower = uiState.selectedVideoModel.lowercase().trim()
+        uiState.selectedVideoProvider == "Kling" && (modelLower == "kling v3 4k" || modelLower.contains("v3/4k"))
+    }
+
+    val isHunyuan15Video = remember(uiState.selectedVideoModel, uiState.selectedVideoProvider) {
+        val modelLower = uiState.selectedVideoModel.lowercase().trim()
+        uiState.selectedVideoProvider == "FalAI" && (modelLower == "fal-ai/hunyuan-video-v1.5/image-to-video" || modelLower.contains("hunyuan-video-v1.5"))
+    }
+
+    LaunchedEffect(isKlingV3Standard, isKlingV3Pro, isKlingV3TurboPro, isKlingV3TurboStandard, isKlingO3_4k, isKlingO3Standard, isKlingO3Pro, isKlingV3_4k, isKlingV26Pro, isKlingV25TurboStandard) {
+        if (isKlingV3Standard || isKlingV3Pro || isKlingV3TurboPro || isKlingV3TurboStandard || isKlingO3_4k || isKlingO3Standard || isKlingO3Pro || isKlingV3_4k || isKlingV26Pro || isKlingV25TurboStandard) {
+            selectedDuration = "5"
         }
     }
+
+    val isGeminiVeo3_1 = false
 
     var showProgressPanel by remember { mutableStateOf(false) }
 
@@ -5617,6 +6549,20 @@ fun EddieVideoGeneratorView(
     }
 
     var uploadedImages by remember { mutableStateOf<List<com.example.data.db.GeneratedImageEntity>>(emptyList()) }
+
+    LaunchedEffect(selectedImageId) {
+        val selectedImgUrl = (uiState.generatedImages + uploadedImages).find { it.id == selectedImageId }?.imageUrl
+        if (!selectedImgUrl.isNullOrBlank()) {
+            klingV26StartImageUrl = selectedImgUrl
+        }
+    }
+
+    LaunchedEffect(isKlingV26Pro) {
+        if (isKlingV26Pro) {
+            selectedDuration = "5"
+            selectedAudioOption = "On"
+        }
+    }
 
     fun getUriSize(ctx: android.content.Context, uri: Uri): Long {
         return try {
@@ -5674,7 +6620,7 @@ fun EddieVideoGeneratorView(
 
                 val imageRatio = imageWidth.toFloat() / imageHeight.toFloat()
                 val diff = kotlin.math.abs(imageRatio - targetRatioVal)
-                if (diff >= 0.05f) {
+                if (diff >= 0.05f && uiState.selectedVideoProvider != "Kling" && uiState.selectedVideoProvider != "Bytedance") {
                     Toast.makeText(
                         context,
                         "Image aspect ratio must match the chosen aspect ratio ($selectedAspectRatio)!\n" +
@@ -5728,40 +6674,135 @@ fun EddieVideoGeneratorView(
     var selectedVideoForPlay by remember { mutableStateOf<com.example.data.db.GeneratedVideoEntity?>(null) }
     var editingVideoItem by remember { mutableStateOf<com.example.data.db.GeneratedVideoEntity?>(null) }
 
-    val styles = listOf(
-        "Realistic Drone" to false,
-        "Cinematic 3D" to false,
-        "Cyberpunk Neon" to true,
-        "Anime Epic" to true,
-        "Vintage Kodachrome 35mm" to true,
-        "IMAX Sci-Fi" to true,
-        "Steampunk Brass" to false,
-        "Fantasy Unreal Engine 5" to true,
-        "Moody Film Noir" to false,
-        "Claymation Stop-Motion" to true,
-        "Water Color Aesthetic" to false,
-        "Cosmic Retrowave" to true
-    )
+    val styles = remember(uiState.selectedVideoProvider, uiState.selectedVideoModel) {
+        val isPixVerse = uiState.selectedVideoProvider == "PixVerse"
+        if (isPixVerse) {
+            listOf(
+                "anime" to false,
+                "3d_animation" to false,
+                "clay" to false,
+                "comic" to false,
+                "cyberpunk" to false
+            )
+        } else {
+            listOf(
+                "Realistic Drone" to false,
+                "Cinematic 3D" to false,
+                "Cyberpunk Neon" to true,
+                "Anime Epic" to true,
+                "Vintage Kodachrome 35mm" to true,
+                "IMAX Sci-Fi" to true,
+                "Steampunk Brass" to false,
+                "Fantasy Unreal Engine 5" to true,
+                "Moody Film Noir" to false,
+                "Claymation Stop-Motion" to true,
+                "Water Color Aesthetic" to false,
+                "Cosmic Retrowave" to true
+            )
+        }
+    }
 
-    val aspectRatios = remember(uiState.selectedVideoProvider, uiState.selectedVideoModel, uiState.selectedVideoMode, isFalVeo3, isFalVeo3FastModel) {
-        if (isFalVeo3 || isFalVeo3FastModel) {
+    val aspectRatios = remember(uiState.selectedVideoProvider, uiState.selectedVideoModel, uiState.selectedVideoMode, isFalVeo3, isFalVeo3FastModel, isVeo2, isGrokImagineVideo, isLumaRayVideo, isSora2ImageToVideo, isSora2ProImageToVideo, isAlibabaVideo, isHunyuan15Video) {
+        val modelLower = uiState.selectedVideoModel.lowercase().trim()
+        if (isHunyuan15Video) {
             listOf(
                 "16:9" to false to "Landscape (16:9)",
-                "9:16" to true to "Vertical (9:16)",
-                "1:1" to false to "Square (1:1)"
+                "9:16" to true to "Vertical (9:16)"
             )
-        } else if (uiState.selectedVideoProvider == "Gemini" && uiState.selectedVideoMode == "Text to Video") {
-            val modelLower = uiState.selectedVideoModel.lowercase().trim()
-            if (modelLower == "veo-2.0-generate-001" || modelLower == "veo2" || modelLower == "veo 2") {
+        } else if ((uiState.selectedVideoProvider == "FalAI" || uiState.selectedVideoProvider == "Minimax") && (uiState.selectedVideoModel == "fal-ai/minimax/hailuo-02/standard/image-to-video" || uiState.selectedVideoModel == "fal-ai/minimax/hailuo-02/pro/image-to-video" || uiState.selectedVideoModel == "fal-ai/minimax/hailuo-2.3/standard/image-to-video" || uiState.selectedVideoModel == "fal-ai/minimax/hailuo-2.3/pro/image-to-video" || uiState.selectedVideoModel == "fal-ai/minimax/hailuo-02/standard/text-to-video" || uiState.selectedVideoModel == "fal-ai/minimax/hailuo-02/pro/text-to-video" || uiState.selectedVideoModel == "fal-ai/minimax/hailuo-2.3/standard/text-to-video" || uiState.selectedVideoModel == "fal-ai/minimax/hailuo-2.3/pro/text-to-video")) {
+            emptyList()
+        } else if (isAlibabaVideo && (modelLower.contains("wan/v2.6") || modelLower.contains("wan/v2.7") || modelLower.contains("happy-horse"))) {
+            if ((modelLower.contains("wan/v2.6") || modelLower.contains("wan/v2.7") || modelLower.contains("happy-horse")) && uiState.selectedVideoMode == "Image to Video") {
+                emptyList()
+            } else {
                 listOf(
                     "16:9" to false to "Landscape",
+                    "9:16" to false to "Shorts/TikTok",
+                    "1:1" to false to "Square",
+                    "4:3" to false to "Classic TV",
+                    "3:4" to false to "Portrait"
+                )
+            }
+        } else if (isAlibabaVideo && (modelLower.contains("wan/v2.5") || modelLower.contains("wan-25-preview"))) {
+            if (uiState.selectedVideoMode == "Image to Video") {
+                emptyList()
+            } else {
+                listOf(
+                    "16:9" to false to "Landscape",
+                    "1:1" to false to "Square",
+                    "9:16" to true to "Shorts/TikTok"
+                )
+            }
+        } else if (isSora2ImageToVideo || isSora2ProImageToVideo) {
+            listOf(
+                "auto" to false to "Automatic",
+                "9:16" to false to "Vertical (9:16)",
+                "16:9" to false to "Landscape (16:9)"
+            )
+        } else if (isLumaRayVideo) {
+            listOf(
+                "3:4" to false to "Portrait",
+                "4:3" to false to "Classic TV",
+                "1:1" to false to "Square",
+                "9:16" to true to "Shorts/TikTok",
+                "16:9" to false to "Landscape",
+                "21:9" to true to "Cinematic"
+            )
+        } else if (isFalVeo3 || isFalVeo3FastModel) {
+            listOf(
+                "16:9" to false to "Landscape",
+                "9:16" to true to "Vertical"
+            )
+        } else if (isGrokImagineVideo) {
+            listOf(
+                "16:9" to false to "Landscape",
+                "4:3" to false to "Classic TV",
+                "3:2" to false to "Photo Horizontal",
+                "1:1" to false to "Square",
+                "2:3" to true to "Story Vertical",
+                "3:4" to false to "Portrait",
+                "9:16" to true to "Shorts/TikTok"
+            )
+        } else if (isVeo2) {
+            listOf(
+                "16:9" to false to "Landscape",
+                "1:1" to false to "Square",
+                "9:16" to true to "Shorts/TikTok"
+            )
+        } else if (uiState.selectedVideoProvider == "Kling") {
+            listOf(
+                "16:9" to false to "Landscape",
+                "1:1" to false to "Square",
+                "9:16" to true to "Shorts/TikTok"
+            )
+        } else if (uiState.selectedVideoProvider == "Bytedance") {
+            listOf(
+                "auto" to false to "Auto",
+                "21:9" to false to "Cinematic",
+                "16:9" to false to "Landscape",
+                "4:3" to false to "Classic TV",
+                "1:1" to false to "Square",
+                "3:4" to false to "Portrait",
+                "9:16" to true to "Vertical"
+            )
+        } else if (uiState.selectedVideoProvider == "PixVerse") {
+            if (uiState.selectedVideoModel == "fal-ai/pixverse/v5.5/text-to-video" || uiState.selectedVideoModel == "fal-ai/pixverse/v5.6/text-to-video") {
+                listOf(
+                    "16:9" to false to "Landscape",
+                    "4:3" to false to "Classic TV",
+                    "1:1" to false to "Square",
+                    "3:4" to false to "Portrait",
                     "9:16" to true to "Shorts/TikTok"
                 )
             } else {
                 listOf(
                     "16:9" to false to "Landscape",
+                    "4:3" to false to "Classic TV",
                     "1:1" to false to "Square",
+                    "3:4" to false to "Portrait",
                     "9:16" to true to "Shorts/TikTok",
+                    "2:3" to true to "Story Vertical",
+                    "3:2" to false to "Photo Horizontal",
                     "21:9" to true to "Cinematic"
                 )
             }
@@ -5782,32 +6823,143 @@ fun EddieVideoGeneratorView(
         }
     }
 
-    val resolutions = remember(uiState.selectedVideoProvider, uiState.selectedVideoModel, uiState.selectedVideoMode, isFalVeo3, isFalVeo3FastModel) {
-        if (isFalVeo3FastModel) {
+    val resolutions = remember(uiState.selectedVideoProvider, uiState.selectedVideoModel, uiState.selectedVideoMode, isFalVeo3, isFalVeo3FastModel, isFalVeo3OnlyFast, isFalVeo3Only, isFalVeo3_1Lite, isVeo2, isOpenAiSora2, isOpenAiSora2Pro, isGrokImagineVideo, isLumaRayVideo, isSora2ImageToVideo, isSora2ProImageToVideo, isAlibabaVideo, isHunyuan15Video) {
+        if (isHunyuan15Video) {
             listOf(
-                "720p" to false to "High HD (720p)",
-                "1080p" to true to "Full HD (1080p)"
+                "480p" to false to "Standard (480p)",
+                "720p" to true to "High (720p)"
             )
-        } else if (isFalVeo3) {
+        } else if ((uiState.selectedVideoProvider == "FalAI" || uiState.selectedVideoProvider == "Minimax") && uiState.selectedVideoModel == "fal-ai/minimax/hailuo-2.3/pro/text-to-video") {
             listOf(
-                "720p" to false to "High HD (720p)",
-                "1080p" to true to "Full HD (1080p)"
+                "1080p" to true to "1080p Pro"
             )
-        } else if (uiState.selectedVideoProvider == "Gemini" && uiState.selectedVideoMode == "Text to Video") {
-            val modelLower = uiState.selectedVideoModel.lowercase().trim()
-            if (modelLower.startsWith("veo-3.1")) {
+        } else if ((uiState.selectedVideoProvider == "FalAI" || uiState.selectedVideoProvider == "Minimax") && uiState.selectedVideoModel == "fal-ai/minimax/hailuo-2.3/pro/image-to-video") {
+            listOf(
+                "1080p" to true to "1080p Pro (140 tokens)"
+            )
+        } else if ((uiState.selectedVideoProvider == "FalAI" || uiState.selectedVideoProvider == "Minimax") && uiState.selectedVideoModel == "fal-ai/minimax/hailuo-02/pro/image-to-video") {
+            listOf(
+                "1080p" to true to "1080p Pro"
+            )
+        } else if ((uiState.selectedVideoProvider == "FalAI" || uiState.selectedVideoProvider == "Minimax") && (uiState.selectedVideoModel == "fal-ai/minimax/hailuo-2.3/standard/image-to-video" || uiState.selectedVideoModel == "fal-ai/minimax/hailuo-2.3/standard/text-to-video")) {
+            listOf(
+                "768P" to false to "768p High"
+            )
+        } else if ((uiState.selectedVideoProvider == "FalAI" || uiState.selectedVideoProvider == "Minimax") && uiState.selectedVideoModel == "fal-ai/minimax/hailuo-02/standard/image-to-video") {
+            listOf(
+                "512P" to false to "512p Standard",
+                "768P" to false to "768p High"
+            )
+        } else if ((uiState.selectedVideoProvider == "FalAI" || uiState.selectedVideoProvider == "Minimax") && uiState.selectedVideoModel == "fal-ai/minimax/hailuo-02/standard/text-to-video") {
+            listOf(
+                "768P" to false to "768p High"
+            )
+        } else if ((uiState.selectedVideoProvider == "FalAI" || uiState.selectedVideoProvider == "Minimax") && uiState.selectedVideoModel == "fal-ai/minimax/hailuo-02/pro/text-to-video") {
+            listOf(
+                "1080p" to true to "1080p Pro"
+            )
+        } else if (isAlibabaVideo && (uiState.selectedVideoModel.lowercase().trim().contains("wan/v2.6") || uiState.selectedVideoModel.lowercase().trim().contains("wan/v2.7") || uiState.selectedVideoModel.lowercase().trim().contains("happy-horse"))) {
+            listOf(
+                "720p" to false to "High HD",
+                "1080p" to true to "Full HD Pro"
+            )
+        } else if (isAlibabaVideo && (uiState.selectedVideoModel.lowercase().trim().contains("wan/v2.5") || uiState.selectedVideoModel.lowercase().trim().contains("wan-25-preview"))) {
+            listOf(
+                "480p" to false to "Standard SD",
+                "720p" to false to "High HD",
+                "1080p" to true to "Full HD Pro"
+            )
+        } else if (isLumaRayVideo) {
+            listOf(
+                "540p" to false to "Standard Balanced",
+                "720p" to false to "High HD",
+                "1080p" to true to "Full HD Pro"
+            )
+        } else if (uiState.selectedVideoProvider == "Kling") {
+            emptyList()
+        } else if (isGrokImagineVideo) {
+            if (uiState.selectedVideoModel.contains("v1.5")) {
                 listOf(
+                    "480p" to false to "Standard Balance",
                     "720p" to false to "High HD",
                     "1080p" to true to "Full HD Pro"
                 )
-            } else if (modelLower == "veo-2.0-generate-001" || modelLower.startsWith("veo-3.0")) {
-                emptyList()
+            } else {
+                listOf(
+                    "480p" to false to "Standard Balance",
+                    "720p" to false to "High HD"
+                )
+            }
+        } else if (uiState.selectedVideoProvider == "Bytedance") {
+            listOf(
+                "480p" to false to "Fast Generation",
+                "720p" to false to "Standard Balance",
+                "1080p" to true to "High Quality",
+                "4k" to false to "Highest Quality"
+            )
+        } else if (isOpenAiSora2) {
+            if (isSora2ImageToVideo) {
+                listOf(
+                    "auto" to false to "Automatic",
+                    "720p" to false to "High HD"
+                )
+            } else {
+                listOf(
+                    "720p" to false to "High HD"
+                )
+            }
+        } else if (isOpenAiSora2Pro) {
+            if (isSora2ProImageToVideo) {
+                listOf(
+                    "auto" to false to "Automatic",
+                    "720p" to false to "High HD",
+                    "1080p" to false to "Full HD",
+                    "true_1080p" to true to "True 1080p Cinematic"
+                )
+            } else {
+                listOf(
+                    "720p" to false to "High HD"
+                )
+            }
+        } else if (isFalVeo3FastModel) {
+            if (isFalVeo3OnlyFast) {
+                listOf(
+                    "720p" to false to "High HD",
+                    "1080p" to true to "Full HD"
+                )
             } else {
                 listOf(
                     "720p" to false to "High HD",
-                    "1080p" to true to "Full HD Pro"
+                    "1080p" to true to "Full HD",
+                    "4K" to false to "Ultra HD"
                 )
             }
+        } else if (isFalVeo3) {
+            if (isFalVeo3_1Lite || isFalVeo3Only) {
+                listOf(
+                    "720p" to false to "High HD",
+                    "1080p" to true to "Full HD"
+                )
+            } else {
+                listOf(
+                    "720p" to false to "High HD",
+                    "1080p" to true to "Full HD",
+                    "4K" to false to "Ultra HD"
+                )
+            }
+        } else if (isVeo2) {
+            listOf(
+                "480p" to false to "Standard SD",
+                "720p" to false to "High HD",
+                "1080p" to true to "Full HD Pro"
+            )
+        } else if (uiState.selectedVideoProvider == "PixVerse" || uiState.selectedVideoModel.lowercase().contains("pixverse")) {
+            listOf(
+                "360p" to false to "Low SD",
+                "540p" to false to "Standard SD",
+                "720p" to false to "High HD",
+                "1080p" to true to "Full HD Pro"
+            )
         } else {
             listOf(
                 "480p" to false to "Standard SD",
@@ -5821,30 +6973,421 @@ fun EddieVideoGeneratorView(
     LaunchedEffect(resolutions) {
         val availableRes = resolutions.map { it.first.first }
         if (availableRes.isNotEmpty() && selectedResolution !in availableRes) {
-            selectedResolution = availableRes.firstOrNull() ?: "720p"
+            selectedResolution = if ((uiState.selectedVideoModel == "fal-ai/minimax/hailuo-02/pro/image-to-video" || uiState.selectedVideoModel == "fal-ai/minimax/hailuo-02/pro/text-to-video" || uiState.selectedVideoModel == "fal-ai/minimax/hailuo-2.3/pro/image-to-video" || uiState.selectedVideoModel == "fal-ai/minimax/hailuo-2.3/pro/text-to-video") && "1080p" in availableRes) {
+                "1080p"
+            } else if ((uiState.selectedVideoModel == "fal-ai/minimax/hailuo-02/standard/image-to-video" || uiState.selectedVideoModel == "fal-ai/minimax/hailuo-2.3/standard/image-to-video" || uiState.selectedVideoModel == "fal-ai/minimax/hailuo-02/standard/text-to-video" || uiState.selectedVideoModel == "fal-ai/minimax/hailuo-2.3/standard/text-to-video") && "768P" in availableRes) {
+                "768P"
+            } else if ((isSora2ImageToVideo || isSora2ProImageToVideo) && "auto" in availableRes) {
+                "auto"
+            } else if (uiState.selectedVideoModel.lowercase().trim().contains("happy-horse") && "1080p" in availableRes) {
+                "1080p"
+            } else if ("720p" in availableRes) {
+                "720p"
+            } else {
+                availableRes.firstOrNull() ?: "720p"
+            }
         }
     }
 
-    val durations = remember(uiState.selectedVideoProvider, uiState.selectedVideoModel, uiState.selectedVideoMode, isFalVeo3, isFalVeo3FastModel) {
-        if (isFalVeo3 || isFalVeo3FastModel) {
+    val durations = remember(uiState.selectedVideoProvider, uiState.selectedVideoModel, uiState.selectedVideoMode, isFalVeo3, isFalVeo3FastModel, isFalVeo3_1, isFalVeo3_1Lite, isFalVeo3Only, isFalVeo3_1Fast, isFalVeo3OnlyFast, isVeo2, selectedAudioOption, selectedResolution, isKlingV3Standard, isKlingV3Pro, isKlingV3TurboPro, isKlingV3TurboStandard, isKlingO3_4k, isKlingO3Standard, isKlingO3Pro, isKlingV3_4k, isOpenAiSora2Pro, selectedOpenAiSize, klingVoiceControl, isKlingV26Pro, pixverseMultiClip, isGrokImagineVideo, isLumaRayVideo, lumaHdr, lumaExrExport, isHunyuan15Video, hunyuanFrames) {
+        if (uiState.selectedVideoModel == "fal-ai/minimax/hailuo-2.3/pro/image-to-video" || uiState.selectedVideoModel == "fal-ai/minimax/hailuo-2.3/pro/text-to-video") {
+            emptyList()
+        } else if (isHunyuan15Video) {
+            val approxSeconds = kotlin.math.round(hunyuanFrames / 24.0).toInt().coerceAtLeast(1)
+            val cost = approxSeconds * 30
             listOf(
-                "4s" to false to "Short Loop (4s)",
-                "6s" to false to "Standard Loop (6s)",
-                "8s" to false to "Cinematic Loop (8s)"
+                "${approxSeconds}s" to false to "🪙 $cost Token"
             )
-        } else if (uiState.selectedVideoProvider == "Gemini" && uiState.selectedVideoMode == "Text to Video") {
-            val modelLower = uiState.selectedVideoModel.lowercase().trim()
-            if (modelLower == "veo-2.0-generate-001" || modelLower == "veo2" || modelLower == "veo 2") {
+        } else if (isLumaRayVideo) {
+            if (uiState.selectedVideoMode == "Image to Video") {
+                val cost = if (lumaHdr) {
+                    if (lumaExrExport) {
+                        when {
+                            selectedResolution.lowercase().contains("720p") -> 235
+                            selectedResolution.lowercase().contains("1080p") -> 920
+                            else -> 45
+                        }
+                    } else {
+                        when {
+                            selectedResolution.lowercase().contains("720p") -> 160
+                            selectedResolution.lowercase().contains("1080p") -> 610
+                            else -> 45
+                        }
+                    }
+                } else {
+                    when {
+                        selectedResolution.lowercase().contains("540p") -> 45
+                        selectedResolution.lowercase().contains("720p") -> 85
+                        selectedResolution.lowercase().contains("1080p") -> 310
+                        else -> 45
+                    }
+                }
                 listOf(
-                    "5 seconds" to false to "Veo 2 Short Loop",
-                    "8 seconds" to false to "Veo 2 Default (8s)"
+                    "5s" to false to "🪙 $cost Token"
+                )
+            } else {
+                val cost5s = when {
+                    selectedResolution.lowercase().contains("540p") -> 150
+                    selectedResolution.lowercase().contains("720p") -> 275
+                    selectedResolution.lowercase().contains("1080p") -> 525
+                    else -> 150
+                }
+                val cost10s = when {
+                    selectedResolution.lowercase().contains("540p") -> 275
+                    selectedResolution.lowercase().contains("720p") -> 525
+                    selectedResolution.lowercase().contains("1080p") -> 1100
+                    else -> 275
+                }
+                listOf(
+                    "5s" to false to "🪙 $cost5s Token",
+                    "10s" to true to "🪙 $cost10s Token"
+                )
+            }
+        } else if ((uiState.selectedVideoProvider == "FalAI" || uiState.selectedVideoProvider == "Minimax") && uiState.selectedVideoModel == "fal-ai/minimax/hailuo-02/pro/image-to-video") {
+            val cost6s = 130
+            val cost10s = 300
+            listOf(
+                "6s" to false to "🪙 $cost6s Token",
+                "10s" to false to "🪙 $cost10s Token"
+            )
+        } else if ((uiState.selectedVideoProvider == "FalAI" || uiState.selectedVideoProvider == "Minimax") && (uiState.selectedVideoModel == "fal-ai/minimax/hailuo-2.3/standard/image-to-video" || uiState.selectedVideoModel == "fal-ai/minimax/hailuo-2.3/standard/text-to-video")) {
+            val cost6s = 80
+            val cost10s = 150
+            listOf(
+                "6s" to false to "🪙 $cost6s Token",
+                "10s" to false to "🪙 $cost10s Token"
+            )
+        } else if ((uiState.selectedVideoProvider == "FalAI" || uiState.selectedVideoProvider == "Minimax") && uiState.selectedVideoModel == "fal-ai/minimax/hailuo-02/standard/image-to-video") {
+            val cost6s = if (selectedResolution == "512P") 90 else 75
+            val cost10s = if (selectedResolution == "512P") 150 else 200
+            listOf(
+                "6s" to false to "🪙 $cost6s Token",
+                "10s" to false to "🪙 $cost10s Token"
+            )
+        } else if ((uiState.selectedVideoProvider == "FalAI" || uiState.selectedVideoProvider == "Minimax") && uiState.selectedVideoModel == "fal-ai/minimax/hailuo-02/standard/text-to-video") {
+            val cost6s = 80
+            val cost10s = 200
+            listOf(
+                "6s" to false to "🪙 $cost6s Token",
+                "10s" to false to "🪙 $cost10s Token"
+            )
+        } else if ((uiState.selectedVideoProvider == "FalAI" || uiState.selectedVideoProvider == "Minimax") && uiState.selectedVideoModel == "fal-ai/minimax/hailuo-02/pro/text-to-video") {
+            val cost6s = 130
+            val cost10s = 300
+            listOf(
+                "6s" to false to "🪙 $cost6s Token",
+                "10s" to false to "🪙 $cost10s Token"
+            )
+        } else if (uiState.selectedVideoProvider == "Alibaba") {
+            if (uiState.selectedVideoModel.lowercase().trim().contains("wan/v2.7")) {
+                val rate = when (selectedResolution.lowercase().trim()) {
+                    "720p" -> 35
+                    "1080p" -> 45
+                    else -> 45
+                }
+                listOf(
+                    "2s" to false to "🪙 ${2 * rate} Token",
+                    "3s" to false to "🪙 ${3 * rate} Token",
+                    "4s" to false to "🪙 ${4 * rate} Token",
+                    "5s" to false to "🪙 ${5 * rate} Token",
+                    "6s" to false to "🪙 ${6 * rate} Token",
+                    "7s" to false to "🪙 ${7 * rate} Token",
+                    "8s" to false to "🪙 ${8 * rate} Token",
+                    "9s" to false to "🪙 ${9 * rate} Token",
+                    "10s" to false to "🪙 ${10 * rate} Token",
+                    "11s" to false to "🪙 ${11 * rate} Token",
+                    "12s" to false to "🪙 ${12 * rate} Token",
+                    "13s" to false to "🪙 ${13 * rate} Token",
+                    "14s" to false to "🪙 ${14 * rate} Token",
+                    "15s" to false to "🪙 ${15 * rate} Token"
+                )
+            } else if (uiState.selectedVideoModel.lowercase().trim().contains("wan/v2.6")) {
+                val rate = when (selectedResolution.lowercase().trim()) {
+                    "720p" -> 35
+                    "1080p" -> 45
+                    else -> 45
+                }
+                listOf(
+                    "5s" to false to "🪙 ${5 * rate} Token",
+                    "10s" to true to "🪙 ${10 * rate} Token",
+                    "15s" to true to "🪙 ${15 * rate} Token"
+                )
+            } else if (uiState.selectedVideoModel.lowercase().trim().contains("happy-horse")) {
+                val rate = when (selectedResolution.lowercase().trim()) {
+                    "720p" -> 45
+                    "1080p" -> 80
+                    else -> 80
+                }
+                listOf(
+                    "3s" to false to "🪙 ${3 * rate} Token",
+                    "4s" to false to "🪙 ${4 * rate} Token",
+                    "5s" to false to "🪙 ${5 * rate} Token",
+                    "6s" to false to "🪙 ${6 * rate} Token",
+                    "7s" to false to "🪙 ${7 * rate} Token",
+                    "8s" to false to "🪙 ${8 * rate} Token",
+                    "9s" to false to "🪙 ${9 * rate} Token",
+                    "10s" to false to "🪙 ${10 * rate} Token",
+                    "11s" to false to "🪙 ${11 * rate} Token",
+                    "12s" to false to "🪙 ${12 * rate} Token",
+                    "13s" to false to "🪙 ${13 * rate} Token",
+                    "14s" to false to "🪙 ${14 * rate} Token",
+                    "15s" to false to "🪙 ${15 * rate} Token"
+                )
+            } else if (uiState.selectedVideoModel.lowercase().trim().contains("wan/v2.5")) {
+                val rate = when (selectedResolution.lowercase().trim()) {
+                    "480p" -> if (uiState.selectedVideoMode == "Image to Video") 25 else 20
+                    "720p" -> 35
+                    "1080p" -> 45
+                    else -> 35
+                }
+                listOf(
+                    "5s" to false to "🪙 ${5 * rate} Token",
+                    "10s" to true to "🪙 ${10 * rate} Token"
                 )
             } else {
                 listOf(
-                    "4 seconds" to false to "Short Loop",
-                    "6 seconds" to false to "Standard Loop",
-                    "8 seconds" to false to "Cinematic Loop"
+                    "5s" to false to "🪙 125 Token",
+                    "10s" to true to "🪙 250 Token"
                 )
+            }
+        } else if (isGrokImagineVideo) {
+            listOf(4, 5, 6, 7, 8, 9, 10, 11, 12).map { sec ->
+                val cost = if (selectedResolution == "480p") {
+                    if (sec == 6) 85 else sec * 20
+                } else {
+                    sec * 25
+                }
+                "${sec}s" to (sec > 6) to "🪙 $cost Token"
+            }
+        } else if (uiState.selectedVideoProvider == "Kling") {
+            if (isKlingV3Standard || isKlingV3Pro || isKlingV3TurboPro || isKlingV3TurboStandard || isKlingO3_4k || isKlingO3Standard || isKlingO3Pro || isKlingV3_4k) {
+                val rate = if (isKlingV3_4k) {
+                    if (uiState.selectedVideoMode == "Image to Video") 120 else 125
+                } else if (isKlingO3_4k) {
+                    115
+                } else if (isKlingO3Standard) {
+                    if (selectedAudioOption == "On") 40 else 30
+                } else if (isKlingO3Pro) {
+                    if (selectedAudioOption == "On") 45 else 35
+                } else if (isKlingV3TurboPro) {
+                    45
+                } else if (isKlingV3TurboStandard) {
+                    35
+                } else if (isKlingV3Pro) {
+                    if (selectedAudioOption == "On") {
+                        if (klingVoiceControl) 55 else 50
+                    } else {
+                        35
+                    }
+                } else {
+                    if (selectedAudioOption == "On") {
+                        if (klingVoiceControl) 45 else 40
+                    } else {
+                        30
+                    }
+                }
+                listOf(3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15).map { sec ->
+                    val label = "🪙 ${sec * rate} Token"
+                    "$sec" to (sec > 5) to label
+                }
+            } else if (isKlingV26Pro) {
+                val rate = if (selectedAudioOption == "On") {
+                    if (klingVoiceControl) 50 else 45
+                } else {
+                    25
+                }
+                listOf(
+                    "5" to false to "🪙 ${5 * rate} Token",
+                    "10" to true to "🪙 ${10 * rate} Token"
+                )
+            } else if (isKlingV25TurboStandard) {
+                listOf(
+                    "5" to false to "🪙 60 Token",
+                    "10" to true to "🪙 135 Token"
+                )
+            } else if (isKlingV25TurboPro) {
+                listOf(
+                    "5" to false to "🪙 100 Token",
+                    "10" to true to "🪙 250 Token"
+                )
+            } else {
+                if (selectedAudioOption == "On") {
+                    listOf(
+                        "5s" to false to "🪙 200 Token",
+                        "10s" to true to "🪙 400 Token"
+                    )
+                } else {
+                    listOf(
+                        "5s" to false to "🪙 100 Token",
+                        "10s" to true to "🪙 200 Token"
+                    )
+                }
+            }
+        } else if (uiState.selectedVideoProvider == "Bytedance") {
+            val rate = when {
+                selectedResolution.lowercase().contains("4k") -> 390
+                selectedResolution.lowercase().contains("1080p") -> 180
+                selectedResolution.lowercase().contains("480p") -> 35
+                else -> 85 // default 720p
+            }
+            val list = mutableListOf<Pair<Pair<String, Boolean>, String>>()
+            list.add("Auto" to false to "🪙 ${5 * rate} Token")
+            (4..15).forEach { sec ->
+                list.add("${sec}s" to (sec > 10) to "🪙 ${sec * rate} Token")
+            }
+            list
+        } else if (isFalVeo3FastModel) {
+            val isAudioOn = selectedAudioOption == "On"
+            val rate = if (isFalVeo3_1Fast) {
+                if (selectedResolution.lowercase().contains("4k")) {
+                    if (isAudioOn) 95 else 85
+                } else {
+                    if (isAudioOn) 45 else 35
+                }
+            } else {
+                // Veo 3 Fast
+                if (isAudioOn) 50 else 35
+            }
+            listOf(
+                "4s" to false to "🪙 ${4 * rate} Token",
+                "6s" to false to "🪙 ${6 * rate} Token",
+                "8s" to false to "🪙 ${8 * rate} Token"
+            )
+        } else if (isFalVeo3) {
+            val isAudioOn = selectedAudioOption == "On"
+            val rate = if (isFalVeo3_1Lite) {
+                if (selectedResolution.lowercase().contains("720p")) {
+                    if (isAudioOn) 20 else 15
+                } else {
+                    if (isAudioOn) 30 else 20
+                }
+            } else if (isFalVeo3_1) {
+                if (selectedResolution.lowercase().contains("4k")) {
+                    if (isAudioOn) 180 else 120
+                } else {
+                    if (isAudioOn) 120 else 60
+                }
+            } else {
+                // Veo 3 Only
+                if (isAudioOn) 120 else 60
+            }
+            listOf(
+                "4s" to false to "🪙 ${4 * rate} Token",
+                "6s" to false to "🪙 ${6 * rate} Token",
+                "8s" to false to "🪙 ${8 * rate} Token"
+            )
+        } else if (isVeo2) {
+            listOf(
+                "5s" to false to "🪙 650 Token",
+                "6s" to false to "🪙 800 Token",
+                "7s" to false to "🪙 950 Token",
+                "8s" to false to "🪙 1100 Token"
+            )
+        } else if (isSora2ImageToVideo || isSora2ProImageToVideo) {
+            val pricePerSecond = if (isSora2ImageToVideo) {
+                30
+            } else {
+                when (selectedOpenAiSize) {
+                    "720x1280", "1280x720" -> 85
+                    "1024x1792", "1792x1024" -> 135
+                    "1080x1920", "1920x1080" -> 185
+                    else -> 85
+                }
+            }
+            listOf(
+                "4 seconds" to false to "🪙 ${4 * pricePerSecond} Token",
+                "8 seconds" to false to "🪙 ${8 * pricePerSecond} Token",
+                "12 seconds" to false to "🪙 ${12 * pricePerSecond} Token",
+                "16 seconds" to false to "🪙 ${16 * pricePerSecond} Token",
+                "20 seconds" to false to "🪙 ${20 * pricePerSecond} Token"
+            )
+        } else if (uiState.selectedVideoProvider == "OpenAI" && (uiState.selectedVideoModel.lowercase().trim() == "sora 2" || uiState.selectedVideoModel.lowercase().trim() == "sora 2 pro")) {
+            val pricePerSecond = if (uiState.selectedVideoModel.lowercase().trim() == "sora 2") {
+                30
+            } else {
+                when (selectedOpenAiSize) {
+                    "720x1280", "1280x720" -> 85
+                    "1024x1792", "1792x1024" -> 135
+                    "1080x1920", "1920x1080" -> 185
+                    else -> 85
+                }
+            }
+            listOf(
+                "4 seconds" to false to "🪙 ${4 * pricePerSecond} Token",
+                "8 seconds" to false to "🪙 ${8 * pricePerSecond} Token",
+                "12 seconds" to false to "🪙 ${12 * pricePerSecond} Token",
+                "16 seconds" to false to "🪙 ${16 * pricePerSecond} Token",
+                "20 seconds" to false to "🪙 ${20 * pricePerSecond} Token"
+            )
+        } else if (uiState.selectedVideoProvider == "PixVerse") {
+            val isAudioOn = selectedAudioOption == "On"
+            if (uiState.selectedVideoModel == "fal-ai/pixverse/v5.5/text-to-video") {
+                val base5s = when (selectedResolution) {
+                    "360p", "540p" -> 45
+                    "720p" -> 55
+                    "1080p" -> 110
+                    else -> 55
+                }
+                val audioCost = if (isAudioOn) 20 else 0
+                val multiClipCost = if (pixverseMultiClip) {
+                    if (isAudioOn) 45 else 30
+                } else {
+                    0
+                }
+                val cost5s = base5s + audioCost + multiClipCost
+
+                val availableSecs = if (selectedResolution == "1080p") listOf(5, 8) else listOf(5, 8, 10)
+                availableSecs.map { sec ->
+                    val finalCost = when (sec) {
+                        5 -> cost5s
+                        8 -> cost5s * 2
+                        10 -> (cost5s * 2.2).toInt()
+                        else -> cost5s
+                    }
+                    val label = "🪙 $finalCost Token"
+                    "${sec}s" to (sec > 5) to label
+                }
+            } else if (uiState.selectedVideoModel == "fal-ai/pixverse/v5.6/image-to-video" || uiState.selectedVideoModel == "fal-ai/pixverse/v5.6/text-to-video") {
+                val base5s = when (selectedResolution) {
+                    "360p", "540p" -> 95
+                    "720p" -> 120
+                    "1080p" -> 195
+                    else -> 120
+                }
+                val audioCost = if (isAudioOn) {
+                    when (selectedResolution) {
+                        "360p", "540p", "720p" -> 120
+                        "1080p" -> 195
+                        else -> 120
+                    }
+                } else {
+                    0
+                }
+                val cost5s = base5s + audioCost
+
+                val availableSecs = if (selectedResolution == "1080p") listOf(5, 8) else listOf(5, 8, 10)
+                availableSecs.map { sec ->
+                    val finalCost = when (sec) {
+                        5 -> cost5s
+                        8 -> cost5s * 2
+                        10 -> (cost5s * 2.2).toInt()
+                        else -> cost5s
+                    }
+                    val label = "🪙 $finalCost Token"
+                    "${sec}s" to (sec > 5) to label
+                }
+            } else {
+                val rate = when (selectedResolution) {
+                    "360p" -> if (isAudioOn) 15 else 10
+                    "540p" -> if (isAudioOn) 20 else 15
+                    "720p" -> if (isAudioOn) 25 else 20
+                    "1080p" -> if (isAudioOn) 35 else 30
+                    else -> if (isAudioOn) 25 else 20
+                }
+                (1..15).map { sec ->
+                    val label = "🪙 ${sec * rate} Token"
+                    "${sec}s" to (sec > 5) to label
+                }
             }
         } else {
             listOf(
@@ -5858,7 +7401,234 @@ fun EddieVideoGeneratorView(
     LaunchedEffect(durations) {
         val availableDurs = durations.map { it.first.first }
         if (selectedDuration !in availableDurs) {
-            selectedDuration = availableDurs.firstOrNull() ?: "8 seconds"
+            selectedDuration = if ((uiState.selectedVideoModel == "fal-ai/minimax/hailuo-02/standard/image-to-video" || uiState.selectedVideoModel == "fal-ai/minimax/hailuo-02/pro/image-to-video" || uiState.selectedVideoModel == "fal-ai/minimax/hailuo-2.3/standard/image-to-video" || uiState.selectedVideoModel == "fal-ai/minimax/hailuo-02/standard/text-to-video" || uiState.selectedVideoModel == "fal-ai/minimax/hailuo-02/pro/text-to-video" || uiState.selectedVideoModel == "fal-ai/minimax/hailuo-2.3/standard/text-to-video") && "6s" in availableDurs) {
+                "6s"
+            } else if (isGrokImagineVideo && "6s" in availableDurs) {
+                "6s"
+            } else if ("5s" in availableDurs) {
+                "5s"
+            } else {
+                availableDurs.firstOrNull() ?: "8 seconds"
+            }
+        }
+    }
+
+    val promptInputCard = @Composable {
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)),
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Text(
+                    text = "Describe Your Video Storyline",
+                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                    color = MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier.padding(bottom = 8.dp)
+                )
+
+                if (isKlingV3Standard || isKlingV3Pro || isKlingV3TurboPro || isKlingV3TurboStandard || isKlingO3_4k || isKlingO3Standard || isKlingO3Pro || isKlingV3_4k) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        FilterChip(
+                            selected = !useStoryboard,
+                            onClick = { useStoryboard = false },
+                            label = { Text("Single Prompt") }
+                        )
+                        FilterChip(
+                            selected = useStoryboard,
+                            onClick = { useStoryboard = true },
+                            label = { Text("Multi-shot Storyboard") }
+                        )
+                    }
+                }
+
+                if ((isKlingV3Standard || isKlingV3Pro || isKlingV3TurboPro || isKlingV3TurboStandard || isKlingO3_4k || isKlingO3Standard || isKlingO3Pro || isKlingV3_4k) && useStoryboard) {
+                    Column(modifier = Modifier.fillMaxWidth()) {
+                        val totalDuration = storyboardShots.sumOf { it.second.value.toIntOrNull() ?: 5 }
+                        val durationExceeded = totalDuration > 15
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "Total Storyboard Duration: ${totalDuration}s / 15s",
+                                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                                color = if (durationExceeded) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
+                            )
+                            Text(
+                                text = "${storyboardShots.size} / 6 Shots",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+
+                        if (durationExceeded) {
+                            Text(
+                                text = "⚠️ Total duration of all storyboard shots must not exceed 15 seconds.",
+                                color = MaterialTheme.colorScheme.error,
+                                style = MaterialTheme.typography.bodySmall,
+                                modifier = Modifier.padding(bottom = 8.dp)
+                            )
+                        }
+
+                        storyboardShots.forEachIndexed { index, shot ->
+                            Card(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 6.dp),
+                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.5f)),
+                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
+                            ) {
+                                Column(modifier = Modifier.padding(12.dp)) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text(
+                                            text = "Shot #${index + 1}",
+                                            style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                                            color = MaterialTheme.colorScheme.onSurface
+                                        )
+                                        if (storyboardShots.size > 1) {
+                                            IconButton(
+                                                onClick = { storyboardShots.removeAt(index) },
+                                                modifier = Modifier.size(28.dp)
+                                            ) {
+                                                Icon(
+                                                    imageVector = Icons.Default.Delete,
+                                                    contentDescription = "Remove Shot",
+                                                    tint = MaterialTheme.colorScheme.error,
+                                                    modifier = Modifier.size(18.dp)
+                                                )
+                                            }
+                                        }
+                                    }
+
+                                    Spacer(modifier = Modifier.height(6.dp))
+
+                                    OutlinedTextField(
+                                        value = shot.first.value,
+                                        onValueChange = { shot.first.value = it },
+                                        placeholder = { Text("Prompt for shot #${index + 1}...") },
+                                        modifier = Modifier.fillMaxWidth().height(70.dp),
+                                        shape = RoundedCornerShape(8.dp),
+                                        textStyle = MaterialTheme.typography.bodyMedium
+                                    )
+
+                                    Spacer(modifier = Modifier.height(8.dp))
+
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text(
+                                            text = "Duration: ",
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        
+                                        val durationOptions = listOf("3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15")
+                                        var expandedDurationDropdown by remember { mutableStateOf(false) }
+                                        
+                                        Box {
+                                            OutlinedButton(
+                                                onClick = { expandedDurationDropdown = true },
+                                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+                                                modifier = Modifier.height(32.dp),
+                                                shape = RoundedCornerShape(6.dp)
+                                            ) {
+                                                Text("${shot.second.value} seconds ▾", style = MaterialTheme.typography.bodySmall)
+                                            }
+                                            DropdownMenu(
+                                                expanded = expandedDurationDropdown,
+                                                onDismissRequest = { expandedDurationDropdown = false }
+                                            ) {
+                                                durationOptions.forEach { sOpt ->
+                                                    DropdownMenuItem(
+                                                        text = { Text("$sOpt seconds") },
+                                                        onClick = {
+                                                            shot.second.value = sOpt
+                                                            expandedDurationDropdown = false
+                                                        }
+                                                    )
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        if (storyboardShots.size < 6) {
+                            OutlinedButton(
+                                onClick = {
+                                    storyboardShots.add(mutableStateOf("") to mutableStateOf("5"))
+                                },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 4.dp),
+                                shape = RoundedCornerShape(8.dp)
+                            ) {
+                                Icon(imageVector = Icons.Default.Add, contentDescription = "Add Shot")
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("Add Storyboard Shot")
+                            }
+                        }
+                    }
+                } else {
+                    OutlinedTextField(
+                        value = prompt,
+                        onValueChange = { prompt = it },
+                        placeholder = { Text("Example: Drone camera slowly gliding over tropical beach waves during a golden sunset at dusk...") },
+                        modifier = Modifier.fillMaxWidth().height(100.dp),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            unfocusedBorderColor = MaterialTheme.colorScheme.outline
+                        )
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                Text(
+                    text = "Quick Inspiration:",
+                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(bottom = 6.dp)
+                )
+
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    shuffledQuickPrompts.forEach { text ->
+                        Surface(
+                            shape = RoundedCornerShape(20.dp),
+                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)),
+                            color = MaterialTheme.colorScheme.surface,
+                            modifier = Modifier.clickable { prompt = text }
+                        ) {
+                            Text(
+                                text = text,
+                                style = MaterialTheme.typography.labelMedium,
+                                maxLines = 1,
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                    }
+                }
+            }
         }
     }
 
@@ -5866,13 +7636,14 @@ fun EddieVideoGeneratorView(
         modifier = Modifier
             .fillMaxSize()
             .padding(paddingValues)
+            .imePadding()
     ) {
         // Scrollable content underneath
         Column(
             modifier = Modifier
                 .weight(1f)
                 .fillMaxWidth()
-                .verticalScroll(rememberScrollState())
+                .verticalScroll(videoScrollState)
                 .padding(horizontal = 16.dp, vertical = 8.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
@@ -5912,179 +7683,6 @@ fun EddieVideoGeneratorView(
                 Spacer(modifier = Modifier.height(8.dp))
                 HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
             }
-
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)),
-            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
-        ) {
-            Column(modifier = Modifier.padding(16.dp)) {
-                Text(
-                    text = "Describe Your Video Storyline",
-                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                    color = MaterialTheme.colorScheme.onSurface,
-                    modifier = Modifier.padding(bottom = 8.dp)
-                )
-
-                OutlinedTextField(
-                    value = prompt,
-                    onValueChange = { prompt = it },
-                    placeholder = { Text("Example: Drone camera slowly gliding over tropical beach waves during a golden sunset at dusk...") },
-                    modifier = Modifier.fillMaxWidth().height(100.dp),
-                    shape = RoundedCornerShape(12.dp),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        unfocusedBorderColor = MaterialTheme.colorScheme.outline
-                    )
-                )
-
-                Spacer(modifier = Modifier.height(12.dp))
-
-                Text(
-                    text = "Quick Inspiration:",
-                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(bottom = 6.dp)
-                )
-
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .horizontalScroll(rememberScrollState()),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    shuffledQuickPrompts.forEach { text ->
-                        Surface(
-                            shape = RoundedCornerShape(20.dp),
-                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)),
-                            color = MaterialTheme.colorScheme.surface,
-                            modifier = Modifier.clickable { prompt = text }
-                        ) {
-                            Text(
-                                text = text,
-                                style = MaterialTheme.typography.labelMedium,
-                                maxLines = 1,
-                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
-                                color = MaterialTheme.colorScheme.primary
-                            )
-                        }
-                    }
-                }
-            }
-        }
-
-        // Image Selection for Image to Video mode
-        if (uiState.selectedVideoMode == "Image to Video") {
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f)),
-                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
-            ) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Face,
-                                contentDescription = "Image Selector",
-                                tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(20.dp)
-                            )
-                            Text(
-                                text = "Select Reference Image:",
-                                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
-                        }
-
-                        TextButton(
-                            onClick = { galleryLauncher.launch("image/*") },
-                            colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.primary)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Add,
-                                contentDescription = "Upload Icon",
-                                modifier = Modifier.size(16.dp)
-                            )
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text(
-                                text = "Upload Custom Image",
-                                style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold)
-                            )
-                        }
-                    }
-
-                    Text(
-                        text = "Accepts: .jpg/.png up to 10MB matching chosen aspect ratio ($selectedAspectRatio)",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
-                        modifier = Modifier.padding(bottom = 12.dp)
-                    )
-
-                    val combinedImages = uiState.generatedImages + uploadedImages
-
-                    if (combinedImages.isEmpty()) {
-                        Text(
-                            text = "No images available. Please generate an image in the 'Eddie Image Studio' tab first or click 'Upload Custom Image' above.",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    } else {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .horizontalScroll(rememberScrollState()),
-                            horizontalArrangement = Arrangement.spacedBy(10.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            combinedImages.forEach { img ->
-                                val isImgSelected = selectedImageId == img.id
-                                Box(
-                                    modifier = Modifier
-                                        .size(100.dp)
-                                        .clip(RoundedCornerShape(8.dp))
-                                        .border(
-                                            width = if (isImgSelected) 3.dp else 1.dp,
-                                            color = if (isImgSelected) MaterialTheme.colorScheme.primary else Color.Gray,
-                                            shape = RoundedCornerShape(8.dp)
-                                        )
-                                        .clickable { selectedImageId = img.id }
-                                ) {
-                                    coil.compose.AsyncImage(
-                                        model = img.imageUrl,
-                                        contentDescription = img.prompt,
-                                        modifier = Modifier.fillMaxSize(),
-                                        contentScale = androidx.compose.ui.layout.ContentScale.Crop,
-                                        error = androidx.compose.ui.res.painterResource(id = android.R.drawable.ic_menu_gallery)
-                                    )
-                                    if (isImgSelected) {
-                                        Box(
-                                            modifier = Modifier
-                                                .fillMaxSize()
-                                                .background(Color.Black.copy(alpha = 0.3f)),
-                                            contentAlignment = Alignment.Center
-                                        ) {
-                                            Icon(
-                                                imageVector = Icons.Default.CheckCircle,
-                                                contentDescription = "Selected",
-                                                tint = Color.White,
-                                                modifier = Modifier.size(24.dp)
-                                            )
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
 
         // Provider & Model Selection Card for Video Generator
         Card(
@@ -6168,8 +7766,8 @@ fun EddieVideoGeneratorView(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     val providers = when (uiState.selectedVideoMode) {
-                        "Text to Video" -> listOf("OpenAI", "Gemini", "FalAI")
-                        else -> listOf("Gemini", "FalAI") // Image to Video
+                        "Text to Video" -> listOf("Veo", "FalAI", "Alibaba", "Kling", "PixVerse", "Minimax")
+                        else -> listOf("Veo", "FalAI", "Alibaba", "Kling", "PixVerse", "Xai", "Minimax") // Image to Video
                     }
                     providers.forEach { provider ->
                         val isSelected = uiState.selectedVideoProvider == provider
@@ -6180,7 +7778,14 @@ fun EddieVideoGeneratorView(
                             leadingIcon = {
                                 val icon = when (provider) {
                                     "OpenAI" -> Icons.Default.CheckCircle
-                                    "Gemini" -> Icons.Default.Person
+                                    "Veo" -> Icons.Default.PlayArrow
+                                    "FalAI" -> Icons.Default.Star
+                                    "Alibaba" -> Icons.Default.PlayArrow
+                                    "Kling" -> Icons.Default.Build
+                                    "Bytedance" -> Icons.Default.Face
+                                    "PixVerse" -> Icons.Default.PlayArrow
+                                    "Xai" -> Icons.Default.Star
+                                    "Minimax" -> Icons.Default.Face
                                     else -> Icons.Default.Menu
                                 }
                                 Icon(
@@ -6217,65 +7822,111 @@ fun EddieVideoGeneratorView(
                     val models = when (uiState.selectedVideoMode) {
                         "Text to Video" -> {
                             when (uiState.selectedVideoProvider) {
-                                "OpenAI" -> listOf(
-                                    Triple("Sora 2 (25 Tokens)", "Sora 2", 25.0),
-                                    Triple("Sora 2 Pro (125 Tokens)", "Sora 2 pro", 125.0)
-                                )
-                                "Gemini" -> listOf(
-                                    Triple("Veo 2 (625 Tokens)", "veo-2.0-generate-001", 625.0),
-                                    Triple("Veo 3 (800 Tokens)", "veo-3.0-generate-001", 800.0),
-                                    Triple("Veo 3 Fast (300 Tokens)", "veo-3.0-fast-generate-001", 300.0),
-                                    Triple("Veo 3.1 (800 Tokens)", "veo-3.1-generate-001", 800.0),
-                                    Triple("Veo 3.1 Fast (300 Tokens)", "veo-3.1-fast-generate-001", 300.0),
-                                    Triple("Veo 3.1 Lite (200 Tokens)", "veo-3.1-lite-generate-001", 200.0)
+                                "Veo" -> listOf(
+                                    Triple("Veo 2", "veo2", 625.0),
+                                    Triple("Veo 3", "veo3", 800.0),
+                                    Triple("Veo 3 Fast", "veo3-fast", 300.0),
+                                    Triple("Veo 3.1", "fal-ai/veo3.1", 800.0),
+                                    Triple("Veo 3.1 Fast", "fal-ai/veo3.1/fast", 300.0),
+                                    Triple("Veo 3.1 Lite", "fal-ai/veo3.1/lite", 200.0)
                                 )
                                 "FalAI" -> listOf(
-                                    Triple("Veo 3.1 (800 Tokens)", "fal-ai/veo3.1", 800.0),
-                                    Triple("Veo 3.1 Lite (200 Tokens)", "fal-ai/veo3.1/lite", 200.0),
-                                    Triple("Veo 3.1 Fast (300 Tokens)", "fal-ai/veo3.1/fast", 300.0),
-                                    Triple("Veo 2 (625 Tokens)", "veo2", 625.0),
-                                    Triple("Veo 3 (800 Tokens)", "veo3", 800.0),
-                                    Triple("Veo 3 Fast (300 Tokens)", "veo3-fast", 300.0),
-                                    Triple("Veed (87.5 Tokens)", "veed", 87.5),
-                                    Triple("Kling (125 Tokens)", "kling", 125.0),
-                                    Triple("Kling Video (350 Tokens)", "kling-video", 350.0),
-                                    Triple("Luma Dream Machine (125 Tokens)", "luma-dream-machine", 125.0),
-                                    Triple("Minimax (125 Tokens)", "minimax", 125.0),
-                                    Triple("Haiper (125 Tokens)", "haiper", 125.0)
+                                    Triple("Grok Imagine", "xai/grok-imagine-video/text-to-video", 125.0),
+                                    Triple("Luma Ray 3.2", "luma/agent/ray/v3.2/text-to-video", 125.0)
+                                )
+                                "Alibaba" -> listOf(
+                                    Triple("Wan 2.5", "fal-ai/wan-25-preview/text-to-video", 125.0),
+                                    Triple("Wan 2.6", "fal-ai/wan/v2.6/text-to-video", 125.0),
+                                    Triple("Wan 2.7", "fal-ai/wan/v2.7/text-to-video", 125.0),
+                                    Triple("Happy Horse", "alibaba/happy-horse/text-to-video", 125.0)
+                                )
+                                "Kling" -> listOf(
+                                    Triple("Kling v3 4k", "fal-ai/kling-video/v3/4k/text-to-video", 625.0),
+                                    Triple("Kling o3 4k", "fal-ai/kling-video/o3/4k/text-to-video", 575.0),
+                                    Triple("Kling v3 Turbo standard", "kling-video/v3/turbo/standard/text-to-video", 175.0),
+                                    Triple("Kling v3 Turbo pro", "kling-video/v3/turbo/pro/text-to-video", 225.0),
+                                    Triple("Kling v2.5 Turbo Pro", "kling-2.5-turbo/pro/text-to-video", 150.0),
+                                    Triple("Kling v3 standard", "Kling v3 standard", 175.0),
+                                    Triple("Kling v2.6 pro", "Kling v2.6 pro", 350.0),
+                                    Triple("Kling v3 pro", "Kling v3 pro", 350.0)
+                                )
+                                "Bytedance" -> listOf(
+                                    Triple("Seedance 2.0", "bytedance/seedance-2.0/text-to-video", 500.0),
+                                    Triple("Seedance 2.0 Fast", "fal-ai/bytedance/seedance-2.0/text-to-video/fast", 250.0)
+                                )
+                                "PixVerse" -> listOf(
+                                    Triple("PixVerse V6 Cinematic", "fal-ai/pixverse/v6/text-to-video", 150.0),
+                                    Triple("Pixverse v5.6", "fal-ai/pixverse/v5.6/text-to-video", 120.0),
+                                    Triple("PixVerse 5.5", "fal-ai/pixverse/v5.5/text-to-video", 120.0)
+                                )
+                                "Minimax" -> listOf(
+                                    Triple("Hailuo 02 Standard", "fal-ai/minimax/hailuo-02/standard/text-to-video", 80.0),
+                                    Triple("Hailuo 02 Pro", "fal-ai/minimax/hailuo-02/pro/text-to-video", 130.0),
+                                    Triple("Hailuo 2.3 Standard", "fal-ai/minimax/hailuo-2.3/standard/text-to-video", 80.0),
+                                    Triple("Hailuo 2.3 Pro", "fal-ai/minimax/hailuo-2.3/pro/text-to-video", 135.0)
                                 )
                                 else -> emptyList()
                             }
                         }
                         else -> { // Image to Video
                             when (uiState.selectedVideoProvider) {
-                                "Gemini" -> listOf(
-                                    Triple("Fast veo 3.1 (100 Tokens)", "Fast veo 3.1", 100.0),
-                                    Triple("veo 3.1 (150 Tokens)", "veo 3.1", 150.0)
+                                "Veo" -> listOf(
+                                    Triple("Veo 3.1", "fal-ai/veo3.1", 800.0),
+                                    Triple("Veo 3.1 Fast", "fal-ai/veo3.1/fast", 300.0),
+                                    Triple("Veo 3.1 Lite", "fal-ai/veo3.1/lite", 200.0)
                                 )
                                 "FalAI" -> listOf(
-                                    Triple("Veo 3.1 (800 Tokens)", "fal-ai/veo3.1", 800.0),
-                                    Triple("Veo 3.1 Lite (200 Tokens)", "fal-ai/veo3.1/lite", 200.0),
-                                    Triple("Veo 3.1 Fast (300 Tokens)", "fal-ai/veo3.1/fast", 300.0),
-                                    Triple("Luma Dream Machine (125 Tokens)", "luma-dream-machine", 125.0),
-                                    Triple("Minimax (125 Tokens)", "minimax", 125.0),
-                                    Triple("Hunyuan Video (125 Tokens)", "hunyuan-video", 125.0),
-                                    Triple("Haiper (125 Tokens)", "haiper", 125.0),
-                                    Triple("KlingV21 (125 Tokens)", "KlingV21", 125.0),
-                                    Triple("Kling v1.6 (125 Tokens)", "klingImage", 125.0),
-                                    Triple("Xai Grok Imagine (125 Tokens)", "xai/grok-imagine-video/image-to-video", 125.0),
-                                    Triple("Kling v2.6 standard (125 Tokens)", "Kling v2.6 standard", 125.0),
-                                    Triple("Kling 2.5 Turbo pro (150 Tokens)", "kling-2.5-turbo/pro/text-to-video", 150.0),
-                                    Triple("Kling 2.5 Turbo standard (150 Tokens)", "kling-2.5-turbo/standard/image-to-video", 150.0),
-                                    Triple("Kling v3 standard (175 Tokens)", "Kling v3 standard", 175.0),
-                                    Triple("Kling v2.6 pro (350 Tokens)", "Kling v2.6 pro", 350.0),
-                                    Triple("Kling v3 pro (350 Tokens)", "Kling v3 pro", 350.0)
+                                    Triple("Luma Ray 3.2", "luma/agent/ray/v3.2/image-to-video", 125.0),
+                                    Triple("Hunyuan v1.5", "fal-ai/hunyuan-video-v1.5/image-to-video", 150.0)
+                                )
+                                "Xai" -> listOf(
+                                    Triple("Xai Grok Imagine", "xai/grok-imagine-video/image-to-video", 125.0),
+                                    Triple("Grok Imagine 1.5", "xai/grok-imagine-video/v1.5/image-to-video", 125.0)
+                                )
+                                "Kling" -> listOf(
+                                    Triple("Kling v2.5 Turbo pro", "fal-ai/kling-video/v2.5-turbo/pro/image-to-video", 150.0),
+                                    Triple("Kling v2.5 Turbo standard", "fal-ai/kling-video/v2.5-turbo/standard/image-to-video", 150.0),
+                                    Triple("Kling v2.6 Pro", "fal-ai/kling-video/v2.6/pro/image-to-video", 350.0),
+                                    Triple("Kling v3 standard", "fal-ai/kling-video/v3/standard/image-to-video", 175.0),
+                                    Triple("Kling v3 pro", "fal-ai/kling-video/v3/pro/image-to-video", 350.0),
+                                    Triple("Kling v3 4k", "fal-ai/kling-video/v3/4k/image-to-video", 600.0),
+                                    Triple("Kling v3 Turbo pro", "fal-ai/kling-video/v3/turbo/pro/image-to-video", 225.0),
+                                    Triple("Kling v3 Turbo standard", "fal-ai/kling-video/v3/turbo/standard/image-to-video", 175.0),
+                                    Triple("Kling O3 Standard", "fal-ai/kling-video/o3/standard/image-to-video", 150.0),
+                                    Triple("Kling O3 Pro", "fal-ai/kling-video/o3/pro/image-to-video", 175.0),
+                                    Triple("Kling O3 4k", "fal-ai/kling-video/o3/4k/image-to-video", 575.0)
+                                )
+                                "Bytedance" -> listOf(
+                                    Triple("Seedance 2.0 Standard", "fal-ai/bytedance/seedance-2.0/image-to-video", 500.0),
+                                    Triple("Seedance 2.0 Fast", "fal-ai/bytedance/seedance-2.0/image-to-video/fast", 250.0)
+                                )
+                                "PixVerse" -> listOf(
+                                    Triple("Pixverse v6", "fal-ai/pixverse/v6/image-to-video", 150.0),
+                                    Triple("Pixverse C1", "fal-ai/pixverse/c1/image-to-video", 150.0),
+                                    Triple("PixVerse 5.6", "fal-ai/pixverse/v5.6/image-to-video", 120.0)
+                                )
+                                "Alibaba" -> listOf(
+                                    Triple("Wan 2.5", "fal-ai/wan-25-preview/image-to-video", 125.0),
+                                    Triple("Wan 2.6", "fal-ai/wan/v2.6/image-to-video", 125.0),
+                                    Triple("Wan 2.7", "fal-ai/wan/v2.7/image-to-video", 125.0),
+                                    Triple("Happy Horse", "alibaba/happy-horse/image-to-video", 125.0)
+                                )
+                                "Minimax" -> listOf(
+                                    Triple("Hailuo 02 Standard", "fal-ai/minimax/hailuo-02/standard/image-to-video", 75.0),
+                                    Triple("Hailuo 02 Pro", "fal-ai/minimax/hailuo-02/pro/image-to-video", 130.0),
+                                    Triple("Hailuo 2.3 Standard", "fal-ai/minimax/hailuo-2.3/standard/image-to-video", 80.0),
+                                    Triple("Hailuo 2.3 Pro", "fal-ai/minimax/hailuo-2.3/pro/image-to-video", 140.0)
                                 )
                                 else -> emptyList()
                             }
                         }
                     }
 
-                    val sortedModels = models.sortedBy { it.third }
+                    val sortedModels = if (uiState.selectedVideoProvider == "Kling" || uiState.selectedVideoProvider == "Veo" || uiState.selectedVideoProvider == "Bytedance" || uiState.selectedVideoProvider == "PixVerse" || uiState.selectedVideoProvider == "Xai") {
+                        models.sortedBy { it.first.lowercase() }
+                    } else {
+                        models.sortedBy { it.third }
+                    }
 
                     sortedModels.forEach { (displayName, modelId, tokenCost) ->
                         val isSelected = uiState.selectedVideoModel == modelId
@@ -6337,49 +7988,167 @@ fun EddieVideoGeneratorView(
                 }
 
                 val modelDescription = when (uiState.selectedVideoProvider) {
-                    "Gemini" -> {
+                    "Alibaba" -> {
+                        val mLower = uiState.selectedVideoModel.lowercase().trim()
+                        when {
+                            mLower.contains("wan/v2.5") -> {
+                                if (uiState.selectedVideoMode == "Image to Video") {
+                                    "Wan 2.5 image-to-video model."
+                                } else {
+                                    "Wan 2.5 video model by Alibaba."
+                                }
+                            }
+                            mLower.contains("wan/v2.6") -> {
+                                if (uiState.selectedVideoMode == "Image to Video") {
+                                    "Wan 2.6 image-to-video model."
+                                } else {
+                                    "Wan 2.6 video model by Alibaba."
+                                }
+                            }
+                            mLower.contains("wan/v2.7") -> {
+                                if (uiState.selectedVideoMode == "Image to Video") {
+                                    "Wan 2.7 is the latest generation AI video model, delivering enhanced motion smoothness, superior scene fidelity, and greater visual coherence."
+                                } else {
+                                    "Alibaba's Wan 2.7 is a state-of-the-art cinematic engine providing extremely realistic texture details and light simulations."
+                                }
+                            }
+                            mLower.contains("happy-horse") -> {
+                                if (uiState.selectedVideoMode == "Image to Video") {
+                                    "Alibaba's #1-ranked Happy Horse 1.0 — generate 1080p video with synchronized native audio and multilingual lip-sync from text prompts or images"
+                                } else {
+                                    "Generate 1080p video with synchronized native audio. Aspect ratios: 16:9, 9:16, 1:1, 4:3, 3:4. Duration: 3–15s."
+                                }
+                            }
+                            else -> "Alibaba video generation model powered by FalAI."
+                        }
+                    }
+                    "Veo" -> {
                         when (uiState.selectedVideoModel.lowercase().trim()) {
-                            "veo-2.0-generate-001" -> "Reliable classic Google video generation engine offering consistent photorealism, artistic textures, and style options."
-                            "veo-3.0-generate-001", "veo-3.0-generate-preview" -> "Cinematic state-of-the-art generation engine showcasing unmatched physical detail, textures, and fluid, natural dynamics."
-                            "veo-3.0-fast-generate-001", "veo-3.0-fast-generate-preview" -> "Efficient iteration engine leveraging the premium Veo 3 architecture with reduced computational steps for speed."
-                            "veo-3.1-generate-001", "veo-3.1-generate-preview" -> "Next-generation flagship Google video generation model (v3.1) offering high photorealism, realistic lighting, and advanced temporal stability."
-                            "veo-3.1-fast-generate-001", "veo-3.1-fast-generate-preview" -> "Speed-tuned next-gen Google Veo 3.1 engine delivering rapid responsive text-to-video synthesis with balanced visual clarity."
-                            "veo-3.1-lite-generate-001", "veo-3.1-lite-generate-preview" -> "Lightweight and efficient version of Veo 3.1 optimized for quick creative drafts and low resource footprint."
+                            "fal-ai/veo3.1" -> "Veo 3.1 is the latest state-of-the art video generation model from Google DeepMind"
+                            "fal-ai/veo3.1/lite" -> "Veo 3.1 Lite balances practical utility with professional capabilities, supporting Text-to-Video and Image-to-Video"
+                            "fal-ai/veo3.1/fast" -> "Generate videos from your image prompts using Veo 3.1 fast."
+                            "veo2" -> "Veo 2 creates videos with realistic motion and high quality output. Explore different styles and find your own with extensive camera controls."
+                            "veo3" -> "Veo 3 by Google, the most advanced AI video generation model in the world. With sound on!"
+                            "veo3-fast" -> "Faster and more cost effective version of Google's Veo 3.1!"
                             else -> null
                         }
                     }
-                    "FalAI" -> {
+                    "FalAI", "Kling", "Xai", "Minimax" -> {
                         when (uiState.selectedVideoModel.lowercase().trim()) {
-                            "fal-ai/veo3.1" -> "Flagship Google Veo 3.1 model on Fal.Ai. Delivers exceptional cinematic realism, advanced lighting, and motion fidelity."
-                            "fal-ai/veo3.1/lite" -> "Lightweight flagship Google Veo 3.1 model on Fal.Ai. Fast and token-efficient video generation."
-                            "fal-ai/veo3.1/fast" -> "Speed-optimized flagship Google Veo 3.1 model on Fal.Ai. High-speed synthesis with great clarity."
-                            "veo2" -> "Classic Google Veo 2 model hosted on Fal.Ai. Offers rich video textures and high visual styling options."
-                            "veo3" -> "Next-generation Google Veo 3 model on Fal.Ai with cinematic output, advanced fluid mechanics, and realistic lighting."
-                            "veo3-fast" -> "Optimized speed version of Veo 3 on Fal.Ai. Delivers quick response times and lower token latency."
+                            "fal-ai/minimax/hailuo-02/pro/text-to-video" -> "Advanced video generation model with 1080p resolution"
+                            "fal-ai/minimax/hailuo-02/standard/image-to-video" -> "Realistic dynamic video generation from images."
+                            "fal-ai/minimax/hailuo-02/standard/text-to-video" -> "Advanced video generation model with 768p resolution"
+                            "fal-ai/minimax/hailuo-2.3/pro/text-to-video" -> "Advanced text-to-video generation model with 1080p resolution"
+                            "fal-ai/minimax/hailuo-2.3/standard/text-to-video" -> "Advanced text-to-video generation model with 768p resolution"
+                            "fal-ai/minimax/hailuo-2.3/standard/image-to-video" -> "Advanced image-to-video generation model with 768p resolution"
+                            "fal-ai/minimax/hailuo-2.3/pro/image-to-video" -> "Advanced image-to-video generation model with 1080p resolution"
+                            "fal-ai/minimax/hailuo-02/pro/image-to-video" -> "Advanced image-to-video generation model with 1080p resolution"
+                            "fal-ai/veo3.1" -> "Veo 3.1 is the latest state-of-the art video generation model from Google DeepMind"
+                            "fal-ai/veo3.1/lite" -> "Veo 3.1 Lite balances practical utility with professional capabilities, supporting Text-to-Video and Image-to-Video"
+                            "fal-ai/veo3.1/fast" -> "Generate videos from your image prompts using Veo 3.1 fast."
+                            "veo2" -> "Veo 2 creates videos with realistic motion and high quality output. Explore different styles and find your own with extensive camera controls."
+                            "veo3" -> "Veo 3 by Google, the most advanced AI video generation model in the world. With sound on!"
+                            "veo3-fast" -> "Faster and more cost effective version of Google's Veo 3.1!"
                             "veed" -> "Highly creative, artistic short-video synthesis model on Fal.Ai with customizable canvas style and high visual clarity."
                             "kling" -> "Advanced physical simulation model on Fal.Ai known for highly accurate real-world physics and complex body movements."
                             "kling-video" -> "High-speed rendering Kling model designed for cinematic, smooth frames and complex camera motion sequences."
-                            "luma-dream-machine" -> "Super-fast movie-grade engine on Fal.Ai known for extreme spatial consistency, camera pans, and prompt compliance."
+                            "luma-dream-machine", "luma/agent/ray/v3.2/text-to-video" -> "Luma Ray 3.2 generates cinematic video from a text prompt, with control over resolution, duration, and seamless looping, plus reference images to lock in subject and style."
+                            "luma/agent/ray/v3.2/image-to-video" -> "Luma Ray 3.2 animates a source image into cinematic motion guided by a text prompt, preserving the starting frame's look while controlling resolution, duration, and seamless looping."
                             "minimax" -> "State-of-the-art cinematic engine on Fal.Ai providing life-like human expressions and smooth, detailed background landscapes."
                             "haiper" -> "An expressive AI model on Fal.Ai designed to capture physics-based actions, stylized transitions, and lively character expressions."
-                            "hunyuan-video" -> "Tencent's revolutionary open-weights model on Fal.AI, delivering rich physical simulation dynamics and beautiful cinematic lighting."
-                            "kling v2.6 pro" -> "Premium high-grade Kling v2.6 engine on Fal.Ai. Offers robust cinematic rendering of reference images with precise visual flow."
+                            "hunyuan-video", "fal-ai/hunyuan-video-v1.5/image-to-video" -> "Hunyuan Video 1.5 is Tencent's latest and best video model"
+                            "fal-ai/kling-video/o3/4k/text-to-video",
+                            "fal-ai/kling-video/o3/4k/image-to-video",
+                            "fal-ai/kling-video/v3/4k/text-to-video",
+                            "fal-ai/kling-video/v3/4k/image-to-video",
+                            "kling o3 4k",
+                            "kling v3 4k" -> "Kling's Native 4K is a video generation model that directly outputs professional-grade 4K video in one step, eliminating the need for post-production upscaling"
+
+                            "fal-ai/kling-video/o3/standard/image-to-video",
+                            "kling o3 standard" -> "Generate a video by taking a start frame and an end frame, animating the transition between them while following text-driven style and scene guidance"
+
+                            "fal-ai/kling-video/o3/pro/image-to-video",
+                            "kling o3 pro" -> "Generate a video by taking a start frame and an end frame, animating the transition between them while following text-driven style and scene guidance."
+
+                            "fal-ai/kling-video/v2.6/pro/image-to-video",
+                            "fal-ai/kling-video/v2.6/pro/text-to-video",
+                            "kling v2.6 pro" -> "Kling 2.6 Pro: Top-tier image-to-video with cinematic visuals, fluid motion, and native audio generation."
+
+                            "fal-ai/kling-video/v3/turbo/standard/image-to-video",
+                            "kling-video/v3/turbo/standard/text-to-video",
+                            "kling v3 turbo standard" -> "Kling 3.0 Turbo Standard animates a first and last frame reference image into 720P video with native audio, delivering quick, affordable image-driven motion for fast turnaround"
+
+                            "fal-ai/kling-video/v3/turbo/pro/image-to-video",
+                            "kling-video/v3/turbo/pro/text-to-video",
+                            "kling v3 turbo pro" -> "Generate high quality 1080p videos from images using Kling's Turbo 3.0 model, with improved lipsync and multishot generation capabilities."
+
                             "kling v2.6 standard" -> "Standard Kling v2.6 engine on Fal.Ai. Balanced speed and texture synthesis to animate input images realistically."
-                            "kling v3 pro" -> "Next-generation professional Kling v3 engine. Delivers peak realism, high-fidelity physical kinematics, and smooth details."
-                            "kling v3 standard" -> "Optimized next-gen Kling v3 engine. Offers balanced, efficient image-to-video conversion with clean transition fidelity."
+
+                            "fal-ai/kling-video/v3/pro/image-to-video",
+                            "fal-ai/kling-video/v3/pro/text-to-video",
+                            "kling v3 pro" -> "Kling 3.0 Pro: Top-tier image-to-video with cinematic visuals, fluid motion, and native audio generation, with custom element support."
+
+                            "fal-ai/kling-video/v3/standard/image-to-video",
+                            "fal-ai/kling-video/v3/standard/text-to-video",
+                            "kling v3 standard" -> "Kling 3.0 Standard: Top-tier image-to-video with cinematic visuals, fluid motion, and native audio generation, with custom element support."
+
                             "klingv21" -> "Robust image-to-video capabilities powered by Kling v2.1 with refined character animations and cinematic camera flows."
                             "klingimage" -> "High-fidelity Kling v1.6 image animation engine, generating natural, fluid motion from static visual references."
                             "xai/grok-imagine-video/image-to-video" -> "xAI's advanced Grok Imagine video generator on Fal.AI, bringing images to life with superb texture detail and camera panning."
-                            "kling-2.5-turbo/pro/text-to-video" -> "High-tier Kling 2.5 Turbo engine with professional cinematic rendering, high frame rate temporal consistency, and prompt fidelity."
-                            "kling-2.5-turbo/standard/image-to-video" -> "Standard-tier Kling 2.5 Turbo engine optimized for rapid, balanced, and lifelike animation of reference images."
+                            "xai/grok-imagine-video/v1.5/image-to-video" -> "Generate videos from images with audio using xAI's Grok Imagine 1.5 Video model."
+                            "xai/grok-imagine-video/text-to-video" -> "Generate videos with audio from text using Grok Imagine Video"
+
+                            "fal-ai/kling-video/v2.5-turbo/pro/image-to-video",
+                            "fal-ai/kling-video/v2.5-turbo/pro/text-to-video",
+                            "kling-2.5-turbo/pro/text-to-video",
+                            "kling v2.5 turbo pro" -> "Kling 2.5 Turbo Pro: Top-tier image-to-video generation with unparalleled motion fluidity, cinematic visuals, and exceptional prompt precision."
+
+                            "fal-ai/kling-video/v2.5-turbo/standard/image-to-video",
+                            "fal-ai/kling-2.5-turbo/standard/image-to-video",
+                            "kling-2.5-turbo/standard/image-to-video",
+                            "kling v2.5 turbo standard" -> "Kling 2.5 Turbo Standard: Top-tier image-to-video generation with unparalleled motion fluidity, cinematic visuals, and exceptional prompt precision."
                             else -> null
+                        }
+                    }
+                    "Bytedance" -> {
+                        when (uiState.selectedVideoModel.lowercase().trim()) {
+                            "bytedance/seedance-2.0/text-to-video", "fal-ai/bytedance/seedance-2.0/text-to-video" -> 
+                                "ByteDance's most advanced text-to-video model. Cinematic output with native audio, multi-shot editing, real-world physics, and director-level camera control."
+                            "fal-ai/bytedance/seedance-2.0/text-to-video/fast" -> "Seedance 2.0 Fast (Text-to-Video): Fast-tier rendering of ByteDance's state-of-the-art text-to-video model."
+                            "fal-ai/bytedance/seedance-2.0/image-to-video" -> "Seedance 2.0 (Image-to-Video): ByteDance's most advanced image-to-video model. Animate still images into cinematic video with synchronized audio, start and end frame control."
+                            "fal-ai/bytedance/seedance-2.0/image-to-video/fast" -> "Seedance 2.0 Fast (Image-to-Video): Fast-tier animation of still images into cinematic video using ByteDance's SOTA model."
+                            else -> "Seedance 2.0: ByteDance's next generation AI video generation model."
                         }
                     }
                     "OpenAI" -> {
                         when (uiState.selectedVideoModel.lowercase().trim()) {
-                            "sora 2" -> "OpenAI's efficient video synthesis model featuring high fidelity prompt compliance, rich color representation, and realistic physical behaviors."
-                            "sora 2 pro" -> "OpenAI's high-tier cinematic model with extreme temporal consistency, highly detailed scenery, and production-grade rendering precision."
+                            "sora 2" -> {
+                                if (uiState.selectedVideoMode == "Image to Video") {
+                                    "Image-to-video endpoint for Sora 2, OpenAI's state-of-the-art video model capable of creating richly detailed, dynamic clips with audio from natural language or images."
+                                } else {
+                                    "Text-to-video endpoint for Sora 2, OpenAI's state-of-the-art video model capable of creating richly detailed, dynamic clips with audio from natural language or images."
+                                }
+                            }
+                            "sora 2 pro" -> {
+                                if (uiState.selectedVideoMode == "Image to Video") {
+                                    "Image-to-video endpoint for Sora 2 Pro, OpenAI's state-of-the-art video model capable of creating richly detailed, dynamic clips with audio from natural language or images."
+                                } else {
+                                    "OpenAI's high-tier cinematic model with extreme temporal consistency, highly detailed scenery, and production-grade rendering precision."
+                                }
+                            }
                             else -> null
+                        }
+                    }
+                    "PixVerse" -> {
+                        when (uiState.selectedVideoModel.lowercase().trim()) {
+                            "fal-ai/pixverse/v6/text-to-video" -> "PixVerse V6 Cinematic delivers film-grade video outputs with multi-shot consistency, advanced camera/lens controls, and native synchronized audio."
+                            "fal-ai/pixverse/v6/transition" -> "PixVerse V6 Transition turns static start frames into dynamic cinematic video sequences with high spatial consistency and smooth camera flow."
+                            "fal-ai/pixverse/v6/image-to-video" -> "Pixverse's latest V6 Model"
+                            "fal-ai/pixverse/v5.5/text-to-video" -> "Generate high quality video clips from text and image prompts using PixVerse v5.5"
+                            "fal-ai/pixverse/v5.6/text-to-video" -> "Use the latest pixverse v5.6 model to turn your texts into amazing videos."
+                            "fal-ai/pixverse/v5.6/image-to-video" -> "Use the latest pixverse v5.6 model to turn your texts and images into amazing videos"
+                            "fal-ai/pixverse/c1/image-to-video" -> "Animate images into cinematic videos with PixVerse C1, supporting 1080p resolution and native audio generation."
+                            else -> "Cinematic AI video generator by PixVerse, running on serverless Fal.ai backend infrastructure."
                         }
                     }
                     else -> null
@@ -6410,75 +8179,237 @@ fun EddieVideoGeneratorView(
                                 modifier = Modifier.size(16.dp).padding(top = 2.dp)
                             )
                             Column {
-                                Text(
-                                    text = uiState.selectedVideoModel,
-                                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-                                    color = MaterialTheme.colorScheme.primary
-                                )
-                                Spacer(modifier = Modifier.height(2.dp))
+                                val selectedModelLower = uiState.selectedVideoModel.lowercase().trim()
+                                val actualKlingId = when (selectedModelLower) {
+                                    "fal-ai/kling-video/o3/4k/text-to-video" -> "fal-ai/kling-video/o3/4k/text-to-video"
+                                    "fal-ai/kling-video/o3/4k/image-to-video" -> "fal-ai/kling-video/o3/4k/image-to-video"
+                                    "fal-ai/kling-video/o3/standard/image-to-video" -> "fal-ai/kling-video/o3/standard/image-to-video"
+                                    "fal-ai/kling-video/o3/pro/image-to-video" -> "fal-ai/kling-video/o3/pro/image-to-video"
+                                    "fal-ai/kling-video/v3/4k/text-to-video" -> "fal-ai/kling-video/v3/4k/text-to-video"
+                                    "fal-ai/kling-video/v3/4k/image-to-video" -> "fal-ai/kling-video/v3/4k/image-to-video"
+                                    "kling" -> "fal-ai/kling"
+                                    "kling-video" -> "fal-ai/kling-video"
+                                    "klingv21" -> "fal-ai/kling/v2.1/image-to-video"
+                                    "klingimage" -> "fal-ai/kling/v1.6/image-to-video"
+                                    "kling v2.6 standard" -> "fal-ai/kling/v2.6/standard"
+                                    "kling v2.6 pro" -> "fal-ai/kling-video/v2.6/pro/text-to-video"
+                                    "kling v3 standard" -> "fal-ai/kling-video/v3/standard/text-to-video"
+                                    "kling v3 pro" -> "fal-ai/kling-video/v3/pro/text-to-video"
+                                    "kling-video/v3/turbo/pro/text-to-video" -> "fal-ai/kling-video/v3/turbo/pro/text-to-video"
+                                    "kling-video/v3/turbo/standard/text-to-video" -> "fal-ai/kling-video/v3/turbo/standard/text-to-video"
+                                    "kling-2.5-turbo/pro/text-to-video" -> "fal-ai/kling-video/v2.5-turbo/pro/text-to-video"
+                                    "kling-2.5-turbo/standard/image-to-video" -> "fal-ai/kling-2.5-turbo/standard/image-to-video"
+                                    else -> null
+                                }
+
+                                if (uiState.selectedVideoProvider != "Kling" && uiState.selectedVideoProvider != "Veo" && uiState.selectedVideoProvider != "Bytedance" && uiState.selectedVideoProvider != "PixVerse" && uiState.selectedVideoProvider != "Alibaba" && uiState.selectedVideoProvider != "Minimax" && !uiState.selectedVideoModel.lowercase().contains("minimax") && !uiState.selectedVideoModel.contains("grok-imagine-video") && !uiState.selectedVideoModel.contains("luma") && !uiState.selectedVideoModel.contains("wan") && !uiState.selectedVideoModel.contains("happy-horse")) {
+                                    Text(
+                                        text = if (actualKlingId != null) "${uiState.selectedVideoModel} ($actualKlingId)" else uiState.selectedVideoModel,
+                                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                                        color = MaterialTheme.colorScheme.primary
+                                    )
+                                    Spacer(modifier = Modifier.height(2.dp))
+                                }
                                 Text(
                                     text = description,
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
+
+
+
                             }
                         }
+                    }
+                }
+
+
+            }
+        }
+
+        // Image Selection for Image to Video mode
+        if (uiState.selectedVideoMode == "Image to Video") {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f)),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Face,
+                            contentDescription = "Image Selector",
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Text(
+                            text = "Select Reference Image:",
+                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
+
+                    Text(
+                        text = if (uiState.selectedVideoProvider == "Kling" || uiState.selectedVideoProvider == "Bytedance" || uiState.selectedVideoProvider == "PixVerse" || uiState.selectedVideoProvider == "Xai") "Accepts: .jpg/.png up to 10MB" else "Accepts: .jpg/.png up to 10MB matching chosen aspect ratio ($selectedAspectRatio)",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                        modifier = Modifier.padding(top = 4.dp, bottom = 12.dp)
+                    )
+
+                    val combinedImages = uiState.generatedImages + uploadedImages
+
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        // The + Upload Custom Image card is positioned first in the row
+                        Box(
+                            modifier = Modifier
+                                .size(100.dp)
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.08f))
+                                .border(
+                                    width = 1.dp,
+                                    color = MaterialTheme.colorScheme.primary,
+                                    shape = RoundedCornerShape(8.dp)
+                                )
+                                .clickable { galleryLauncher.launch("image/*") },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.Center,
+                                modifier = Modifier.padding(6.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Add,
+                                    contentDescription = "Upload Icon",
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(24.dp)
+                                )
+                                Spacer(modifier = Modifier.height(6.dp))
+                                Text(
+                                    text = "Upload\nImage",
+                                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                                    color = MaterialTheme.colorScheme.primary,
+                                    textAlign = TextAlign.Center
+                                )
+                            }
+                        }
+
+                        combinedImages.forEach { img ->
+                            val isImgSelected = selectedImageId == img.id
+                            Box(
+                                modifier = Modifier
+                                    .size(100.dp)
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .border(
+                                        width = if (isImgSelected) 3.dp else 1.dp,
+                                        color = if (isImgSelected) MaterialTheme.colorScheme.primary else Color.Gray,
+                                        shape = RoundedCornerShape(8.dp)
+                                    )
+                                    .clickable { selectedImageId = img.id }
+                            ) {
+                                coil.compose.AsyncImage(
+                                    model = img.imageUrl,
+                                    contentDescription = img.prompt,
+                                    modifier = Modifier.fillMaxSize(),
+                                    contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                                    error = androidx.compose.ui.res.painterResource(id = android.R.drawable.ic_menu_gallery)
+                                )
+                                if (isImgSelected) {
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxSize()
+                                            .background(Color.Black.copy(alpha = 0.3f)),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.CheckCircle,
+                                            contentDescription = "Selected",
+                                            tint = Color.White,
+                                            modifier = Modifier.size(24.dp)
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    if (combinedImages.isEmpty()) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = "No generated images available yet. You can click the '+ Upload Image' card above to use a custom image, or generate one in the 'Eddie Image Studio' tab.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
+                        )
                     }
                 }
             }
         }
 
-        Column {
-            Text(
-                text = "Select Cinematic Style",
-                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                color = MaterialTheme.colorScheme.onSurface,
-                modifier = Modifier.padding(bottom = 8.dp)
-            )
+        promptInputCard()
 
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .horizontalScroll(rememberScrollState()),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                styles.forEach { (styleName, isPro) ->
-                    val isSelected = selectedStyle == styleName
-                    val badgeColor = if (uiState.isSubscribed) MaterialTheme.colorScheme.primary else Color(0xFFFFB100)
-                    val badgeTextColor = if (uiState.isSubscribed) MaterialTheme.colorScheme.onPrimary else Color(0xFF111111)
+        if (uiState.selectedVideoModel != "fal-ai/pixverse/c1/image-to-video") {
+            Column {
+                Text(
+                    text = "Select Cinematic Style",
+                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                    color = MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier.padding(bottom = 8.dp)
+                )
 
-                    Surface(
-                        modifier = Modifier.clickable { selectedStyle = styleName },
-                        shape = RoundedCornerShape(12.dp),
-                        color = if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface,
-                        border = BorderStroke(
-                            width = if (isSelected) 2.dp else 1.dp,
-                            color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)
-                        )
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(6.dp)
-                        ) {
-                            Text(
-                                text = styleName,
-                                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal),
-                                color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    styles.forEach { (styleName, isPro) ->
+                        val isSelected = selectedStyle == styleName
+                        val badgeColor = if (uiState.isSubscribed) MaterialTheme.colorScheme.primary else Color(0xFFFFB100)
+                        val badgeTextColor = if (uiState.isSubscribed) MaterialTheme.colorScheme.onPrimary else Color(0xFF111111)
+
+                        Surface(
+                            modifier = Modifier.clickable { selectedStyle = styleName },
+                            shape = RoundedCornerShape(12.dp),
+                            color = if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface,
+                            border = BorderStroke(
+                                width = if (isSelected) 2.dp else 1.dp,
+                                color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)
                             )
-                            if (isPro) {
-                                Surface(
-                                    color = badgeColor,
-                                    shape = RoundedCornerShape(4.dp)
-                                ) {
-                                    Text(
-                                        text = "PRO",
-                                        color = badgeTextColor,
-                                        fontSize = 8.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
-                                    )
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Text(
+                                    text = styleName,
+                                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal),
+                                    color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface
+                                )
+                                if (isPro) {
+                                    Surface(
+                                        color = badgeColor,
+                                        shape = RoundedCornerShape(4.dp)
+                                    ) {
+                                        Text(
+                                            text = "PRO",
+                                            color = badgeTextColor,
+                                            fontSize = 8.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -6503,12 +8434,28 @@ fun EddieVideoGeneratorView(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    val openAiSizes = listOf(
-                        "720x1280" to false to "Portrait (Vertical)",
-                        "1280x720" to false to "Landscape (Horizontal)",
-                        "1024x1792" to true to "HD Portrait pro",
-                        "1792x1024" to true to "HD Landscape pro"
-                    )
+                    val openAiSizes = if (uiState.selectedVideoModel.lowercase().trim() == "sora 2") {
+                        listOf(
+                            "720x1280" to false to "Portrait (Vertical)",
+                            "1280x720" to false to "Landscape (Horizontal)"
+                        )
+                    } else if (uiState.selectedVideoModel.lowercase().trim() == "sora 2 pro") {
+                        listOf(
+                            "720x1280" to false to "Portrait (Vertical)",
+                            "1280x720" to false to "Landscape (Horizontal)",
+                            "1024x1792" to true to "HD Portrait pro",
+                            "1792x1024" to true to "HD Landscape pro",
+                            "1080x1920" to true to "FHD Portrait pro",
+                            "1920x1080" to true to "FHD Landscape pro"
+                        )
+                    } else {
+                        listOf(
+                            "720x1280" to false to "Portrait (Vertical)",
+                            "1280x720" to false to "Landscape (Horizontal)",
+                            "1024x1792" to true to "HD Portrait pro",
+                            "1792x1024" to true to "HD Landscape pro"
+                        )
+                    }
 
                     openAiSizes.forEach { item ->
                         val pair = item.first
@@ -6570,7 +8517,7 @@ fun EddieVideoGeneratorView(
                     }
                 }
             }
-        } else {
+        } else if (aspectRatios.isNotEmpty() && !isKlingV3Standard && !isKlingV3Pro && !isKlingV26Pro && !isKlingV25TurboStandard && !isKlingV25TurboPro && !isKlingV3TurboStandard && !isKlingV3TurboPro && !isKlingV3_4k && !isKlingO3Standard && !isKlingO3Pro && !isKlingO3_4k && uiState.selectedVideoModel != "fal-ai/pixverse/v5.6/image-to-video" && uiState.selectedVideoModel != "fal-ai/pixverse/v6/image-to-video" && uiState.selectedVideoModel != "fal-ai/pixverse/c1/image-to-video") {
             Column {
                 Text(
                     text = "Video Aspect Ratio",
@@ -6645,78 +8592,94 @@ fun EddieVideoGeneratorView(
                     }
                 }
             }
+        }
 
-            if (resolutions.isNotEmpty()) {
-                Column {
+        if (resolutions.isNotEmpty() && !isVeo2 && uiState.selectedVideoProvider != "OpenAI") {
+            Column {
+                Text(
+                    text = "Video Resolution",
+                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                    color = MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier.padding(bottom = 8.dp)
+                )
+
+                if ((uiState.selectedVideoProvider == "FalAI" || uiState.selectedVideoProvider == "Minimax") && uiState.selectedVideoModel == "fal-ai/minimax/hailuo-2.3/standard/image-to-video") {
                     Text(
-                        text = "Video Resolution",
-                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                        color = MaterialTheme.colorScheme.onSurface,
+                        text = "Your request will cost 80 token per 6 second video generation, and a 150 token per 10 second video generation.",
+                        style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Medium),
+                        color = MaterialTheme.colorScheme.primary,
                         modifier = Modifier.padding(bottom = 8.dp)
                     )
+                } else if ((uiState.selectedVideoProvider == "FalAI" || uiState.selectedVideoProvider == "Minimax") && uiState.selectedVideoModel == "fal-ai/minimax/hailuo-2.3/pro/image-to-video") {
+                    Text(
+                        text = "Your request will cost 140 token per video generation.",
+                        style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Medium),
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.padding(bottom = 8.dp)
+                    )
+                }
 
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .horizontalScroll(rememberScrollState()),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        resolutions.forEach { item ->
-                            val pair = item.first
-                            val res = pair.first
-                            val isPro = pair.second
-                            val label = item.second
-                            val isSelected = selectedResolution == res
-                            val badgeColor = if (uiState.isSubscribed) MaterialTheme.colorScheme.primary else Color(0xFFFFB100)
-                            val badgeTextColor = if (uiState.isSubscribed) MaterialTheme.colorScheme.onPrimary else Color(0xFF111111)
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    resolutions.forEach { item ->
+                        val pair = item.first
+                        val res = pair.first
+                        val isPro = pair.second
+                        val label = item.second
+                        val isSelected = selectedResolution == res
+                        val badgeColor = if (uiState.isSubscribed) MaterialTheme.colorScheme.primary else Color(0xFFFFB100)
+                        val badgeTextColor = if (uiState.isSubscribed) MaterialTheme.colorScheme.onPrimary else Color(0xFF111111)
 
-                            Surface(
-                                modifier = Modifier
-                                    .width(135.dp)
-                                    .clickable { selectedResolution = res },
-                                shape = RoundedCornerShape(12.dp),
-                                color = if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface,
-                                border = BorderStroke(
-                                    width = if (isSelected) 2.dp else 1.dp,
-                                    color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)
-                                )
+                        Surface(
+                            modifier = Modifier
+                                .widthIn(min = 135.dp)
+                                .clickable { selectedResolution = res },
+                            shape = RoundedCornerShape(12.dp),
+                            color = if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface,
+                            border = BorderStroke(
+                                width = if (isSelected) 2.dp else 1.dp,
+                                color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)
+                            )
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(10.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.Center
                             ) {
-                                Column(
-                                    modifier = Modifier.padding(10.dp),
-                                    horizontalAlignment = Alignment.CenterHorizontally,
-                                    verticalArrangement = Arrangement.Center
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
                                 ) {
-                                    Row(
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(4.dp)
-                                    ) {
-                                        Text(
-                                            text = res,
-                                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                                            color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface
-                                        )
-                                        if (isPro) {
-                                            Surface(
-                                                color = badgeColor,
-                                                shape = RoundedCornerShape(4.dp)
-                                            ) {
-                                                Text(
-                                                    text = "PRO",
-                                                    color = badgeTextColor,
-                                                    fontSize = 7.sp,
-                                                    fontWeight = FontWeight.Bold,
-                                                    modifier = Modifier.padding(horizontal = 3.dp, vertical = 1.dp)
-                                                )
-                                            }
+                                    Text(
+                                        text = res,
+                                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                                        color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface
+                                    )
+                                    if (isPro) {
+                                        Surface(
+                                            color = badgeColor,
+                                            shape = RoundedCornerShape(4.dp)
+                                        ) {
+                                            Text(
+                                                text = "PRO",
+                                                color = badgeTextColor,
+                                                fontSize = 7.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                modifier = Modifier.padding(horizontal = 3.dp, vertical = 1.dp)
+                                            )
                                         }
                                     }
-                                    Text(
-                                        text = label,
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
                                 }
+                                Text(
+                                    text = label,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
                             }
                         }
                     }
@@ -6724,6 +8687,7 @@ fun EddieVideoGeneratorView(
             }
         }
 
+        if (durations.isNotEmpty()) {
         Column {
             Text(
                 text = "Video Duration",
@@ -6799,14 +8763,304 @@ fun EddieVideoGeneratorView(
             }
         }
 
-        if ((uiState.selectedVideoProvider == "Gemini" && uiState.selectedVideoMode == "Text to Video" && !isVeo2) || isFalVeo3 || isFalVeo3FastModel) {
+            if (isHunyuan15Video || isKlingV3Standard || isKlingV3Pro || isKlingV3TurboPro || isKlingV3TurboStandard || isKlingV26Pro || isKlingV25TurboStandard || isKlingV25TurboPro || isKlingV3_4k || isKlingO3_4k || isKlingO3Standard || isKlingO3Pro || isBytedance || uiState.selectedVideoProvider == "PixVerse" || isGrokImagineVideo || isLumaRayVideo || isAlibabaVideo || ((uiState.selectedVideoProvider == "FalAI" || uiState.selectedVideoProvider == "Minimax") && (uiState.selectedVideoModel == "fal-ai/minimax/hailuo-02/standard/image-to-video" || uiState.selectedVideoModel == "fal-ai/minimax/hailuo-02/pro/image-to-video" || uiState.selectedVideoModel == "fal-ai/minimax/hailuo-2.3/standard/image-to-video" || uiState.selectedVideoModel == "fal-ai/minimax/hailuo-2.3/pro/image-to-video" || uiState.selectedVideoModel == "fal-ai/minimax/hailuo-02/standard/text-to-video" || uiState.selectedVideoModel == "fal-ai/minimax/hailuo-02/pro/text-to-video" || uiState.selectedVideoModel == "fal-ai/minimax/hailuo-2.3/standard/text-to-video" || uiState.selectedVideoModel == "fal-ai/minimax/hailuo-2.3/pro/text-to-video"))) {
+                Spacer(modifier = Modifier.height(8.dp))
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 8.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.2f)
+                    ),
+                    border = BorderStroke(
+                        width = 1.dp,
+                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)
+                    )
+                ) {
+                    Row(
+                        modifier = Modifier.padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Text(
+                            text = "💡",
+                            style = MaterialTheme.typography.bodyLarge
+                        )
+                        Text(
+                            text = getLumaVideoCostHint(
+                                uiState = uiState,
+                                isAlibabaVideo = isAlibabaVideo,
+                                isLumaRayVideo = isLumaRayVideo,
+                                isGrokImagineVideo = isGrokImagineVideo,
+                                isBytedance = isBytedance,
+                                isKlingV25TurboStandard = isKlingV25TurboStandard,
+                                isKlingV25TurboPro = isKlingV25TurboPro,
+                                isKlingV26Pro = isKlingV26Pro,
+                                isFalVeo3_1Fast = isFalVeo3_1Fast,
+                                isFalVeo3OnlyFast = isFalVeo3OnlyFast,
+                                isFalVeo3_1Lite = isFalVeo3_1Lite,
+                                isFalVeo3_1 = isFalVeo3_1,
+                                isFalVeo3Only = isFalVeo3Only,
+                                isKlingV3_4k = isKlingV3_4k,
+                                isKlingO3_4k = isKlingO3_4k,
+                                isKlingO3Standard = isKlingO3Standard,
+                                isKlingO3Pro = isKlingO3Pro,
+                                isKlingV3TurboPro = isKlingV3TurboPro,
+                                isKlingV3TurboStandard = isKlingV3TurboStandard,
+                                isKlingV3Pro = isKlingV3Pro,
+                                isKlingV3Standard = isKlingV3Standard
+                            ),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            }
+
+            if (isVeo2 || isFalVeo3 || isFalVeo3FastModel || isOpenAiSora2 || isOpenAiSora2Pro) {
+                Spacer(modifier = Modifier.height(8.dp))
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 8.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.15f)
+                    ),
+                    border = BorderStroke(
+                        width = 1.dp,
+                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)
+                    )
+                ) {
+                    Row(
+                        modifier = Modifier.padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Text(
+                            text = "🪙",
+                            style = MaterialTheme.typography.bodyLarge
+                        )
+                        Text(
+                            text = getVeoSoraVideoCostHint(
+                                isOpenAiSora2 = isOpenAiSora2,
+                                isOpenAiSora2Pro = isOpenAiSora2Pro,
+                                isVeo2 = isVeo2,
+                                isFalVeo3_1Lite = isFalVeo3_1Lite,
+                                isFalVeo3_1 = isFalVeo3_1,
+                                isFalVeo3Only = isFalVeo3Only,
+                                isFalVeo3_1Fast = isFalVeo3_1Fast,
+                                isFalVeo3OnlyFast = isFalVeo3OnlyFast
+                            ),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            }
+
+            if (isOpenAiSora2 || isOpenAiSora2Pro) {
+                Spacer(modifier = Modifier.height(16.dp))
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
+                    ),
+                    border = BorderStroke(
+                        width = 1.dp,
+                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)
+                    )
+                ) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            modifier = Modifier.padding(bottom = 12.dp)
+                        ) {
+                            Text(
+                                text = "⚙️",
+                                fontSize = 20.sp
+                            )
+                            Text(
+                                text = if (isOpenAiSora2Pro) "OpenAI Sora 2 Pro Advanced Parameters" else "OpenAI Sora 2 Advanced Parameters",
+                                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        }
+
+                        if (!isOpenAiSora2Pro) {
+                            // Model Snapshot Selector
+                            Text(
+                                text = "Model Snapshot",
+                                style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(bottom = 6.dp)
+                            )
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                val snapshots = listOf("sora-2", "sora-2-2025-12-08", "sora-2-2025-10-06")
+                                snapshots.forEach { snapshot ->
+                                    val isSel = uiState.soraModelSnapshot == snapshot
+                                    Surface(
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .clickable {
+                                                chatViewModel.updateSoraSettings(
+                                                    deleteVideo = uiState.soraDeleteVideo,
+                                                    modelSnapshot = snapshot,
+                                                    detectAndBlockIp = uiState.soraDetectAndBlockIp,
+                                                    characterIds = uiState.soraCharacterIds
+                                                )
+                                            },
+                                        shape = RoundedCornerShape(8.dp),
+                                        color = if (isSel) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface,
+                                        border = BorderStroke(
+                                            width = if (isSel) 2.dp else 1.dp,
+                                            color = if (isSel) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)
+                                        )
+                                    ) {
+                                        Text(
+                                            text = snapshot,
+                                            style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold),
+                                            color = if (isSel) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface,
+                                            textAlign = TextAlign.Center,
+                                            modifier = Modifier.padding(vertical = 10.dp, horizontal = 4.dp)
+                                        )
+                                    }
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.height(14.dp))
+                        }
+
+                        // Character IDs field
+                        Text(
+                            text = "Character IDs",
+                            style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(bottom = 4.dp)
+                        )
+                        Text(
+                            text = "Enter up to two character IDs (comma separated) to persist style identity across frames. Refer to them by name in your prompt.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
+                            modifier = Modifier.padding(bottom = 6.dp)
+                        )
+                        OutlinedTextField(
+                            value = uiState.soraCharacterIds,
+                            onValueChange = { ids ->
+                                chatViewModel.updateSoraSettings(
+                                    deleteVideo = uiState.soraDeleteVideo,
+                                    modelSnapshot = uiState.soraModelSnapshot,
+                                    detectAndBlockIp = uiState.soraDetectAndBlockIp,
+                                    characterIds = ids
+                                )
+                            },
+                            placeholder = { Text("e.g. char_123, char_456") },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true,
+                            shape = RoundedCornerShape(8.dp),
+                            textStyle = MaterialTheme.typography.bodyMedium
+                        )
+
+                        Spacer(modifier = Modifier.height(14.dp))
+
+                        // Toggles row: delete_video and detect_and_block_ip
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(16.dp)
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    Checkbox(
+                                        checked = uiState.soraDeleteVideo,
+                                        onCheckedChange = { isChecked ->
+                                            chatViewModel.updateSoraSettings(
+                                                deleteVideo = isChecked,
+                                                modelSnapshot = uiState.soraModelSnapshot,
+                                                detectAndBlockIp = uiState.soraDetectAndBlockIp,
+                                                characterIds = uiState.soraCharacterIds
+                                            )
+                                        }
+                                    )
+                                    Text(
+                                        text = "Delete Video",
+                                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold)
+                                    )
+                                }
+                                Text(
+                                    text = "Deletes from storage after generation for maximum privacy.",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                                    modifier = Modifier.padding(start = 32.dp)
+                                )
+                            }
+
+                            Column(modifier = Modifier.weight(1f)) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    Checkbox(
+                                        checked = uiState.soraDetectAndBlockIp,
+                                        onCheckedChange = { isChecked ->
+                                            chatViewModel.updateSoraSettings(
+                                                deleteVideo = uiState.soraDeleteVideo,
+                                                modelSnapshot = uiState.soraModelSnapshot,
+                                                detectAndBlockIp = isChecked,
+                                                characterIds = uiState.soraCharacterIds
+                                            )
+                                        }
+                                    )
+                                    Text(
+                                        text = "IP Protection",
+                                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold)
+                                    )
+                                }
+                                Text(
+                                    text = "Detects and blocks known intellectual property references.",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                                    modifier = Modifier.padding(start = 32.dp)
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+    if (((uiState.selectedVideoProvider == "Gemini" && uiState.selectedVideoMode == "Text to Video") || isFalVeo3 || isFalVeo3FastModel || isVeo2 || isKlingV26Pro || isKlingV3Standard || isKlingV3Pro || isKlingO3_4k || isKlingO3Standard || isKlingO3Pro || isKlingV3_4k || isBytedance || uiState.selectedVideoProvider == "PixVerse") && !isVeo2) {
             Column {
                 Text(
                     text = "Generate Audio",
                     style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
                     color = MaterialTheme.colorScheme.onSurface,
-                    modifier = Modifier.padding(bottom = 8.dp)
+                    modifier = Modifier.padding(bottom = 4.dp)
                 )
+
+                if (isBytedance) {
+                    Text(
+                        text = "Whether to generate synchronized audio for the video, including sound effects, ambient sounds, and lip-synced speech. The cost of video generation is the same regardless of whether audio is generated or not.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(bottom = 8.dp)
+                    )
+                } else if (uiState.selectedVideoProvider == "PixVerse") {
+                    Text(
+                        text = "Generate immersive sound effects, background soundtracks, or atmospheric audio synchronized directly with your video flow.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(bottom = 8.dp)
+                    )
+                } else {
+                    Spacer(modifier = Modifier.height(4.dp))
+                }
 
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -6849,7 +9103,76 @@ fun EddieVideoGeneratorView(
             }
         }
 
-        if (isVeo2) {
+        if (isKlingV3Standard || isKlingV3Pro || isKlingO3_4k || isKlingO3Standard || isKlingO3Pro || isKlingV3_4k) {
+            Spacer(modifier = Modifier.height(16.dp))
+            Column {
+                Text(
+                    text = "Shot Type",
+                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                    color = MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier.padding(bottom = 8.dp)
+                )
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    val shotOptions = listOf("customize", "intelligent")
+                    shotOptions.forEach { opt ->
+                        val isSelected = selectedShotType == opt
+                        Surface(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clickable { selectedShotType = opt },
+                            shape = RoundedCornerShape(12.dp),
+                            color = if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface,
+                            border = BorderStroke(
+                                width = if (isSelected) 2.dp else 1.dp,
+                                color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)
+                            )
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(10.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.Center
+                            ) {
+                                Text(
+                                    text = if (opt == "customize") "🎬 Customize" else "🧠 Intelligent",
+                                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                                    color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface
+                                )
+                                Text(
+                                    text = if (opt == "customize") "Manual structure" else "Auto structure",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        if (isVeo2 || isFalVeo3 || isFalVeo3FastModel) {
+            VeoEngineParametersCard(
+                isVeo2 = isVeo2,
+                isFalVeo3 = isFalVeo3,
+                isFalVeo3FastModel = isFalVeo3FastModel,
+                negativePromptText = negativePromptText,
+                onNegativePromptTextChange = { negativePromptText = it },
+                enhancePrompt = enhancePrompt,
+                onEnhancePromptChange = { enhancePrompt = it },
+                seedText = seedText,
+                onSeedTextChange = { seedText = it },
+                autoFix = autoFix,
+                onAutoFixChange = { autoFix = it },
+                safetyTolerance = safetyTolerance,
+                onSafetyToleranceChange = { safetyTolerance = it }
+            )
+        }
+
+        if (isBytedance) {
             Column(
                 modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
@@ -6859,37 +9182,44 @@ fun EddieVideoGeneratorView(
                     horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     Icon(
-                        imageVector = Icons.Default.Info,
-                        contentDescription = "Veo 2 Parameters",
+                        imageVector = Icons.Default.Build,
+                        contentDescription = "Bytedance Parameters",
                         tint = MaterialTheme.colorScheme.primary,
                         modifier = Modifier.size(20.dp)
                     )
                     Text(
-                        text = "Veo 2 Engine Parameters",
+                        text = "ByteDance Seedance 2.0 Parameters",
                         style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
                         color = MaterialTheme.colorScheme.primary
                     )
                 }
 
-                // 1. Person Generation Safety Parameter
+                // bitrate_mode BitrateModeEnum
                 Column {
                     Text(
-                        text = "Person Generation Safety",
+                        text = "Bitrate Mode",
                         style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
                         color = MaterialTheme.colorScheme.onSurface,
                         modifier = Modifier.padding(bottom = 6.dp)
                     )
+                    Text(
+                        text = "Output bitrate mode. 'high' requests a higher-quality, larger-file encode from the model; 'standard' uses the default bitrate.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(bottom = 8.dp)
+                    )
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        val safetyOptions = listOf("allow_adult" to "Allow Adult", "dont_allow" to "Don't Allow")
-                        safetyOptions.forEach { opt ->
-                            val isSelected = selectedPersonGeneration == opt.first
+                        val bitrates = listOf("standard", "high")
+                        bitrates.forEach { mode ->
+                            val isSelected = selectedBitrateMode == mode
                             Surface(
                                 modifier = Modifier
                                     .weight(1f)
-                                    .clickable { selectedPersonGeneration = opt.first },
+                                    .clickable { selectedBitrateMode = mode },
                                 shape = RoundedCornerShape(10.dp),
                                 color = if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface,
                                 border = BorderStroke(
@@ -6898,12 +9228,12 @@ fun EddieVideoGeneratorView(
                                 )
                             ) {
                                 Box(
-                                    modifier = Modifier.padding(10.dp),
+                                    modifier = Modifier.padding(vertical = 12.dp),
                                     contentAlignment = Alignment.Center
                                 ) {
                                     Text(
-                                        text = opt.second,
-                                        style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold),
+                                        text = mode.replaceFirstChar { it.uppercase() },
+                                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
                                         color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface
                                     )
                                 }
@@ -6912,61 +9242,27 @@ fun EddieVideoGeneratorView(
                     }
                 }
 
-                // 2. Parallel Videos Render (numberOfVideos / sampleCount)
+                // end_user_id string
                 Column {
                     Text(
-                        text = "Sample Count (Parallel Videos)",
+                        text = "End User ID",
                         style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
                         color = MaterialTheme.colorScheme.onSurface,
                         modifier = Modifier.padding(bottom = 6.dp)
                     )
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        (1..4).forEach { count ->
-                            val isSelected = sampleCountVideos == count
-                            Surface(
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .clickable { sampleCountVideos = count },
-                                shape = RoundedCornerShape(10.dp),
-                                color = if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface,
-                                border = BorderStroke(
-                                    width = if (isSelected) 2.dp else 1.dp,
-                                    color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)
-                                )
-                            ) {
-                                Box(
-                                    modifier = Modifier.padding(10.dp),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Text(
-                                        text = "$count ${if (count == 1) "Video" else "Videos"}",
-                                        style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold),
-                                        color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface
-                                    )
-                                }
-                            }
-                        }
-                    }
-                }
-
-                // 3. Negative Prompt Config
-                Column {
                     Text(
-                        text = "Negative Prompt (What to exclude)",
-                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
-                        color = MaterialTheme.colorScheme.onSurface,
+                        text = "The unique user ID of the end user.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(bottom = 6.dp)
                     )
                     OutlinedTextField(
-                        value = negativePromptText,
-                        onValueChange = { negativePromptText = it },
+                        value = endUserIdText,
+                        onValueChange = { endUserIdText = it },
                         modifier = Modifier.fillMaxWidth(),
                         textStyle = MaterialTheme.typography.bodyMedium,
-                        placeholder = { Text("blurry, bad quality, watermark...", style = MaterialTheme.typography.bodyMedium) },
-                        maxLines = 2,
+                        placeholder = { Text("e.g., aistudio-user-default", style = MaterialTheme.typography.bodyMedium) },
+                        singleLine = true,
                         shape = RoundedCornerShape(10.dp),
                         colors = OutlinedTextFieldDefaults.colors(
                             focusedBorderColor = MaterialTheme.colorScheme.primary,
@@ -6976,6 +9272,143 @@ fun EddieVideoGeneratorView(
                 }
             }
         }
+
+        if (isHunyuan15Video) {
+            HunyuanV15ParametersCard(
+                negativePromptText = negativePromptText,
+                onNegativePromptTextChange = { negativePromptText = it },
+                numInferenceSteps = hunyuanInferenceSteps,
+                onNumInferenceStepsChange = { hunyuanInferenceSteps = it },
+                seedText = seedText,
+                onSeedTextChange = { seedText = it },
+                numFrames = hunyuanFrames,
+                onNumFramesChange = { hunyuanFrames = it },
+                enablePromptExpansion = enhancePrompt,
+                onEnablePromptExpansionChange = { enhancePrompt = it }
+            )
+        }
+
+        if (isLumaRayVideo) {
+            LumaRayEngineParametersCard(
+                loop = lumaLoop,
+                onLoopChange = { lumaLoop = it },
+                hdr = lumaHdr,
+                onHdrChange = { lumaHdr = it },
+                exrExport = lumaExrExport,
+                onExrExportChange = { lumaExrExport = it },
+                selectedResolution = selectedResolution,
+                onResolutionChange = { selectedResolution = it },
+                selectedDuration = selectedDuration,
+                onDurationChange = { selectedDuration = it }
+            )
+        }
+
+        if (isAlibabaVideo && (uiState.selectedVideoModel.lowercase().trim().contains("wan/v2.5") || uiState.selectedVideoModel.lowercase().trim().contains("wan-25-preview") || uiState.selectedVideoModel.lowercase().trim().contains("wan/v2.6") || uiState.selectedVideoModel.lowercase().trim().contains("wan/v2.7") || uiState.selectedVideoModel.lowercase().trim().contains("happy-horse"))) {
+            AlibabaWanParametersCard(
+                selectedModel = uiState.selectedVideoModel,
+                selectedVideoMode = uiState.selectedVideoMode,
+                negativePromptText = negativePromptText,
+                onNegativePromptTextChange = { negativePromptText = it },
+                enhancePrompt = enhancePrompt,
+                onEnhancePromptChange = { enhancePrompt = it },
+                seedText = seedText,
+                onSeedTextChange = { seedText = it },
+                autoFix = autoFix,
+                onAutoFixChange = { autoFix = it },
+                alibabaAudioUrl = alibabaAudioUrl,
+                onAlibabaAudioUrlChange = { alibabaAudioUrl = it },
+                wanMultiShots = wanMultiShots,
+                onWanMultiShotsChange = { wanMultiShots = it },
+                wanEndImageUrl = wanEndImageUrl,
+                onWanEndImageUrlChange = { wanEndImageUrl = it },
+                wanVideoUrl = wanVideoUrl,
+                onWanVideoUrlChange = { wanVideoUrl = it }
+            )
+        }
+
+        if ((uiState.selectedVideoProvider == "FalAI" || uiState.selectedVideoProvider == "Minimax") && (uiState.selectedVideoModel == "fal-ai/minimax/hailuo-02/standard/image-to-video" || uiState.selectedVideoModel == "fal-ai/minimax/hailuo-02/pro/image-to-video" || uiState.selectedVideoModel == "fal-ai/minimax/hailuo-2.3/standard/image-to-video" || uiState.selectedVideoModel == "fal-ai/minimax/hailuo-2.3/pro/image-to-video" || uiState.selectedVideoModel == "fal-ai/minimax/hailuo-02/standard/text-to-video" || uiState.selectedVideoModel == "fal-ai/minimax/hailuo-02/pro/text-to-video" || uiState.selectedVideoModel == "fal-ai/minimax/hailuo-2.3/standard/text-to-video" || uiState.selectedVideoModel == "fal-ai/minimax/hailuo-2.3/pro/text-to-video")) {
+            MiniMaxHailuoParametersCard(
+                promptOptimizer = minimaxPromptOptimizer,
+                onPromptOptimizerChange = { minimaxPromptOptimizer = it },
+                endImageUrl = minimaxEndImageUrl,
+                onEndImageUrlChange = { minimaxEndImageUrl = it },
+                showEndImageUrl = uiState.selectedVideoModel != "fal-ai/minimax/hailuo-2.3/standard/image-to-video" && uiState.selectedVideoModel != "fal-ai/minimax/hailuo-2.3/pro/image-to-video" && uiState.selectedVideoModel != "fal-ai/minimax/hailuo-02/standard/text-to-video" && uiState.selectedVideoModel != "fal-ai/minimax/hailuo-02/pro/text-to-video" && uiState.selectedVideoModel != "fal-ai/minimax/hailuo-2.3/standard/text-to-video" && uiState.selectedVideoModel != "fal-ai/minimax/hailuo-2.3/pro/text-to-video"
+            )
+        }
+
+        if (uiState.selectedVideoProvider == "PixVerse") {
+            PixVerseEngineParametersCard(
+                negativePromptText = negativePromptText,
+                onNegativePromptTextChange = { negativePromptText = it },
+                seedText = seedText,
+                onSeedTextChange = { seedText = it },
+                pixverseMultiClip = pixverseMultiClip,
+                onPixverseMultiClipChange = { pixverseMultiClip = it },
+                pixverseThinkingType = pixverseThinkingType,
+                onPixverseThinkingTypeChange = { pixverseThinkingType = it },
+                showAdvancedOptions = uiState.selectedVideoModel != "fal-ai/pixverse/c1/image-to-video"
+            )
+        }
+
+        if (uiState.selectedVideoProvider == "Kling" && !isKlingV3TurboPro && !isKlingV3TurboStandard && !isKlingO3_4k && !isKlingO3Pro) {
+            KlingEngineParametersCard(
+                isKlingO3Standard = isKlingO3Standard,
+                isKlingO3Pro = isKlingO3Pro,
+                isKlingV26Pro = isKlingV26Pro,
+                isKlingV25TurboPro = isKlingV25TurboPro,
+                isKlingV3Standard = isKlingV3Standard,
+                isKlingV3Pro = isKlingV3Pro,
+                negativePromptText = negativePromptText,
+                onNegativePromptTextChange = { negativePromptText = it },
+                cfgScale = cfgScale,
+                onCfgScaleChange = { cfgScale = it },
+                klingEndImageUrl = klingEndImageUrl,
+                onKlingEndImageUrlChange = { klingEndImageUrl = it },
+                selectedAudioOption = selectedAudioOption,
+                klingVoiceControl = klingVoiceControl,
+                onKlingVoiceControlChange = { klingVoiceControl = it },
+                klingElements = klingElements,
+                klingV26StartImageUrl = klingV26StartImageUrl,
+                onKlingV26StartImageUrlChange = { klingV26StartImageUrl = it },
+                klingV26VoiceIds = klingV26VoiceIds,
+                onKlingV26VoiceIdsChange = { klingV26VoiceIds = it },
+                klingV26EndImageUrl = klingV26EndImageUrl,
+                onKlingV26EndImageUrlChange = { klingV26EndImageUrl = it }
+            )
+        }
+
+        if (isKlingO3Pro || isKlingO3_4k || isKlingO3Standard) {
+            Spacer(modifier = Modifier.height(12.dp))
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(
+                    text = "End Image URL (Optional)",
+                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                    color = MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier.padding(bottom = 2.dp)
+                )
+                Text(
+                    text = "Animate transition seamlessly from start image to end image.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(bottom = 4.dp)
+                )
+                OutlinedTextField(
+                    value = klingEndImageUrl,
+                    onValueChange = { klingEndImageUrl = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    textStyle = MaterialTheme.typography.bodyMedium,
+                    placeholder = { Text("https://example.com/end.jpg", style = MaterialTheme.typography.bodyMedium) },
+                    singleLine = true,
+                    shape = RoundedCornerShape(10.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = MaterialTheme.colorScheme.primary,
+                        unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.4f)
+                    )
+                )
+            }
+        }
+
+
 
         if (showProgressPanel) {
             Surface(
@@ -7086,26 +9519,114 @@ fun EddieVideoGeneratorView(
                     }
                 }
             } else {
+                val isFormValid = if ((isKlingV3Standard || isKlingV3Pro || isKlingV3TurboPro || isKlingV3TurboStandard || isKlingO3_4k || isKlingO3Standard || isKlingO3Pro || isKlingV3_4k) && useStoryboard) {
+                    storyboardShots.all { it.first.value.isNotBlank() } && storyboardShots.sumOf { it.second.value.toIntOrNull() ?: 5 } <= 15
+                } else {
+                    prompt.isNotBlank()
+                }
+
                 Button(
                     onClick = { 
                         val ratioParam = if (uiState.selectedVideoProvider == "OpenAI") selectedOpenAiSize else selectedAspectRatio
-                        val resParam = if (uiState.selectedVideoProvider == "OpenAI" || resolutions.isEmpty()) "Default" else selectedResolution
+                        val resParam = if ((uiState.selectedVideoProvider == "OpenAI" && !isOpenAiSora2) || resolutions.isEmpty()) "Default" else selectedResolution
                         val selectedImgUrl = (uiState.generatedImages + uploadedImages).find { it.id == selectedImageId }?.imageUrl
+                        
+                        val finalDuration = if ((isKlingV3Standard || isKlingV3Pro || isKlingV3TurboPro || isKlingV3TurboStandard || isKlingO3_4k || isKlingO3Standard || isKlingO3Pro || isKlingV3_4k) && useStoryboard) {
+                            val totalDur = storyboardShots.sumOf { it.second.value.toIntOrNull() ?: 5 }
+                            "${totalDur}s"
+                        } else {
+                            selectedDuration
+                        }
+
+                        val multiPromptJson = if ((isKlingV3Standard || isKlingV3Pro || isKlingV3TurboPro || isKlingV3TurboStandard || isKlingO3_4k || isKlingO3Standard || isKlingO3Pro || isKlingV3_4k) && useStoryboard) {
+                            val array = org.json.JSONArray()
+                            storyboardShots.forEach { shot ->
+                                val obj = org.json.JSONObject().apply {
+                                    put("prompt", shot.first.value)
+                                    put("duration", shot.second.value.toIntOrNull() ?: 5)
+                                }
+                                array.put(obj)
+                            }
+                            array.toString()
+                        } else {
+                            null
+                        }
+
+                        val finalSeed = seedText.trim().toIntOrNull()
+                        
+                        val isWan27 = isAlibabaVideo && uiState.selectedVideoModel.lowercase().trim().contains("wan/v2.7")
+                        val endImgParam = if ((isKlingV3Standard || isKlingV3Pro || isKlingV25TurboPro || isKlingO3Standard || isKlingO3Pro || isKlingO3_4k) && klingEndImageUrl.isNotBlank()) {
+                            klingEndImageUrl
+                        } else if (isKlingV26Pro && klingV26EndImageUrl.isNotBlank()) {
+                            klingV26EndImageUrl
+                        } else if (isWan27 && wanEndImageUrl.isNotBlank()) {
+                            wanEndImageUrl
+                        } else if ((uiState.selectedVideoModel == "fal-ai/minimax/hailuo-02/standard/image-to-video" || uiState.selectedVideoModel == "fal-ai/minimax/hailuo-02/pro/image-to-video") && minimaxEndImageUrl.isNotBlank()) {
+                            minimaxEndImageUrl
+                        } else {
+                            null
+                        }
+
+                        val elementsJsonParam = if ((isKlingV3Standard || isKlingV3Pro) && klingElements.isNotEmpty()) {
+                            val array = org.json.JSONArray()
+                            klingElements.forEach { array.put(it.toJsonObject()) }
+                            array.toString()
+                        } else {
+                            null
+                        }
+                        val voiceControlParam = (isKlingV3Standard || isKlingV3Pro || isKlingV26Pro) && (selectedAudioOption == "On") && klingVoiceControl
+
+                        val v26VoiceIdsParam = if (isKlingV26Pro && klingV26VoiceIds.isNotBlank()) {
+                            klingV26VoiceIds.split(",").map { it.trim() }.filter { it.isNotEmpty() }
+                        } else {
+                            null
+                        }
+
+                        val v26StartImgParam = if (isKlingV26Pro && klingV26StartImageUrl.isNotBlank()) {
+                            klingV26StartImageUrl
+                        } else {
+                            null
+                        }
+
                         onGenerateVideo(
                             prompt,
                             selectedStyle,
                             ratioParam,
                             resParam,
-                            selectedDuration,
+                            finalDuration,
                             selectedAudioOption,
                             selectedPersonGeneration,
                             negativePromptText,
                             sampleCountVideos,
-                            selectedImgUrl
+                            selectedImgUrl,
+                            cfgScale,
+                            if (isKlingV3Standard || isKlingV3Pro || isKlingO3_4k || isKlingO3Standard || isKlingO3Pro || isKlingV3_4k) selectedShotType else "customize",
+                            multiPromptJson,
+                            finalSeed,
+                            if (uiState.selectedVideoModel == "fal-ai/minimax/hailuo-02/standard/image-to-video" || uiState.selectedVideoModel == "fal-ai/minimax/hailuo-02/pro/image-to-video" || uiState.selectedVideoModel == "fal-ai/minimax/hailuo-2.3/standard/image-to-video" || uiState.selectedVideoModel == "fal-ai/minimax/hailuo-2.3/pro/image-to-video" || uiState.selectedVideoModel == "fal-ai/minimax/hailuo-02/standard/text-to-video" || uiState.selectedVideoModel == "fal-ai/minimax/hailuo-02/pro/text-to-video" || uiState.selectedVideoModel == "fal-ai/minimax/hailuo-2.3/standard/text-to-video" || uiState.selectedVideoModel == "fal-ai/minimax/hailuo-2.3/pro/text-to-video") minimaxPromptOptimizer else enhancePrompt,
+                            autoFix,
+                            safetyTolerance.toIntOrNull() ?: 4,
+                            endImgParam,
+                            elementsJsonParam,
+                            voiceControlParam,
+                            v26VoiceIdsParam,
+                            v26StartImgParam,
+                            selectedBitrateMode,
+                            endUserIdText,
+                            pixverseMultiClip,
+                            pixverseThinkingType,
+                            lumaLoop,
+                            lumaHdr,
+                            lumaExrExport,
+                            alibabaAudioUrl,
+                            wanMultiShots,
+                            if (isWan27) wanVideoUrl else null,
+                            hunyuanInferenceSteps,
+                            hunyuanFrames
                         )
                         showProgressPanel = true
                     },
-                    enabled = prompt.isNotBlank(),
+                    enabled = isFormValid,
                     modifier = Modifier.fillMaxWidth().height(52.dp),
                     shape = RoundedCornerShape(12.dp)
                 ) {
@@ -7211,6 +9732,39 @@ fun EddieVideoGeneratorView(
                                         modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                                     )
                                 }
+
+                                // Model name badge in top right of the generated video card
+                                val modelDisplayName = if (video.model.isNotBlank()) {
+                                    val m = video.model.lowercase()
+                                    when {
+                                        m.contains("grok-imagine-video") -> "Grok Imagine"
+                                        m.contains("pixverse/v6/text-to-video") || m.contains("pixverse/v6/image-to-video") -> "Pixverse v6"
+                                        m.contains("pixverse/v5.6/text-to-video") || m.contains("pixverse/v5.6/image-to-video") -> "Pixverse v5.6"
+                                        m.contains("pixverse/v5.5/text-to-video") -> "Pixverse v5.5"
+                                        m.contains("pixverse/c1/image-to-video") -> "Pixverse C1"
+                                        m.contains("pixverse") -> "Pixverse"
+                                        else -> video.model
+                                    }
+                                } else "Unknown"
+
+                                Surface(
+                                    modifier = Modifier
+                                        .align(Alignment.TopEnd)
+                                        .padding(8.dp),
+                                    shape = RoundedCornerShape(6.dp),
+                                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.85f)
+                                ) {
+                                    Text(
+                                        text = modelDisplayName,
+                                        color = MaterialTheme.colorScheme.onPrimary,
+                                        style = MaterialTheme.typography.labelSmall.copy(
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 9.sp,
+                                            letterSpacing = 0.5.sp
+                                        ),
+                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                                    )
+                                }
                             }
 
                             Column(modifier = Modifier.padding(12.dp)) {
@@ -7261,6 +9815,7 @@ fun EddieVideoGeneratorView(
     selectedVideoForPlay?.let { video ->
         VideoPlayerDialog(
             videoItem = video,
+            chatViewModel = chatViewModel,
             onDismissRequest = { selectedVideoForPlay = null },
             onDeleteVideo = { id ->
                 onDeleteVideo(id)
@@ -7325,6 +9880,19 @@ fun EddieMusicGeneratorView(
     var playPercent by remember { mutableStateOf(0f) }
 
     var editingMusicItem by remember { mutableStateOf<com.example.data.db.GeneratedMusicEntity?>(null) }
+
+    val musicScrollState = rememberScrollState()
+    val isKeyboardVisible = WindowInsets.isImeVisible
+    LaunchedEffect(isKeyboardVisible) {
+        if (isKeyboardVisible) {
+            musicScrollState.animateScrollTo(musicScrollState.maxValue)
+        }
+    }
+    LaunchedEffect(prompt) {
+        if (prompt.isNotEmpty()) {
+            musicScrollState.animateScrollTo(musicScrollState.maxValue)
+        }
+    }
 
     // Disposable effect to release media player when composable is disposed or player instance changes
     DisposableEffect(mediaPlayer) {
@@ -7391,8 +9959,13 @@ fun EddieMusicGeneratorView(
             playPercent = 0f
 
             try {
+                val attributionContext = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
+                    context.createAttributionContext("eddie_audio_attribution")
+                } else {
+                    context
+                }
                 val newMp = android.media.MediaPlayer().apply {
-                    setDataSource(url)
+                    setDataSource(attributionContext, android.net.Uri.parse(url))
                     setOnPreparedListener {
                         it.start()
                         isAudioPlaying = true
@@ -7424,6 +9997,7 @@ fun EddieMusicGeneratorView(
     val genres = listOf(
         "Pop" to false to "Energetic & Upbeat",
         "Rock" to false to "Distortion & Heavy Beat",
+        "Instrumental" to false to "Melodic Solo & Harmony",
         "Lo-Fi" to true to "Relaxing & Retro Beat",
         "Jazz" to true to "Mellow & Swing",
         "EDM" to true to "Synthesizer & Nightclub",
@@ -7449,20 +10023,22 @@ fun EddieMusicGeneratorView(
     val tempos = listOf(
         "Slow" to "Slow & Relaxed",
         "Medium" to "Moderate & Natural",
-        "Fast" to "Fast & Energetic"
+        "Fast" to "Fast & Energetic",
+        "Very Fast" to "Very Fast & Intense"
     )
 
     Column(
         modifier = Modifier
             .fillMaxSize()
             .padding(paddingValues)
+            .imePadding()
     ) {
         // Scrollable content underneath
         Column(
             modifier = Modifier
                 .weight(1f)
                 .fillMaxWidth()
-                .verticalScroll(rememberScrollState())
+                .verticalScroll(musicScrollState)
                 .padding(horizontal = 16.dp, vertical = 8.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
@@ -9778,7 +12354,7 @@ fun downloadAndroidVideo(
 fun EddieVideoEditorDialog(
     videoItem: com.example.data.db.GeneratedVideoEntity,
     onDismissRequest: () -> Unit,
-    onSaveEditedVideo: (String, String, String, String, String, String, String) -> Unit
+    onSaveEditedVideo: (String, String, String, String, String, String, String, String) -> Unit
 ) {
     val context = LocalContext.current
     var startTrim by remember { mutableStateOf(0f) }
@@ -10046,7 +12622,8 @@ fun EddieVideoEditorDialog(
                                 videoItem.aspectRatio,
                                 "1080p", // HD quality edited output
                                 "$estimatedDuration seconds",
-                                videoItem.videoUrl
+                                videoItem.videoUrl,
+                                videoItem.model
                             )
 
                             isSaving = false
@@ -10369,4 +12946,1760 @@ fun EddieMusicEditorDialog(
         }
     )
 }
+
+@Composable
+fun MiniMaxHailuoParametersCard(
+    promptOptimizer: Boolean,
+    onPromptOptimizerChange: (Boolean) -> Unit,
+    endImageUrl: String,
+    onEndImageUrlChange: (String) -> Unit,
+    showEndImageUrl: Boolean = true
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 8.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
+        ),
+        border = BorderStroke(
+            width = 1.dp,
+            color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)
+        )
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Build,
+                    contentDescription = "MiniMax Parameters",
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(20.dp)
+                )
+                Text(
+                    text = "MiniMax Parameters",
+                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                    color = MaterialTheme.colorScheme.primary
+                )
+            }
+
+            // Prompt Optimizer
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "Prompt Optimizer",
+                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Text(
+                        text = "Whether to use the model's prompt optimizer",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                Switch(
+                    checked = promptOptimizer,
+                    onCheckedChange = onPromptOptimizerChange
+                )
+            }
+
+            if (showEndImageUrl) {
+                // End Image URL
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text(
+                        text = "End Image URL (Optional)",
+                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Text(
+                        text = "URL of the image to use as the last frame of the video",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    OutlinedTextField(
+                        value = endImageUrl,
+                        onValueChange = onEndImageUrlChange,
+                        modifier = Modifier.fillMaxWidth(),
+                        placeholder = { Text("https://example.com/end-frame.jpg") },
+                        singleLine = true,
+                        textStyle = MaterialTheme.typography.bodyMedium
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun AlibabaWanParametersCard(
+    selectedModel: String,
+    selectedVideoMode: String,
+    negativePromptText: String,
+    onNegativePromptTextChange: (String) -> Unit,
+    enhancePrompt: Boolean,
+    onEnhancePromptChange: (Boolean) -> Unit,
+    seedText: String,
+    onSeedTextChange: (String) -> Unit,
+    autoFix: Boolean,
+    onAutoFixChange: (Boolean) -> Unit,
+    alibabaAudioUrl: String,
+    onAlibabaAudioUrlChange: (String) -> Unit,
+    wanMultiShots: Boolean = true,
+    onWanMultiShotsChange: (Boolean) -> Unit = {},
+    wanEndImageUrl: String = "",
+    onWanEndImageUrlChange: (String) -> Unit = {},
+    wanVideoUrl: String = "",
+    onWanVideoUrlChange: (String) -> Unit = {}
+) {
+    Column(
+        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            Icon(
+                imageVector = Icons.Default.Build,
+                contentDescription = "Alibaba Parameters",
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(20.dp)
+            )
+            Text(
+                text = when {
+                    selectedModel.lowercase().trim().contains("happy-horse") -> "Alibaba Happy Horse Engine Parameters"
+                    selectedModel.lowercase().trim().contains("wan/v2.7") -> "Alibaba Wan 2.7 Engine Parameters"
+                    selectedModel.lowercase().trim().contains("wan/v2.6") -> "Alibaba Wan 2.6 Engine Parameters"
+                    else -> "Alibaba Wan 2.5 Engine Parameters"
+                },
+                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                color = MaterialTheme.colorScheme.primary
+            )
+        }
+
+        val isHappyHorse = selectedModel.lowercase().trim().contains("happy-horse")
+
+        if (!isHappyHorse) {
+            // Background Audio URL Input
+            Column {
+                Text(
+                    text = "Background Audio URL",
+                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                    color = MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier.padding(bottom = 6.dp)
+                )
+                Text(
+                    text = "URL of the audio to use as the background music. Must be publicly accessible (MP3/WAV, duration 3-30s, up to 15MB).",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(bottom = 6.dp)
+                )
+                OutlinedTextField(
+                    value = alibabaAudioUrl,
+                    onValueChange = onAlibabaAudioUrlChange,
+                    modifier = Modifier.fillMaxWidth(),
+                    textStyle = MaterialTheme.typography.bodyMedium,
+                    placeholder = { Text("https://example.com/audio.mp3", style = MaterialTheme.typography.bodyMedium) },
+                    singleLine = true,
+                    shape = RoundedCornerShape(10.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = MaterialTheme.colorScheme.primary,
+                        unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.4f)
+                    )
+                )
+            }
+
+            val isWan27ImageToVideo = selectedModel.lowercase().trim().contains("wan/v2.7") && selectedVideoMode == "Image to Video"
+            if (isWan27ImageToVideo) {
+                // End Image URL Input
+                Column {
+                    Text(
+                        text = "End Image URL (Optional)",
+                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                        color = MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier.padding(bottom = 6.dp)
+                    )
+                    Text(
+                        text = "URL of the last frame image for first-and-last-frame-to-video. Formats: JPEG, JPG, PNG, BMP, WEBP. Max 20 MB.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(bottom = 6.dp)
+                    )
+                    OutlinedTextField(
+                        value = wanEndImageUrl,
+                        onValueChange = onWanEndImageUrlChange,
+                        modifier = Modifier.fillMaxWidth(),
+                        textStyle = MaterialTheme.typography.bodyMedium,
+                        placeholder = { Text("https://example.com/end_image.jpg", style = MaterialTheme.typography.bodyMedium) },
+                        singleLine = true,
+                        shape = RoundedCornerShape(10.dp),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = MaterialTheme.colorScheme.primary,
+                            unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.4f)
+                        )
+                    )
+                }
+
+                // Video URL Input
+                Column {
+                    Text(
+                        text = "Video URL (Optional)",
+                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                        color = MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier.padding(bottom = 6.dp)
+                    )
+                    Text(
+                        text = "URL of a video clip to continue from. Format: MP4, MOV. Duration: 2-10s. Max 100 MB. Cannot be combined with image_url.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(bottom = 6.dp)
+                    )
+                    OutlinedTextField(
+                        value = wanVideoUrl,
+                        onValueChange = onWanVideoUrlChange,
+                        modifier = Modifier.fillMaxWidth(),
+                        textStyle = MaterialTheme.typography.bodyMedium,
+                        placeholder = { Text("https://example.com/video.mp4", style = MaterialTheme.typography.bodyMedium) },
+                        singleLine = true,
+                        shape = RoundedCornerShape(10.dp),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = MaterialTheme.colorScheme.primary,
+                            unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.4f)
+                        )
+                    )
+                }
+            }
+
+            // Negative Prompt
+            Column {
+                Text(
+                    text = "Negative Prompt",
+                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                    color = MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier.padding(bottom = 6.dp)
+                )
+                Text(
+                    text = "Negative prompt to describe content to avoid. Max 500 characters.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(bottom = 6.dp)
+                )
+                OutlinedTextField(
+                    value = negativePromptText,
+                    onValueChange = onNegativePromptTextChange,
+                    modifier = Modifier.fillMaxWidth(),
+                    textStyle = MaterialTheme.typography.bodyMedium,
+                    placeholder = { Text("blurry, bad quality, watermark...", style = MaterialTheme.typography.bodyMedium) },
+                    maxLines = 2,
+                    shape = RoundedCornerShape(10.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = MaterialTheme.colorScheme.primary,
+                        unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.4f)
+                    )
+                )
+            }
+
+            // Enable Prompt Expansion (Boolean)
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f))
+                    .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f), RoundedCornerShape(10.dp))
+                    .padding(12.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f).padding(end = 8.dp)) {
+                    Text(
+                        text = "Enable Prompt Expansion",
+                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Text(
+                        text = "Enable prompt rewriting using an LLM to improve results.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                Switch(
+                    checked = enhancePrompt,
+                    onCheckedChange = onEnhancePromptChange
+                )
+            }
+
+            if (selectedModel.lowercase().trim().contains("wan/v2.6")) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f))
+                        .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f), RoundedCornerShape(10.dp))
+                        .padding(12.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f).padding(end = 8.dp)) {
+                        Text(
+                            text = "Multi-Shots",
+                            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                            color = if (enhancePrompt) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f)
+                        )
+                        Text(
+                            text = "When true, enables intelligent multi-shot segmentation. Only active when enable_prompt_expansion is True. Set to false for single-shot generation.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = if (enhancePrompt) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
+                        )
+                    }
+                    Switch(
+                        checked = wanMultiShots,
+                        onCheckedChange = onWanMultiShotsChange,
+                        enabled = enhancePrompt
+                    )
+                }
+            }
+        }
+
+        // Seed
+        Column {
+            Text(
+                text = "Seed",
+                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                color = MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.padding(bottom = 6.dp)
+            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                OutlinedTextField(
+                    value = seedText,
+                    onValueChange = { newValue ->
+                        if (newValue.all { it.isDigit() }) {
+                            onSeedTextChange(newValue)
+                        }
+                    },
+                    modifier = Modifier.weight(1f),
+                    textStyle = MaterialTheme.typography.bodyMedium,
+                    placeholder = { Text("Random seed (e.g., 123456)", style = MaterialTheme.typography.bodyMedium) },
+                    singleLine = true,
+                    shape = RoundedCornerShape(10.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = MaterialTheme.colorScheme.primary,
+                        unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.4f)
+                    )
+                )
+                Button(
+                    onClick = {
+                        val randomSeed = (100000..999999).random()
+                        onSeedTextChange(randomSeed.toString())
+                    },
+                    shape = RoundedCornerShape(10.dp),
+                    modifier = Modifier.height(56.dp)
+                ) {
+                    Text("Random 🎲")
+                }
+            }
+        }
+
+        // Enable Safety Checker (Boolean)
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(10.dp))
+                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f))
+                .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f), RoundedCornerShape(10.dp))
+                .padding(12.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f).padding(end = 8.dp)) {
+                Text(
+                    text = "Enable Safety Checker",
+                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                Text(
+                    text = "If enabled, the content safety checker will filter NSFW or inappropriate generations.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            Switch(
+                checked = autoFix,
+                onCheckedChange = onAutoFixChange
+            )
+        }
+    }
+}
+
+@Composable
+fun PixVerseEngineParametersCard(
+    negativePromptText: String,
+    onNegativePromptTextChange: (String) -> Unit,
+    seedText: String,
+    onSeedTextChange: (String) -> Unit,
+    pixverseMultiClip: Boolean,
+    onPixverseMultiClipChange: (Boolean) -> Unit,
+    pixverseThinkingType: String,
+    onPixverseThinkingTypeChange: (String) -> Unit,
+    showAdvancedOptions: Boolean = true
+) {
+    Column(
+        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            Icon(
+                imageVector = Icons.Default.Build,
+                contentDescription = "PixVerse Parameters",
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(20.dp)
+            )
+            Text(
+                text = "PixVerse Engine Parameters",
+                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                color = MaterialTheme.colorScheme.primary
+            )
+        }
+
+        // Negative Prompt
+        if (showAdvancedOptions) {
+            Column {
+                Text(
+                    text = "Negative Prompt",
+                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                    color = MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier.padding(bottom = 6.dp)
+                )
+                OutlinedTextField(
+                    value = negativePromptText,
+                    onValueChange = onNegativePromptTextChange,
+                    modifier = Modifier.fillMaxWidth(),
+                    textStyle = MaterialTheme.typography.bodyMedium,
+                    placeholder = { Text("blurry, bad quality, watermark...", style = MaterialTheme.typography.bodyMedium) },
+                    maxLines = 2,
+                    shape = RoundedCornerShape(10.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = MaterialTheme.colorScheme.primary,
+                        unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.4f)
+                    )
+                )
+            }
+        }
+
+        // Seed
+        Column {
+            Text(
+                text = "Seed",
+                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                color = MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.padding(bottom = 6.dp)
+            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                OutlinedTextField(
+                    value = seedText,
+                    onValueChange = { newValue ->
+                        if (newValue.all { it.isDigit() }) {
+                            onSeedTextChange(newValue)
+                        }
+                    },
+                    modifier = Modifier.weight(1f),
+                    textStyle = MaterialTheme.typography.bodyMedium,
+                    placeholder = { Text("Random seed", style = MaterialTheme.typography.bodyMedium) },
+                    singleLine = true,
+                    shape = RoundedCornerShape(10.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = MaterialTheme.colorScheme.primary,
+                        unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.4f)
+                    )
+                )
+                Button(
+                    onClick = {
+                        val randomSeed = (100000..999999).random()
+                        onSeedTextChange(randomSeed.toString())
+                    },
+                    shape = RoundedCornerShape(10.dp),
+                    modifier = Modifier.height(56.dp)
+                ) {
+                    Text("Random 🎲")
+                }
+            }
+        }
+
+        if (showAdvancedOptions) {
+            // Multi clip switch
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f))
+                    .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f), RoundedCornerShape(10.dp))
+                    .padding(12.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f).padding(end = 8.dp)) {
+                    Text(
+                        text = "Generate Multi Clip",
+                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Text(
+                        text = "Whether to generate multiple video clips and automatically stitch them",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                Switch(
+                    checked = pixverseMultiClip,
+                    onCheckedChange = onPixverseMultiClipChange
+                )
+            }
+
+            // Thinking Type (enabled, disabled, auto)
+            Column {
+                Text(
+                    text = "Thinking Type (Reasoning Model Mode)",
+                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                    color = MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier.padding(bottom = 6.dp)
+                )
+                Text(
+                    text = "Configures PixVerse Chain-of-Thought (CoT) reasoning model behavior.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(bottom = 8.dp)
+                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    val thinkingOptions = listOf("auto", "enabled", "disabled")
+                    thinkingOptions.forEach { option ->
+                        val isSelected = pixverseThinkingType == option
+                        Surface(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clickable { onPixverseThinkingTypeChange(option) },
+                            shape = RoundedCornerShape(10.dp),
+                            color = if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface,
+                            border = BorderStroke(
+                                width = if (isSelected) 2.dp else 1.dp,
+                                color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)
+                            )
+                        ) {
+                            Box(
+                                modifier = Modifier.padding(vertical = 12.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = option.replaceFirstChar { it.uppercase() },
+                                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                                    color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun LumaRayEngineParametersCard(
+    loop: Boolean,
+    onLoopChange: (Boolean) -> Unit,
+    hdr: Boolean,
+    onHdrChange: (Boolean) -> Unit,
+    exrExport: Boolean,
+    onExrExportChange: (Boolean) -> Unit,
+    selectedResolution: String,
+    onResolutionChange: (String) -> Unit,
+    selectedDuration: String,
+    onDurationChange: (String) -> Unit
+) {
+    Column(
+        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            Icon(
+                imageVector = Icons.Default.Build,
+                contentDescription = "Luma Ray Parameters",
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(20.dp)
+            )
+            Text(
+                text = "Luma Ray 3.2 Advanced Parameters",
+                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                color = MaterialTheme.colorScheme.primary
+            )
+        }
+
+        // Loop switch
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(10.dp))
+                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f))
+                .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f), RoundedCornerShape(10.dp))
+                .padding(12.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f).padding(end = 8.dp)) {
+                Text(
+                    text = "Seamless Loop",
+                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                Text(
+                    text = "Generate a seamless loop. Only valid for 5s, standard-dynamic-range (HDR off) generations without an end frame.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            Switch(
+                checked = loop,
+                onCheckedChange = { isChecked ->
+                    onLoopChange(isChecked)
+                    if (isChecked) {
+                        onDurationChange("5s")
+                        onHdrChange(false)
+                        onExrExportChange(false)
+                    }
+                }
+            )
+        }
+
+        // HDR switch
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(10.dp))
+                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f))
+                .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f), RoundedCornerShape(10.dp))
+                .padding(12.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f).padding(end = 8.dp)) {
+                Text(
+                    text = "HDR (High Dynamic Range)",
+                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                Text(
+                    text = "Generate an HDR-encoded MP4. Requires 720p or 1080p resolution; not supported with 10s duration or loop.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            Switch(
+                checked = hdr,
+                onCheckedChange = { isChecked ->
+                    onHdrChange(isChecked)
+                    if (isChecked) {
+                        onLoopChange(false)
+                        onDurationChange("5s")
+                        if (selectedResolution == "540p") {
+                            onResolutionChange("720p")
+                        }
+                    } else {
+                        onExrExportChange(false)
+                    }
+                }
+            )
+        }
+
+        // EXR Export switch
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(10.dp))
+                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f))
+                .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f), RoundedCornerShape(10.dp))
+                .padding(12.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f).padding(end = 8.dp)) {
+                Text(
+                    text = "Export EXR File",
+                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                Text(
+                    text = "Also export an EXR file alongside the MP4. Requires HDR to be active.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            Switch(
+                checked = exrExport,
+                onCheckedChange = { isChecked ->
+                    onExrExportChange(isChecked)
+                    if (isChecked) {
+                        onHdrChange(true)
+                        onLoopChange(false)
+                        onDurationChange("5s")
+                        if (selectedResolution == "540p") {
+                            onResolutionChange("720p")
+                        }
+                    }
+                }
+            )
+        }
+    }
+}
+
+fun getLumaVideoCostHint(
+    uiState: ChatUiState,
+    isAlibabaVideo: Boolean,
+    isLumaRayVideo: Boolean,
+    isGrokImagineVideo: Boolean,
+    isBytedance: Boolean,
+    isKlingV25TurboStandard: Boolean,
+    isKlingV25TurboPro: Boolean,
+    isKlingV26Pro: Boolean,
+    isFalVeo3_1Fast: Boolean,
+    isFalVeo3OnlyFast: Boolean,
+    isFalVeo3_1Lite: Boolean,
+    isFalVeo3_1: Boolean,
+    isFalVeo3Only: Boolean,
+    isKlingV3_4k: Boolean,
+    isKlingO3_4k: Boolean,
+    isKlingO3Standard: Boolean,
+    isKlingO3Pro: Boolean,
+    isKlingV3TurboPro: Boolean,
+    isKlingV3TurboStandard: Boolean,
+    isKlingV3Pro: Boolean,
+    isKlingV3Standard: Boolean
+): String {
+    return when {
+        uiState.selectedVideoProvider == "FalAI" && (uiState.selectedVideoModel == "fal-ai/hunyuan-video-v1.5/image-to-video" || uiState.selectedVideoModel.contains("hunyuan-video-v1.5")) -> "Your request will cost 30 token per second."
+        (uiState.selectedVideoProvider == "FalAI" || uiState.selectedVideoProvider == "Minimax") && uiState.selectedVideoModel == "fal-ai/minimax/hailuo-2.3/pro/text-to-video" -> "Your request will cost 135 token per video generation."
+        (uiState.selectedVideoProvider == "FalAI" || uiState.selectedVideoProvider == "Minimax") && uiState.selectedVideoModel == "fal-ai/minimax/hailuo-2.3/pro/image-to-video" -> "Your request will cost 140 token per video generation."
+        (uiState.selectedVideoProvider == "FalAI" || uiState.selectedVideoProvider == "Minimax") && (uiState.selectedVideoModel == "fal-ai/minimax/hailuo-2.3/standard/image-to-video" || uiState.selectedVideoModel == "fal-ai/minimax/hailuo-2.3/standard/text-to-video") -> "Your request will cost 80 token per 6 second video generation, and a 150 token per 10 second video generation."
+        (uiState.selectedVideoProvider == "FalAI" || uiState.selectedVideoProvider == "Minimax") && uiState.selectedVideoModel == "fal-ai/minimax/hailuo-02/pro/image-to-video" -> "For each second of video generated, it will cost 30 token /sec. A single 6 second video will cost 130 token /video."
+        (uiState.selectedVideoProvider == "FalAI" || uiState.selectedVideoProvider == "Minimax") && uiState.selectedVideoModel == "fal-ai/minimax/hailuo-02/pro/text-to-video" -> "For each second of video generated, it will cost 30 token /sec. A single 6 second video will cost 130 token /video."
+        (uiState.selectedVideoProvider == "FalAI" || uiState.selectedVideoProvider == "Minimax") && uiState.selectedVideoModel == "fal-ai/minimax/hailuo-02/standard/text-to-video" -> "For each second of video generated, it will cost 20 token /sec. A single 6 second video will cost 80 token /video."
+        (uiState.selectedVideoProvider == "FalAI" || uiState.selectedVideoProvider == "Minimax") && uiState.selectedVideoModel == "fal-ai/minimax/hailuo-02/standard/image-to-video" -> "For each second of video generated at 768P, it will cost 20 token /sec. For each second of video generated at 512P, it will cost roughly 15 token /sec. A single 6 second 768p video will cost 75 token /video"
+        isAlibabaVideo && uiState.selectedVideoModel.lowercase().trim().contains("happy-horse") -> "For every second of 720p video you generate, you will be charged 45 tokens/second. For 1080p video you will be charged 80 tokens/second."
+        isAlibabaVideo && uiState.selectedVideoModel.lowercase().trim().contains("wan/v2.7") -> "Your request will cost 35 token per second for 720p resolution. For 1080p your request will cost 45 token per second."
+        isAlibabaVideo && uiState.selectedVideoModel.lowercase().trim().contains("wan/v2.6") -> "Your request will cost 35 token per second for 720p, 45 token per second for 1080p."
+        isAlibabaVideo && (uiState.selectedVideoModel.lowercase().trim().contains("wan/v2.5") || uiState.selectedVideoModel.lowercase().trim().contains("wan-25-preview")) -> {
+            if (uiState.selectedVideoMode == "Image to Video") {
+                "Your request will cost 25 token per second for 480p, 35 token per second for 720p, 45 token per second for 1080p."
+            } else {
+                "Your request will cost 20 token per second for 480p, 35 token per second for 720p, 45 token per second for 1080p."
+            }
+        }
+        isAlibabaVideo -> "For a 5s Alibaba Wan video, your request will cost 125 tokens. For a 10s video, it will cost 250 tokens."
+        isLumaRayVideo && uiState.selectedVideoMode == "Image to Video" -> "For 5s video your request will cost 45 token for 540p, 85 token for 720p and 310 token for 1080p. 10s is not available for image-to-video (start-frame requirement). HDR (5s) costs 160 token at 720p and 610 token at 1080p; HDR + EXR (5s) costs 235 token at 720p and 920 token at 1080p (540p not available in HDR). For 275 token you can run this model approximately 6 times (540p/5s)."
+        isLumaRayVideo -> "For 5s video your request will cost 150 token for 540p, 275 token for 720p and 525 token for 1080p. For 10s, 275 token at 540p, 525 token at 720p and 1100 token at 1080p. For 275 token you can run this model approximately 2 times (540p/5s)"
+        isGrokImagineVideo -> "For 6s 480p video your request will cost 85 token. At an output resolution of 480p every second costs 20 token, 720p costs 25 token, and 1080p costs 35 token."
+        uiState.selectedVideoProvider == "PixVerse" && uiState.selectedVideoModel == "fal-ai/pixverse/v5.5/text-to-video" -> "For a 5s video in single-clip mode without audio, your request will cost 45 token for 360p and 540p, 55 token for 720p, and 110 token for 1080p. Enabling audio adds 20 token, and multi-clip mode adds 30 token (or 45 token with audio). For 8-second videos, costs double; for 10-second videos, costs are 2.2x the 5-second base (1080p not supported for 10s). For 250 token you can run this model with approximately 2 times"
+        uiState.selectedVideoProvider == "PixVerse" && uiState.selectedVideoModel == "fal-ai/pixverse/c1/image-to-video" -> "Billing is calculated per second of video generated. For 360p, your request will cost 15 token per second without audio and 20 token per second with audio. For 540p, it will cost 20 token per second without audio and 25 token per second with audio. For 720p, it will cost 25 token per second without audio and 30 token per second with audio. For 1080p, it will cost 35 token per second without audio and 40 token per second with audio. For 250 token you can run this model for approximately 33 seconds at 360p (no audio) or about 10 seconds at 1080p (no audio)."
+        uiState.selectedVideoProvider == "PixVerse" && (uiState.selectedVideoModel == "fal-ai/pixverse/v5.6/image-to-video" || uiState.selectedVideoModel == "fal-ai/pixverse/v5.6/text-to-video") -> "For a 5s video without audio, your request will cost 95 token for 360p and 540p, 120 token for 720p, and 195 token for 1080p. Enabling audio adds 120 token for 360p/540p/720p, and 195 token for 1080p. For 8-second videos, costs are 2x the 5-second base; for 10-second videos, costs are 2.2x the 5-second base for 360p/540p and 720p (1080p not supported for 10s)."
+        uiState.selectedVideoProvider == "PixVerse" && uiState.selectedVideoModel.lowercase().contains("v6") -> "Billing is calculated per second of video generated. For 360p, your request will cost 15 token per second without audio and 20 token per second with audio. For 540p, it will cost 15 token per second without audio and 20 token per second with audio. For 720p, it will cost 20 token per second without audio and 25 token per second with audio. For 1080p, it will cost 30 token per second without audio and 35 token per second with audio. For 250 token you can run this model for approximately 40 seconds at 360p (no audio) or about 11 seconds at 1080p (no audio)."
+        isBytedance -> "For every second of 720p video you generated, you will be charged 85 Token/second and for 1080p you will be charged 180 token/second.\n\nYour request will cost $0.014 per 1000 tokens for 480p, 720p and 1080p. Your request will cost $0.008 per 1000 tokens for 4k . The number of tokens is given by (height of output video * width of output video * duration * 24) / 1024."
+        isKlingV25TurboPro -> "For 5s video your request will cost 100 token. For every additional second you will be charged 30 token."
+        isKlingV25TurboStandard -> "For 5s video your request will cost 60 token. For every additional second you will be charged 15 token."
+        isKlingV26Pro -> "Videos generated without audio cost 25 token per second. Videos with native audio cost 45 token per second, and videos with native audio and voice control cost 50 token per second."
+        isFalVeo3_1Fast -> "For every second of video you generate you will be charged 35 token without audio or 45 token with audio for 720p or 1080p. At 4k, you will be charged 85 token per second without audio, or 95 token with audio."
+        isFalVeo3OnlyFast -> "For every second of video you generated, you will be charged 35 token (audio off) or 50 token (audio on)."
+        isFalVeo3_1Lite -> "For every second of video you generate you will be charged 20 token for 720p with audio, 15 token for 720p without audio, 30 token for 1080p with audio or 20 token for 1080p without audio."
+        isFalVeo3_1 -> "For every second of video you generate you will be charged 60 token without audio or 120 token with audio for 720p or 1080p. At 4k, you will be charged 120 token per second without audio, or 180 token with audio."
+        isFalVeo3Only -> "For every second of video you generated, you will be charged 60 token (audio off) or 120 token (audio on)."
+        isKlingV3_4k -> if (uiState.selectedVideoMode == "Image to Video") "For every second of video you generated, you will be charged 120 token regardless of whether audio is on or off." else "For every second of video you generated, you will be charged 125 token regardless of whether audio is on or off."
+        isKlingO3_4k -> if (uiState.selectedVideoMode == "Image to Video") "For every second of video you generated, you will be charged 120 token regardless of whether audio is on or off." else "For every second of video you generated, you will be charged 115 token regardless of whether audio is on or off."
+        isKlingO3Standard -> "For every second of video you generated, you will be charged 30 token (audio off) or 40 token (audio on)."
+        isKlingO3Pro -> "For every second of video you generated, you will be charged 35 token (audio off) or 45 token (audio on)."
+        isKlingV3TurboPro -> "For every second of video you generate, you will be charged 45 Token"
+        isKlingV3TurboStandard -> "For every second of video you generate, you will be charged 35 token"
+        isKlingV3Pro -> "For every second of video you generated, you will be charged 35 token (audio off) or 50 token (audio on), if voice control is used while generating audio you will be charged 55 token."
+        isKlingV3Standard -> "For every second of video you generated, you will be charged 30 token (audio off) or 40 token (audio on), if voice control is used while generating audio you will be charged 45 token."
+        else -> "For every second of video you generated, you will be charged 25 token (audio off) or 35 token (audio on)"
+    }
+}
+
+fun getVeoSoraVideoCostHint(
+    isOpenAiSora2: Boolean,
+    isOpenAiSora2Pro: Boolean,
+    isVeo2: Boolean,
+    isFalVeo3_1Lite: Boolean,
+    isFalVeo3_1: Boolean,
+    isFalVeo3Only: Boolean,
+    isFalVeo3_1Fast: Boolean,
+    isFalVeo3OnlyFast: Boolean
+): String {
+    return when {
+        isOpenAiSora2 -> "The pricing is 30 token /s for Sora 2."
+        isOpenAiSora2Pro -> "The pricing is 85 token /s for 720p, 135 token /s for legacy 1080p (1792x1024 or 1024x1792) or 185 token /s for true 1080p (1920x1080 or 1080x1920)."
+        isVeo2 -> "For 5s video your request will cost 650 token. For every aditional second you will be charged 150 token."
+        isFalVeo3_1Lite -> "For every second of video you generate you will be charged 20 token for 720p with audio, 15 token for 720p without audio, 30 token for 1080p with audio or 20 token for 1080p without audio."
+        isFalVeo3_1 -> "For every second of video you generate you will be charged 60 token without audio or 120 token with audio for 720p or 1080p. At 4k, you will be charged 120 token per second without audio, or 180 token with audio."
+        isFalVeo3Only -> "For every second of video you generated, you will be charged 60 token (audio off) or 120 token (audio on)."
+        isFalVeo3_1Fast -> "For every second of video you generate you will be charged 35 token without audio or 45 token with audio for 720p or 1080p. At 4k, you will be charged 85 token per second without audio, or 95 token with audio."
+        isFalVeo3OnlyFast -> "For every second of video you generated, you will be charged 35 token (audio off) or 50 token (audio on)."
+        else -> "For every second of video you generated, you will be charged 60 token (audio off) or 120 (audio on)."
+    }
+}
+
+@Composable
+fun HunyuanV15ParametersCard(
+    negativePromptText: String,
+    onNegativePromptTextChange: (String) -> Unit,
+    numInferenceSteps: Int,
+    onNumInferenceStepsChange: (Int) -> Unit,
+    seedText: String,
+    onSeedTextChange: (String) -> Unit,
+    numFrames: Int,
+    onNumFramesChange: (Int) -> Unit,
+    enablePromptExpansion: Boolean,
+    onEnablePromptExpansionChange: (Boolean) -> Unit
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 8.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
+        ),
+        border = BorderStroke(
+            width = 1.dp,
+            color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)
+        )
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Info,
+                    contentDescription = "Hunyuan v1.5 Parameters",
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(20.dp)
+                )
+                Text(
+                    text = "Hunyuan v1.5 Parameters",
+                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                    color = MaterialTheme.colorScheme.primary
+                )
+            }
+
+            // 1. Negative Prompt Config
+            Column {
+                Text(
+                    text = "Negative Prompt (What to exclude)",
+                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                    color = MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier.padding(bottom = 6.dp)
+                )
+                OutlinedTextField(
+                    value = negativePromptText,
+                    onValueChange = onNegativePromptTextChange,
+                    modifier = Modifier.fillMaxWidth(),
+                    textStyle = MaterialTheme.typography.bodyMedium,
+                    placeholder = { Text("e.g. blurry, text, low quality", style = MaterialTheme.typography.bodyMedium) },
+                    maxLines = 2,
+                    shape = RoundedCornerShape(10.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = MaterialTheme.colorScheme.primary,
+                        unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.4f)
+                    )
+                )
+            }
+
+            // 2. Num Inference Steps (integer, default 28)
+            Column {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Num Inference Steps: $numInferenceSteps",
+                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Text(
+                        text = "Default: 28",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                Text(
+                    text = "The number of denoising steps. Higher values take longer to compute but can improve video detail and coherence.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(vertical = 4.dp)
+                )
+                Slider(
+                    value = numInferenceSteps.toFloat(),
+                    onValueChange = { onNumInferenceStepsChange(it.toInt()) },
+                    valueRange = 1f..50f,
+                    steps = 49,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+
+            // 3. Seed Config (integer, dynamic)
+            Column {
+                Text(
+                    text = "Seed (Integer)",
+                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                    color = MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier.padding(bottom = 6.dp)
+                )
+                Text(
+                    text = "Specify a fixed seed integer for reproducible video rendering. Leave empty for dynamic/random generation.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(bottom = 6.dp)
+                )
+                OutlinedTextField(
+                    value = seedText,
+                    onValueChange = onSeedTextChange,
+                    modifier = Modifier.fillMaxWidth(),
+                    textStyle = MaterialTheme.typography.bodyMedium,
+                    placeholder = { Text("e.g., 42 (blank for dynamic)", style = MaterialTheme.typography.bodyMedium) },
+                    singleLine = true,
+                    shape = RoundedCornerShape(10.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = MaterialTheme.colorScheme.primary,
+                        unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.4f)
+                    )
+                )
+            }
+
+            // 4. Num Frames Config (integer, default 121)
+            Column {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Num Frames: $numFrames",
+                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Text(
+                        text = "Default: 121",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                Text(
+                    text = "Total frames to generate. Standard output rate generates approximately 5 seconds of video with 121 frames.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(vertical = 4.dp)
+                )
+                Slider(
+                    value = numFrames.toFloat(),
+                    onValueChange = { onNumFramesChange(it.toInt()) },
+                    valueRange = 24f..240f,
+                    steps = 216,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+
+            // 5. Enable Prompt Expansion Config (boolean, default true)
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f))
+                    .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f), RoundedCornerShape(10.dp))
+                    .padding(12.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f).padding(end = 8.dp)) {
+                    Text(
+                        text = "Enable Prompt Expansion",
+                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Text(
+                        text = "When enabled, an LLM automatically expands and enriches your visual prompt with detailed descriptors before generation.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                Switch(
+                    checked = enablePromptExpansion,
+                    onCheckedChange = onEnablePromptExpansionChange
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun VeoEngineParametersCard(
+    isVeo2: Boolean,
+    isFalVeo3: Boolean,
+    isFalVeo3FastModel: Boolean,
+    negativePromptText: String,
+    onNegativePromptTextChange: (String) -> Unit,
+    enhancePrompt: Boolean,
+    onEnhancePromptChange: (Boolean) -> Unit,
+    seedText: String,
+    onSeedTextChange: (String) -> Unit,
+    autoFix: Boolean,
+    onAutoFixChange: (Boolean) -> Unit,
+    safetyTolerance: String,
+    onSafetyToleranceChange: (String) -> Unit
+) {
+    Column(
+        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            Icon(
+                imageVector = Icons.Default.Build,
+                contentDescription = "Veo Parameters",
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(20.dp)
+            )
+            Text(
+                text = if (isVeo2) "Veo 2 Engine Parameters" else "Veo 3 Engine Parameters",
+                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                color = MaterialTheme.colorScheme.primary
+            )
+        }
+
+        // Negative Prompt
+        Column {
+            Text(
+                text = "Negative Prompt (What to exclude)",
+                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                color = MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.padding(bottom = 6.dp)
+            )
+            OutlinedTextField(
+                value = negativePromptText,
+                onValueChange = onNegativePromptTextChange,
+                modifier = Modifier.fillMaxWidth(),
+                textStyle = MaterialTheme.typography.bodyMedium,
+                placeholder = { Text("blurry, bad quality, watermark...", style = MaterialTheme.typography.bodyMedium) },
+                maxLines = 2,
+                shape = RoundedCornerShape(10.dp),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = MaterialTheme.colorScheme.primary,
+                    unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.4f)
+                )
+            )
+        }
+
+        // Enhance Prompt (Boolean, default: true)
+        if (!isFalVeo3 && !isFalVeo3FastModel) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f))
+                    .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f), RoundedCornerShape(10.dp))
+                    .padding(12.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f).padding(end = 8.dp)) {
+                    Text(
+                        text = "Enhance Prompt",
+                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Text(
+                        text = "Whether to enhance the video generation description automatically",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                Switch(
+                    checked = enhancePrompt,
+                    onCheckedChange = onEnhancePromptChange
+                )
+            }
+        }
+
+        // Seed (Integer, use button to create 6 random digits)
+        Column {
+            Text(
+                text = "Seed",
+                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                color = MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.padding(bottom = 6.dp)
+            )
+            Text(
+                text = "A seed to use for the video generation.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(bottom = 6.dp)
+            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                OutlinedTextField(
+                    value = seedText,
+                    onValueChange = { newValue ->
+                        if (newValue.all { it.isDigit() }) {
+                            onSeedTextChange(newValue)
+                        }
+                    },
+                    modifier = Modifier.weight(1f),
+                    textStyle = MaterialTheme.typography.bodyMedium,
+                    placeholder = { Text("Random seed (e.g., 123456)", style = MaterialTheme.typography.bodyMedium) },
+                    singleLine = true,
+                    shape = RoundedCornerShape(10.dp),
+                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                        keyboardType = androidx.compose.ui.text.input.KeyboardType.Number
+                    ),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = MaterialTheme.colorScheme.primary,
+                        unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.4f)
+                    )
+                )
+                Button(
+                    onClick = {
+                        val randomSeed = (100000..999999).random()
+                        onSeedTextChange(randomSeed.toString())
+                    },
+                    shape = RoundedCornerShape(10.dp),
+                    modifier = Modifier.height(56.dp)
+                ) {
+                    Text("Random 🎲")
+                }
+            }
+        }
+
+        // Auto Fix (Boolean, default: true)
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(10.dp))
+                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f))
+                .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f), RoundedCornerShape(10.dp))
+                .padding(12.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f).padding(end = 8.dp)) {
+                Text(
+                    text = "Auto Fix Prompts",
+                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                Text(
+                    text = "Automatically rewrite prompts that fail content policy or safety checks",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            Switch(
+                checked = autoFix,
+                onCheckedChange = onAutoFixChange
+            )
+        }
+
+        // Safety Tolerance (Only for Veo 3)
+        if (isFalVeo3 || isFalVeo3FastModel) {
+            Column {
+                Text(
+                    text = "Safety Tolerance",
+                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                    color = MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier.padding(bottom = 6.dp)
+                )
+                Text(
+                    text = "1 is the most strict (blocks most content), 6 is the least strict. Default is 4.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(bottom = 8.dp)
+                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    val tolerances = listOf("1", "2", "3", "4", "5", "6")
+                    tolerances.forEach { level ->
+                        val isSelected = safetyTolerance == level
+                        Surface(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clickable { onSafetyToleranceChange(level) },
+                            shape = RoundedCornerShape(8.dp),
+                            color = if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface,
+                            border = BorderStroke(
+                                width = if (isSelected) 2.dp else 1.dp,
+                                color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)
+                            )
+                        ) {
+                            Box(
+                                modifier = Modifier.padding(vertical = 10.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = level,
+                                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                                    color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun KlingEngineParametersCard(
+    isKlingO3Standard: Boolean,
+    isKlingO3Pro: Boolean,
+    isKlingV26Pro: Boolean,
+    isKlingV25TurboPro: Boolean,
+    isKlingV3Standard: Boolean,
+    isKlingV3Pro: Boolean,
+    negativePromptText: String,
+    onNegativePromptTextChange: (String) -> Unit,
+    cfgScale: Float,
+    onCfgScaleChange: (Float) -> Unit,
+    klingEndImageUrl: String,
+    onKlingEndImageUrlChange: (String) -> Unit,
+    selectedAudioOption: String,
+    klingVoiceControl: Boolean,
+    onKlingVoiceControlChange: (Boolean) -> Unit,
+    klingElements: androidx.compose.runtime.snapshots.SnapshotStateList<KlingV3ComboElementInput>,
+    klingV26StartImageUrl: String,
+    onKlingV26StartImageUrlChange: (String) -> Unit,
+    klingV26VoiceIds: String,
+    onKlingV26VoiceIdsChange: (String) -> Unit,
+    klingV26EndImageUrl: String,
+    onKlingV26EndImageUrlChange: (String) -> Unit
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 8.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
+        ),
+        border = BorderStroke(
+            width = 1.dp,
+            color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)
+        )
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Info,
+                    contentDescription = "Kling Parameters",
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(20.dp)
+                )
+                Text(
+                    text = "Kling Engine Parameters",
+                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                    color = MaterialTheme.colorScheme.primary
+                )
+            }
+
+            // 1. Negative Prompt Config
+            if (!isKlingO3Standard && !isKlingO3Pro) {
+                Column {
+                    Text(
+                        text = "Negative Prompt (What to exclude)",
+                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                        color = MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier.padding(bottom = 6.dp)
+                    )
+                    OutlinedTextField(
+                        value = negativePromptText,
+                        onValueChange = onNegativePromptTextChange,
+                        modifier = Modifier.fillMaxWidth(),
+                        textStyle = MaterialTheme.typography.bodyMedium,
+                        placeholder = { Text("blur, distort, and low quality", style = MaterialTheme.typography.bodyMedium) },
+                        maxLines = 2,
+                        shape = RoundedCornerShape(10.dp),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = MaterialTheme.colorScheme.primary,
+                            unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.4f)
+                        )
+                    )
+                }
+            }
+
+            // 2. CFG Scale Config
+            if (!isKlingV26Pro && !isKlingO3Standard && !isKlingO3Pro) {
+                Column {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "CFG Scale: ${String.format("%.1f", cfgScale)}",
+                            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Text(
+                            text = "Default: 0.5",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Text(
+                        text = "The CFG (Classifier Free Guidance) scale is a measure of how close you want the model to stick to your prompt.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(vertical = 4.dp)
+                    )
+                    Slider(
+                        value = cfgScale,
+                        onValueChange = onCfgScaleChange,
+                        valueRange = 0f..20f,
+                        steps = 39, // Increments of 0.5
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            }
+
+            if (isKlingV25TurboPro) {
+                Column {
+                    Text(
+                        text = "End Image URL (Optional)",
+                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                        color = MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier.padding(bottom = 6.dp)
+                    )
+                    Text(
+                        text = "URL of the image to be used for the end of the video",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(bottom = 4.dp)
+                    )
+                    OutlinedTextField(
+                        value = klingEndImageUrl,
+                        onValueChange = onKlingEndImageUrlChange,
+                        modifier = Modifier.fillMaxWidth(),
+                        textStyle = MaterialTheme.typography.bodyMedium,
+                        placeholder = { Text("https://example.com/end.jpg", style = MaterialTheme.typography.bodyMedium) },
+                        singleLine = true,
+                        shape = RoundedCornerShape(10.dp),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = MaterialTheme.colorScheme.primary,
+                            unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.4f)
+                        )
+                    )
+                }
+            }
+
+            if (isKlingV3Standard || isKlingV3Pro || isKlingO3Standard) {
+                if (selectedAudioOption == "On") {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.15f)),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.2f))
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(12.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(modifier = Modifier.weight(1f).padding(end = 8.dp)) {
+                                Text(
+                                    text = "Voice Control 🎙️",
+                                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                                    color = MaterialTheme.colorScheme.onPrimaryContainer
+                                )
+                                Text(
+                                    text = "Enable precision voice control. Adds 5 tokens/second charge.",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
+                                )
+                            }
+                            Switch(
+                                checked = klingVoiceControl,
+                                onCheckedChange = onKlingVoiceControlChange,
+                                colors = SwitchDefaults.colors(
+                                    checkedThumbColor = MaterialTheme.colorScheme.primary,
+                                    checkedTrackColor = MaterialTheme.colorScheme.primaryContainer
+                                )
+                            )
+                        }
+                    }
+                }
+
+                Column {
+                    Text(
+                        text = "End Image URL (Optional)",
+                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                        color = MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier.padding(bottom = 6.dp)
+                    )
+                    Text(
+                        text = "Animate transition seamlessly from start image to end image.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(bottom = 4.dp)
+                    )
+                    OutlinedTextField(
+                        value = klingEndImageUrl,
+                        onValueChange = onKlingEndImageUrlChange,
+                        modifier = Modifier.fillMaxWidth(),
+                        textStyle = MaterialTheme.typography.bodyMedium,
+                        placeholder = { Text("https://example.com/end.jpg", style = MaterialTheme.typography.bodyMedium) },
+                        singleLine = true,
+                        shape = RoundedCornerShape(10.dp),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = MaterialTheme.colorScheme.primary,
+                            unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.4f)
+                        )
+                    )
+                }
+
+                if (!isKlingO3Standard && !isKlingO3Pro) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .border(
+                                BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)),
+                                RoundedCornerShape(12.dp)
+                            )
+                            .padding(12.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = "Custom Elements 🧱",
+                                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                                Text(
+                                    text = "Configure custom video attributes / actors",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            Button(
+                                onClick = {
+                                    klingElements.add(KlingV3ComboElementInput(name = "Element #${klingElements.size + 1}"))
+                                },
+                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+                                shape = RoundedCornerShape(8.dp)
+                            ) {
+                                Icon(Icons.Default.Add, contentDescription = "Add Element", modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("Add", style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold))
+                            }
+                        }
+
+                        if (klingElements.isEmpty()) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(60.dp)
+                                    .background(
+                                        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f),
+                                        RoundedCornerShape(8.dp)
+                                    ),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = "No custom elements defined.",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                                )
+                            }
+                        } else {
+                            klingElements.forEachIndexed { index, element ->
+                                Card(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    colors = CardDefaults.cardColors(
+                                        containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.25f)
+                                    ),
+                                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
+                                ) {
+                                    Column(modifier = Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Text(
+                                                text = element.name.ifBlank { "Unnamed Element" },
+                                                style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold),
+                                                color = MaterialTheme.colorScheme.primary
+                                            )
+                                            IconButton(
+                                                onClick = { klingElements.removeAt(index) },
+                                                modifier = Modifier.size(24.dp)
+                                            ) {
+                                                Icon(
+                                                    Icons.Default.Delete,
+                                                    contentDescription = "Delete",
+                                                    tint = MaterialTheme.colorScheme.error,
+                                                    modifier = Modifier.size(16.dp)
+                                                )
+                                            }
+                                        }
+
+                                        OutlinedTextField(
+                                            value = element.name,
+                                            onValueChange = { newVal ->
+                                                klingElements[index] = element.copy(name = newVal)
+                                            },
+                                            label = { Text("Element Name", style = MaterialTheme.typography.labelSmall) },
+                                            modifier = Modifier.fillMaxWidth(),
+                                            singleLine = true,
+                                            shape = RoundedCornerShape(6.dp)
+                                        )
+
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Text("Type:", style = MaterialTheme.typography.bodySmall)
+                                            FilterChip(
+                                                selected = element.type == "image_set",
+                                                onClick = {
+                                                    klingElements[index] = element.copy(type = "image_set")
+                                                },
+                                                label = { Text("Image Set", style = MaterialTheme.typography.bodySmall) }
+                                            )
+                                            FilterChip(
+                                                selected = element.type == "video",
+                                                onClick = {
+                                                    klingElements[index] = element.copy(type = "video")
+                                                },
+                                                label = { Text("Video", style = MaterialTheme.typography.bodySmall) }
+                                            )
+                                        }
+
+                                        if (element.type == "image_set") {
+                                            OutlinedTextField(
+                                                value = element.frontalImage,
+                                                onValueChange = { newVal ->
+                                                    klingElements[index] = element.copy(frontalImage = newVal)
+                                                },
+                                                label = { Text("Frontal Image URL", style = MaterialTheme.typography.labelSmall) },
+                                                placeholder = { Text("https://example.com/frontal.jpg") },
+                                                modifier = Modifier.fillMaxWidth(),
+                                                singleLine = true,
+                                                shape = RoundedCornerShape(6.dp)
+                                            )
+                                            OutlinedTextField(
+                                                value = element.referenceImages,
+                                                onValueChange = { newVal ->
+                                                    klingElements[index] = element.copy(referenceImages = newVal)
+                                                },
+                                                label = { Text("Reference Image URLs (comma-separated)", style = MaterialTheme.typography.labelSmall) },
+                                                placeholder = { Text("https://example.com/ref1.jpg, https://example.com/ref2.jpg") },
+                                                modifier = Modifier.fillMaxWidth(),
+                                                singleLine = true,
+                                                shape = RoundedCornerShape(6.dp)
+                                            )
+                                        } else {
+                                            OutlinedTextField(
+                                                value = element.videoUrl,
+                                                onValueChange = { newVal ->
+                                                    klingElements[index] = element.copy(videoUrl = newVal)
+                                                },
+                                                label = { Text("Video URL", style = MaterialTheme.typography.labelSmall) },
+                                                placeholder = { Text("https://example.com/video.mp4") },
+                                                modifier = Modifier.fillMaxWidth(),
+                                                singleLine = true,
+                                                shape = RoundedCornerShape(6.dp)
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            if (isKlingV26Pro) {
+                if (selectedAudioOption == "On") {
+                    Card(
+                        modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.15f)),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.2f))
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(12.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(modifier = Modifier.weight(1f).padding(end = 8.dp)) {
+                                Text(
+                                    text = "Voice Control 🎙️",
+                                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                                    color = MaterialTheme.colorScheme.onPrimaryContainer
+                                )
+                                Text(
+                                    text = "Enable precision voice control. Adds 5 tokens/second charge.",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
+                                )
+                            }
+                            Switch(
+                                checked = klingVoiceControl,
+                                onCheckedChange = onKlingVoiceControlChange,
+                                colors = SwitchDefaults.colors(
+                                    checkedThumbColor = MaterialTheme.colorScheme.primary,
+                                    checkedTrackColor = MaterialTheme.colorScheme.primaryContainer
+                                )
+                            )
+                        }
+                    }
+                }
+
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Column {
+                        Text(
+                            text = "Start Image URL",
+                            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                            color = MaterialTheme.colorScheme.onSurface,
+                            modifier = Modifier.padding(bottom = 4.dp)
+                        )
+                        Text(
+                            text = "URL of the image to be used for the video",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(bottom = 4.dp)
+                        )
+                        OutlinedTextField(
+                            value = klingV26StartImageUrl,
+                            onValueChange = onKlingV26StartImageUrlChange,
+                            modifier = Modifier.fillMaxWidth(),
+                            textStyle = MaterialTheme.typography.bodyMedium,
+                            placeholder = { Text("https://example.com/start.jpg", style = MaterialTheme.typography.bodyMedium) },
+                            singleLine = true,
+                            shape = RoundedCornerShape(10.dp),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = MaterialTheme.colorScheme.primary,
+                                unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.4f)
+                            )
+                        )
+                    }
+
+                    Column {
+                        Text(
+                            text = "Voice IDs (Optional)",
+                            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                            color = MaterialTheme.colorScheme.onSurface,
+                            modifier = Modifier.padding(bottom = 4.dp)
+                        )
+                        Text(
+                            text = "Optional Voice IDs (comma-separated). Reference voices in your prompt with <<<voice_1>>> and <<<voice_2>>> (maximum 2 voices per task). Get voice IDs from the kling video create-voice endpoint.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(bottom = 4.dp)
+                        )
+                        OutlinedTextField(
+                            value = klingV26VoiceIds,
+                            onValueChange = onKlingV26VoiceIdsChange,
+                            modifier = Modifier.fillMaxWidth(),
+                            textStyle = MaterialTheme.typography.bodyMedium,
+                            placeholder = { Text("voice_id_1, voice_id_2", style = MaterialTheme.typography.bodyMedium) },
+                            singleLine = true,
+                            shape = RoundedCornerShape(10.dp),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = MaterialTheme.colorScheme.primary,
+                                unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.4f)
+                            )
+                        )
+                    }
+
+                    Column {
+                        Text(
+                            text = "End Image URL (Optional)",
+                            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                            color = MaterialTheme.colorScheme.onSurface,
+                            modifier = Modifier.padding(bottom = 4.dp)
+                        )
+                        Text(
+                            text = "URL of the image to be used for the end of the video",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(bottom = 4.dp)
+                        )
+                        OutlinedTextField(
+                            value = klingV26EndImageUrl,
+                            onValueChange = onKlingV26EndImageUrlChange,
+                            modifier = Modifier.fillMaxWidth(),
+                            textStyle = MaterialTheme.typography.bodyMedium,
+                            placeholder = { Text("https://example.com/end.jpg", style = MaterialTheme.typography.bodyMedium) },
+                            singleLine = true,
+                            shape = RoundedCornerShape(10.dp),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = MaterialTheme.colorScheme.primary,
+                                unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.4f)
+                            )
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
 

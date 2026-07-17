@@ -44,39 +44,6 @@ data class GeminiModel(
 )
 
 val availableModels = listOf(
-    // Gemini
-    GeminiModel(
-        displayName = "Gemini 2.5 Pro",
-        apiValue = "gemini-2.5-pro",
-        subtitle = "Advanced model designed for coding/complex tasks.",
-        provider = "Gemini",
-        isPro = true,
-        tokenPrice = "Free (No Token Cost)"
-    ),
-    GeminiModel(
-        displayName = "Gemini 2.5 Flash",
-        apiValue = "gemini-2.5-flash",
-        subtitle = "High-speed and cost-effective model for diverse developer tasks.",
-        provider = "Gemini",
-        isPro = false,
-        tokenPrice = "Free (No Token Cost)"
-    ),
-    GeminiModel(
-        displayName = "Gemini 3.1 Pro Preview",
-        apiValue = "gemini-3.1-pro-preview",
-        subtitle = "A preview of our ultimate, highly sophisticated future model.",
-        provider = "Gemini",
-        isPro = true,
-        tokenPrice = "Free (No Token Cost)"
-    ),
-    GeminiModel(
-        displayName = "Gemini 3 Flash Preview",
-        apiValue = "gemini-3-flash-preview",
-        subtitle = "Next-generation fast model optimized for real-time applications.",
-        provider = "Gemini",
-        isPro = false,
-        tokenPrice = "Free (No Token Cost)"
-    ),
     // OpenAI
     GeminiModel(
         displayName = "GPT 5 Mini",
@@ -207,11 +174,42 @@ data class CulinaryRecipe(
     val dietaryTags: List<String> = emptyList() // "Vegetarian", "Keto", "Gluten-Free", "Vegan"
 )
 
+data class InteriorChatMessage(
+    val id: String = java.util.UUID.randomUUID().toString(),
+    val sender: String, // "user" or "assistant"
+    val text: String,
+    val timestamp: Long = System.currentTimeMillis()
+)
+
+data class AvatarStudioVideo(
+    val id: String = java.util.UUID.randomUUID().toString(),
+    val avatarName: String,
+    val avatarUrl: String,
+    val script: String,
+    val language: String,
+    val voice: String,
+    val backgroundName: String,
+    val backgroundUrl: String,
+    val durationSeconds: Int,
+    val videoUrl: String = "",
+    val createdAt: Long = System.currentTimeMillis()
+)
+
+data class ShoppableItem(
+    val id: String = java.util.UUID.randomUUID().toString(),
+    val name: String,
+    val price: String,
+    val merchant: String,
+    val imageUrl: String,
+    val rating: Float = 4.5f,
+    val shopUrl: String = "https://www.google.com/search?tbm=shop&q="
+)
+
 data class ChatUiState(
     val sessions: List<ChatSession> = emptyList(),
     val currentSessionId: String = "",
     val isLoading: Boolean = false,
-    val selectedModel: GeminiModel = availableModels[0], // Default is Gemini 3.5 Flash
+    val selectedModel: GeminiModel = availableModels[0], // Default is GPT 5 Mini
     val customSystemInstruction: String = "You are Eddie, a helpful and expert AI Assistant. Please use Indonesian if requested, or Markdown formatting for easy reading.",
     val customApiKey: String = "",
     val geminiApiKey: String = "",
@@ -234,20 +232,20 @@ data class ChatUiState(
     val subscriptionExpiryDate: String? = "Permanent (Testing Phase)",
     val userTokens: Double = 999999.0,
     val generatedImages: List<com.example.data.db.GeneratedImageEntity> = emptyList(),
-    val selectedImageProvider: String = "Gemini",
-    val selectedImageModel: String = "imagen3",
+    val selectedImageProvider: String = "OpenAI",
+    val selectedImageModel: String = "gpt-image-1.5",
     val imageGenIsLoading: Boolean = false,
     val imageGenLog: String = "",
-    val imageGenEngine: String = "Google Imagen 3", // Options: "Google Imagen 3" (Premium Fallback)
+    val imageGenEngine: String = "OpenAI GPT Image 1.5", 
     val generatedVideos: List<com.example.data.db.GeneratedVideoEntity> = emptyList(),
     val selectedVideoMode: String = "Text to Video",
-    val selectedVideoProvider: String = "OpenAI",
-    val selectedVideoModel: String = "Sora 2",
+    val selectedVideoProvider: String = "Veo",
+    val selectedVideoModel: String = "fal-ai/veo3.1/lite",
     val videoGenIsLoading: Boolean = false,
     val videoGenLog: String = "",
     val generatedMusic: List<com.example.data.db.GeneratedMusicEntity> = emptyList(),
-    val selectedMusicProvider: String = "Gemini",
-    val selectedMusicModel: String = "Lyria 3 pro",
+    val selectedMusicProvider: String = "Suno AI",
+    val selectedMusicModel: String = "Chirp v3",
     val musicGenIsLoading: Boolean = false,
     val musicGenLog: String = "",
     val codeSelectedLanguage: String = "Kotlin",
@@ -256,6 +254,18 @@ data class ChatUiState(
     val codeOutput: String = "",
     val codeIsLoading: Boolean = false,
     val codeFreeQueriesLeft: Int = 3,
+
+    // Interior Designer State Properties
+    val interiorDesigns: List<com.example.data.db.InteriorDesignEntity> = emptyList(),
+    val interiorSelectedDesignId: String? = null,
+    val interiorOriginalBitmap: android.graphics.Bitmap? = null,
+    val interiorOriginalUri: android.net.Uri? = null,
+    val interiorSelectedStyle: String = "Scandinavian",
+    val interiorIsAnalyzing: Boolean = false,
+    val interiorError: String = "",
+    val interiorChatMessages: List<InteriorChatMessage> = emptyList(),
+    val interiorShoppableItems: List<ShoppableItem> = emptyList(),
+    val interiorReimaginedImageUrls: Map<String, String> = emptyMap(),
     
     // Language Learning State Properties
     val languageSelectedLocale: String = "Spanish",
@@ -351,6 +361,12 @@ data class ChatUiState(
     val talkingHeadIsPlaying: Boolean = false,
     val talkingHeadImageUrl: String = "",
 
+    // AI Avatar Studio State
+    val avatarStudioVideos: List<AvatarStudioVideo> = emptyList(),
+    val avatarStudioIsLoading: Boolean = false,
+    val avatarStudioIsPlaying: Boolean = false,
+    val avatarStudioActiveVideo: AvatarStudioVideo? = null,
+
     // 6. AI Writer Copywriting state
     val writerOutput: String = "",
     val writerIsLoading: Boolean = false,
@@ -431,7 +447,24 @@ data class ChatUiState(
     val memeTextColor: String = "#FFFFFF",
     val memeTextSize: Float = 28f,
     val memeIsCapitalized: Boolean = true,
-    val tokenUsages: List<com.example.data.db.TokenUsageEntity> = emptyList()
+    
+    // Map Chatbot State Properties
+    val mapSearchQuery: String = "Paris, France",
+    val mapIsSearching: Boolean = false,
+    val mapError: String = "",
+    val mapPlaces: List<com.example.ui.chat.MapPlace> = emptyList(),
+    val mapSelectedPlace: com.example.ui.chat.MapPlace? = null,
+    val mapChatMessages: List<com.example.ui.chat.MapChatMessage> = emptyList(),
+    val mapBookmarkedIds: Set<String> = emptySet(),
+    val mapTheme: String = "Midnight Tech", // "Midnight Tech", "Silver Minimalist", "Retro Sepia", "Classic Roadmap"
+    
+    val tokenUsages: List<com.example.data.db.TokenUsageEntity> = emptyList(),
+
+    // OpenAI Sora 2 Image to Video Schema state
+    val soraDeleteVideo: Boolean = true,
+    val soraModelSnapshot: String = "sora-2",
+    val soraDetectAndBlockIp: Boolean = false,
+    val soraCharacterIds: String = ""
 ) {
     val currentSession: ChatSession
         get() = sessions.find { it.id == currentSessionId } ?: sessions.firstOrNull() ?: ChatSession()
@@ -459,6 +492,22 @@ class ChatViewModel(
     private val _uiState = MutableStateFlow(ChatUiState())
     val uiState: StateFlow<ChatUiState> = _uiState.asStateFlow()
 
+    fun updateSoraSettings(
+        deleteVideo: Boolean,
+        modelSnapshot: String,
+        detectAndBlockIp: Boolean,
+        characterIds: String
+    ) {
+        _uiState.update { state ->
+            state.copy(
+                soraDeleteVideo = deleteVideo,
+                soraModelSnapshot = modelSnapshot,
+                soraDetectAndBlockIp = detectAndBlockIp,
+                soraCharacterIds = characterIds
+            )
+        }
+    }
+
     private val database = AppDatabase.getDatabase(AppContextProvider.context)
     private val chatDao = database.chatDao()
 
@@ -467,6 +516,7 @@ class ChatViewModel(
     private var imagesCollectionJob: Job? = null
     private var videosCollectionJob: Job? = null
     private var musicCollectionJob: Job? = null
+    private var interiorDesignsCollectionJob: Job? = null
 
     // Keep track of registered users in memory for high-fidelity fully-functional Sign In/Up
     private val registeredUsers = mutableMapOf<String, Pair<String, String>>(
@@ -573,6 +623,7 @@ class ChatViewModel(
         observeGeneratedImagesByCurrentUser()
         observeGeneratedVideosByCurrentUser()
         observeGeneratedMusicByCurrentUser()
+        observeInteriorDesignsByCurrentUser()
         observeMemoriesByCurrentUser()
         observeTokenUsagesByCurrentUser()
         generateSuggestedVocabulary()
@@ -838,6 +889,29 @@ class ChatViewModel(
         }
     }
 
+    private fun observeInteriorDesignsByCurrentUser() {
+        interiorDesignsCollectionJob?.cancel()
+        interiorDesignsCollectionJob = viewModelScope.launch {
+            _uiState.map { it.currentUserProfile?.email }
+                .distinctUntilChanged()
+                .collectLatest { email ->
+                    val queryFlow = if (email == null) {
+                        chatDao.getAllInteriorDesigns()
+                    } else {
+                        chatDao.getInteriorDesignsForUser(email)
+                    }
+
+                    queryFlow
+                        .catch { e -> android.util.Log.e("ChatViewModel", "observeInteriorDesigns error", e) }
+                        .collect { designEntities ->
+                            _uiState.update { state ->
+                                state.copy(interiorDesigns = designEntities)
+                            }
+                        }
+                }
+        }
+    }
+
     private var memoriesCollectionJob: Job? = null
     private var tokenUsagesCollectionJob: Job? = null
 
@@ -1067,14 +1141,14 @@ class ChatViewModel(
 
     fun selectVideoMode(mode: String) {
         val defaultProvider = when (mode) {
-            "Text to Video" -> "OpenAI"
-            "Image to Video" -> "Gemini"
-            else -> "OpenAI"
+            "Text to Video" -> "Veo"
+            "Image to Video" -> "Veo"
+            else -> "Veo"
         }
         val defaultModel = when (mode) {
-            "Text to Video" -> "Sora 2"
-            "Image to Video" -> "veo-3.1-generate-001"
-            else -> "Sora 2"
+            "Text to Video" -> "fal-ai/veo3.1/lite"
+            "Image to Video" -> "fal-ai/veo3.1/lite"
+            else -> "fal-ai/veo3.1/lite"
         }
         _uiState.update { state ->
             state.copy(
@@ -1090,16 +1164,27 @@ class ChatViewModel(
         val defaultModel = if (mode == "Text to Video") {
             when (provider) {
                 "OpenAI" -> "Sora 2"
-                "Gemini" -> "veo-3.0-generate-001"
-                "FalAI" -> "fal-ai/veo3.1/lite"
+                "Veo" -> "fal-ai/veo3.1/lite"
+                "FalAI" -> "luma/agent/ray/v3.2/text-to-video"
+                "Kling" -> "kling"
+                "PixVerse" -> "fal-ai/pixverse/v6/text-to-video"
+                "Xai" -> "xai/grok-imagine-video/text-to-video"
+                "Alibaba" -> "fal-ai/wan-25-preview/text-to-video"
+                "Minimax" -> "fal-ai/minimax/hailuo-02/standard/text-to-video"
                 else -> "Sora 2"
             }
         } else {
             // Image to Video
             when (provider) {
-                "Gemini" -> "veo-3.1-generate-001"
-                "FalAI" -> "fal-ai/veo3.1/lite"
-                else -> "veo-3.1-generate-001"
+                "OpenAI" -> "Sora 2"
+                "Veo" -> "fal-ai/veo3.1/lite"
+                "FalAI" -> "luma/agent/ray/v3.2/image-to-video"
+                "Kling" -> "klingImage"
+                "PixVerse" -> "fal-ai/pixverse/v6/image-to-video"
+                "Xai" -> "xai/grok-imagine-video/image-to-video"
+                "Alibaba" -> "fal-ai/wan-25-preview/image-to-video"
+                "Minimax" -> "fal-ai/minimax/hailuo-02/standard/image-to-video"
+                else -> "fal-ai/veo3.1/lite"
             }
         }
         _uiState.update { state ->
@@ -1795,15 +1880,114 @@ class ChatViewModel(
         }
     }
 
-    fun getVideoTokenCost(provider: String, model: String): Double {
+    fun getVideoTokenCost(
+        provider: String,
+        model: String,
+        duration: String = "5s",
+        generateAudio: String = "Off",
+        resolution: String = "1080p",
+        aspectRatio: String = "16:9",
+        voiceControl: Boolean = false,
+        pixverseMultiClip: Boolean = false,
+        lumaLoop: Boolean = false,
+        lumaHdr: Boolean = false,
+        lumaExrExport: Boolean = false
+    ): Double {
         val modelLower = model.lowercase()
+        val isVeo3_1Fast = modelLower.contains("veo3.1/fast") || modelLower.contains("veo 3.1 fast") || modelLower.contains("veo-3.1-fast")
+        val isVeo3OnlyFast = (modelLower.contains("veo3-fast") || modelLower.contains("veo 3 fast") || modelLower.contains("veo-3.0-fast")) && !modelLower.contains("3.1")
+        val isVeo3Fast = isVeo3_1Fast || isVeo3OnlyFast
+        if (isVeo3Fast) {
+            val secClean = duration.replace("s", "").replace(" seconds", "").trim()
+            val seconds = secClean.toIntOrNull() ?: 5
+            val isAudioOn = generateAudio.trim().lowercase() == "on" || generateAudio.trim().lowercase() == "true"
+            val rate = if (isVeo3_1Fast) {
+                if (resolution.lowercase().contains("4k")) {
+                    if (isAudioOn) 95.0 else 85.0
+                } else {
+                    if (isAudioOn) 45.0 else 35.0
+                }
+            } else {
+                // Veo 3 Fast
+                if (isAudioOn) 50.0 else 35.0
+            }
+            return seconds * rate
+        }
+        val isVeo3_1Lite = (modelLower.contains("veo3.1/lite") || modelLower.contains("veo 3.1 lite") || modelLower.contains("veo-3.1-lite") || modelLower.contains("lite")) && (modelLower.contains("veo3.1") || modelLower.contains("veo 3.1") || modelLower.contains("veo-3.1"))
+        val isVeo3_1 = (modelLower.contains("veo3.1") || modelLower.contains("veo 3.1") || modelLower.contains("veo-3.1")) && !modelLower.contains("fast") && !modelLower.contains("lite")
+        val isVeo3Only = (modelLower.contains("veo3") || modelLower.contains("veo 3") || modelLower.contains("veo-3")) && !modelLower.contains("3.1") && !modelLower.contains("fast")
+        val isVeo3 = isVeo3_1 || isVeo3_1Lite || isVeo3Only
+        if (isVeo3) {
+            val secClean = duration.replace("s", "").replace(" seconds", "").trim()
+            val seconds = secClean.toIntOrNull() ?: 8
+            val isAudioOn = generateAudio.trim().lowercase() == "on" || generateAudio.trim().lowercase() == "true"
+            val rate = if (isVeo3_1Lite) {
+                if (resolution.lowercase().contains("720p")) {
+                    if (isAudioOn) 20.0 else 15.0
+                } else {
+                    // 1080p or default
+                    if (isAudioOn) 30.0 else 20.0
+                }
+            } else if (isVeo3_1) {
+                if (resolution.lowercase().contains("4k")) {
+                    if (isAudioOn) 180.0 else 120.0
+                } else {
+                    if (isAudioOn) 120.0 else 60.0
+                }
+            } else {
+                // Veo 3 Only
+                if (isAudioOn) 120.0 else 60.0
+            }
+            return seconds * rate
+        }
         return when (provider) {
+            "Alibaba" -> {
+                val secClean = duration.replace("s", "").replace(" seconds", "").trim()
+                val seconds = secClean.toIntOrNull() ?: 5
+                if (modelLower.contains("wan/v2.6") || modelLower.contains("wan/v2.7")) {
+                    val rate = when (resolution.lowercase().trim()) {
+                        "720p" -> 35.0
+                        "1080p" -> 45.0
+                        else -> 45.0
+                    }
+                    seconds * rate
+                } else if (modelLower.contains("wan/v2.5") || modelLower.contains("wan-25-preview")) {
+                    val rate = when (resolution.lowercase().trim()) {
+                        "480p" -> if (modelLower.contains("image-to-video")) 25.0 else 20.0
+                        "720p" -> 35.0
+                        "1080p" -> 45.0
+                        else -> 35.0
+                    }
+                    seconds * rate
+                } else if (modelLower.contains("happy-horse")) {
+                    val rate = when (resolution.lowercase().trim()) {
+                        "720p" -> 45.0
+                        "1080p" -> 80.0
+                        else -> 80.0
+                    }
+                    seconds * rate
+                } else {
+                    if (seconds > 5) 250.0 else 125.0
+                }
+            }
             "OpenAI" -> {
-                if (modelLower.contains("pro")) 125.0 else 25.0
+                val secClean = duration.replace("s", "").replace(" seconds", "").trim()
+                val seconds = secClean.toIntOrNull() ?: 8
+                val rate = when (aspectRatio) {
+                    "720x1280", "1280x720" -> 85.0
+                    "1024x1792", "1792x1024" -> 135.0
+                    "1080x1920", "1920x1080" -> 185.0
+                    else -> 85.0
+                }
+                seconds * rate
             }
             "Gemini" -> {
                 when {
-                    modelLower == "veo-2.0-generate-001" || modelLower == "veo2" || modelLower == "veo 2" -> 625.0
+                    modelLower == "veo-2.0-generate-001" || modelLower == "veo2" || modelLower == "veo 2" -> {
+                        val secClean = duration.replace("s", "").replace(" seconds", "").trim()
+                        val seconds = secClean.toIntOrNull() ?: 5
+                        650.0 + (seconds - 5).coerceAtLeast(0) * 150.0
+                    }
                     modelLower == "veo-3.0-generate-preview" || modelLower == "veo-3.0-generate-001" || modelLower == "veo3" || modelLower == "veo 3" -> 800.0
                     modelLower == "veo-3.0-fast-generate-preview" || modelLower == "veo-3.0-fast-generate-001" || modelLower == "veo3-fast" || modelLower == "veo 3 fast" -> 300.0
                     modelLower == "veo-3.1-generate-preview" || modelLower == "veo-3.1-generate-001" || modelLower == "veo3.1/text-to-video" || modelLower == "veo 3.1" -> 800.0
@@ -1812,30 +1996,306 @@ class ChatViewModel(
                     else -> 150.0
                 }
             }
-            "FalAI" -> {
-                when {
-                    modelLower == "fal-ai/veo3.1/lite" || modelLower.contains("veo3.1/lite") || modelLower.contains("veo 3.1 lite") -> 200.0
-                    modelLower == "fal-ai/veo3.1/fast" || modelLower.contains("veo3.1/fast") || modelLower.contains("veo 3.1 fast") -> 300.0
-                    modelLower == "fal-ai/veo3.1" || modelLower == "veo3.1" || modelLower.contains("veo3.1") || modelLower.contains("veo 3.1") -> 800.0
-                    modelLower == "veo2" -> 625.0
-                    modelLower == "veo3" -> 800.0
-                    modelLower == "veo3-fast" -> 300.0
-                    modelLower == "veed" -> 87.5
-                    modelLower == "kling" -> 125.0
-                    modelLower == "kling-video" -> 350.0
-                    modelLower == "luma-dream-machine" -> 125.0
-                    modelLower == "minimax" -> 125.0
-                    modelLower == "haiper" -> 125.0
-                    modelLower == "klingv21" -> 125.0
-                    modelLower == "klingimage" -> 125.0
-                    modelLower == "xai/grok-imagine-video/image-to-video" -> 125.0
-                    modelLower == "kling-2.5-turbo/pro/text-to-video" -> 150.0
-                    modelLower == "kling-2.5-turbo/standard/image-to-video" -> 150.0
-                    modelLower.contains("kling v3 standard") -> 175.0
-                    // Image to video or other mappings
-                    modelLower.contains("kling v2.6 pro") || modelLower.contains("kling v3 pro") -> 350.0
-                    modelLower.contains("pro") -> 300.0
-                    else -> 125.0
+            "FalAI", "Kling", "Bytedance", "PixVerse" -> {
+                if (provider == "PixVerse" || modelLower.contains("pixverse")) {
+                    val isAudioOn = generateAudio.trim().lowercase() == "on" || generateAudio.trim().lowercase() == "true"
+                    if (modelLower.contains("v5.5") || modelLower == "fal-ai/pixverse/v5.5/text-to-video") {
+                        val base5s = when (resolution.lowercase()) {
+                            "360p", "540p" -> 45
+                            "720p" -> 55
+                            "1080p" -> 110
+                            else -> 55
+                        }
+                        val audioCost = if (isAudioOn) 20 else 0
+                        val multiClipCost = if (pixverseMultiClip) {
+                            if (isAudioOn) 45 else 30
+                        } else {
+                            0
+                        }
+                        val cost5s = base5s + audioCost + multiClipCost
+                        val seconds = duration.replace("s", "").replace(" seconds", "").trim().toIntOrNull() ?: 5
+                        val finalCost = when (seconds) {
+                            5 -> cost5s.toDouble()
+                            8 -> (cost5s * 2).toDouble()
+                            10 -> (cost5s * 2.2)
+                            else -> cost5s.toDouble()
+                        }
+                        return finalCost
+                    } else if (modelLower.contains("v5.6") || modelLower == "fal-ai/pixverse/v5.6/image-to-video") {
+                        val base5s = when (resolution.lowercase()) {
+                            "360p", "540p" -> 95
+                            "720p" -> 120
+                            "1080p" -> 195
+                            else -> 120
+                        }
+                        val audioCost = if (isAudioOn) {
+                            when (resolution.lowercase()) {
+                                "360p", "540p", "720p" -> 120
+                                "1080p" -> 195
+                                else -> 120
+                            }
+                        } else {
+                            0
+                        }
+                        val cost5s = base5s + audioCost
+                        val seconds = duration.replace("s", "").replace(" seconds", "").trim().toIntOrNull() ?: 5
+                        val finalCost = when (seconds) {
+                            5 -> cost5s.toDouble()
+                            8 -> (cost5s * 2).toDouble()
+                            10 -> (cost5s * 2.2)
+                            else -> cost5s.toDouble()
+                        }
+                        return finalCost
+                    } else if (modelLower.contains("v6") || modelLower.contains("/c1/")) {
+                        val secClean = duration.replace("s", "").replace(" seconds", "").trim()
+                        val seconds = secClean.toIntOrNull() ?: 5
+                        val rate = if (modelLower.contains("/c1/")) {
+                            when (resolution) {
+                                "360p" -> if (isAudioOn) 20 else 15
+                                "540p" -> if (isAudioOn) 25 else 20
+                                "720p" -> if (isAudioOn) 30 else 25
+                                "1080p" -> if (isAudioOn) 40 else 35
+                                else -> if (isAudioOn) 30 else 25
+                            }
+                        } else {
+                            when (resolution) {
+                                "360p" -> if (isAudioOn) 20 else 15
+                                "540p" -> if (isAudioOn) 20 else 15
+                                "720p" -> if (isAudioOn) 25 else 20
+                                "1080p" -> if (isAudioOn) 35 else 30
+                                else -> if (isAudioOn) 25 else 20
+                            }
+                        }
+                        return (seconds * rate).toDouble()
+                    } else {
+                        return 150.0
+                    }
+                }
+                if (provider == "Kling" || modelLower.contains("kling")) {
+                    val isAudioOn = generateAudio.trim().lowercase() == "on"
+                    val is10s = duration.contains("10")
+                    if (modelLower.contains("o3/standard") || modelLower == "fal-ai/kling-video/o3/standard/image-to-video") {
+                        val secClean = duration.replace("s", "").replace(" seconds", "").trim()
+                        val seconds = secClean.toIntOrNull() ?: 5
+                        val rate = if (isAudioOn) 40.0 else 30.0
+                        seconds * rate
+                    } else if (modelLower.contains("o3/pro") || modelLower == "fal-ai/kling-video/o3/pro/image-to-video") {
+                        val secClean = duration.replace("s", "").replace(" seconds", "").trim()
+                        val seconds = secClean.toIntOrNull() ?: 5
+                        val rate = if (isAudioOn) 45.0 else 35.0
+                        seconds * rate
+                    } else if (modelLower.contains("o3/4k") || modelLower == "fal-ai/kling-video/o3/4k/image-to-video") {
+                        val secClean = duration.replace("s", "").replace(" seconds", "").trim()
+                        val seconds = secClean.toIntOrNull() ?: 5
+                        seconds * 115.0
+                    } else if (modelLower.contains("kling v3 standard") || modelLower == "kling v3 standard" || modelLower.contains("v3/standard")) {
+                        val secClean = duration.replace("s", "").replace(" seconds", "").trim()
+                        val seconds = secClean.toIntOrNull() ?: 5
+                        val rate = if (isAudioOn) {
+                            if (voiceControl) 45.0 else 40.0
+                        } else {
+                            30.0
+                        }
+                        seconds * rate
+                    } else if (modelLower.contains("kling v3 pro") || modelLower == "kling v3 pro" || modelLower.contains("v3/pro")) {
+                        val secClean = duration.replace("s", "").replace(" seconds", "").trim()
+                        val seconds = secClean.toIntOrNull() ?: 5
+                        val rate = if (isAudioOn) {
+                            if (voiceControl) 55.0 else 50.0
+                        } else {
+                            35.0
+                        }
+                        seconds * rate
+                    } else if (modelLower.contains("v3/turbo/pro") || modelLower.contains("v3 turbo pro")) {
+                        val secClean = duration.replace("s", "").replace(" seconds", "").trim()
+                        val seconds = secClean.toIntOrNull() ?: 5
+                        seconds * 45.0
+                    } else {
+                        if (isAudioOn) {
+                            if (is10s) 400.0 else 200.0
+                        } else {
+                            if (is10s) 200.0 else 100.0
+                        }
+                    }
+                } else {
+                    when {
+                        modelLower == "fal-ai/veo3.1/lite" || modelLower.contains("veo3.1/lite") || modelLower.contains("veo 3.1 lite") -> 200.0
+                        modelLower == "fal-ai/veo3.1/fast" || modelLower.contains("veo3.1/fast") || modelLower.contains("veo 3.1 fast") -> 300.0
+                        modelLower == "fal-ai/veo3.1" || modelLower == "veo3.1" || modelLower.contains("veo3.1") || modelLower.contains("veo 3.1") -> 800.0
+                        modelLower == "veo2" -> {
+                            val secClean = duration.replace("s", "").replace(" seconds", "").trim()
+                            val seconds = secClean.toIntOrNull() ?: 5
+                            650.0 + (seconds - 5).coerceAtLeast(0) * 150.0
+                        }
+                        modelLower == "veo3" -> 800.0
+                        modelLower == "veo3-fast" -> 300.0
+                        modelLower == "veed" -> 87.5
+                        modelLower == "luma/agent/ray/v3.2/image-to-video" -> {
+                            val resClean = resolution.lowercase()
+                            if (lumaHdr) {
+                                if (lumaExrExport) {
+                                    when {
+                                        resClean.contains("720p") -> 235.0
+                                        resClean.contains("1080p") -> 920.0
+                                        else -> 45.0
+                                    }
+                                } else {
+                                    when {
+                                        resClean.contains("720p") -> 160.0
+                                        resClean.contains("1080p") -> 610.0
+                                        else -> 45.0
+                                    }
+                                }
+                            } else {
+                                when {
+                                    resClean.contains("540p") -> 45.0
+                                    resClean.contains("720p") -> 85.0
+                                    resClean.contains("1080p") -> 310.0
+                                    else -> 45.0
+                                }
+                            }
+                        }
+                        modelLower == "luma-dream-machine" || modelLower.contains("ray") || modelLower == "luma/agent/ray/v3.2/text-to-video" -> {
+                            val secClean = duration.replace("s", "").replace(" seconds", "").trim()
+                            val seconds = secClean.toIntOrNull() ?: 5
+                            val resClean = resolution.lowercase()
+                            if (seconds <= 5) {
+                                when {
+                                    resClean.contains("540p") -> 150.0
+                                    resClean.contains("720p") -> 275.0
+                                    resClean.contains("1080p") -> 525.0
+                                    else -> 150.0
+                                }
+                            } else {
+                                when {
+                                    resClean.contains("540p") -> 275.0
+                                    resClean.contains("720p") -> 525.0
+                                    resClean.contains("1080p") -> 1100.0
+                                    else -> 275.0
+                                }
+                            }
+                        }
+                        modelLower == "minimax" -> 125.0
+                        modelLower == "fal-ai/minimax/hailuo-2.3/pro/text-to-video" -> 135.0
+                        modelLower == "fal-ai/minimax/hailuo-2.3/pro/image-to-video" -> 140.0
+                        modelLower == "fal-ai/minimax/hailuo-2.3/standard/image-to-video" || modelLower == "fal-ai/minimax/hailuo-2.3/standard/text-to-video" -> {
+                            val secClean = duration.replace("s", "").replace(" seconds", "").trim()
+                            val seconds = secClean.toIntOrNull() ?: 6
+                            if (seconds == 6) {
+                                80.0
+                            } else if (seconds == 10) {
+                                150.0
+                            } else {
+                                seconds * 15.0
+                            }
+                        }
+                        modelLower == "fal-ai/minimax/hailuo-02/standard/text-to-video" -> {
+                            val secClean = duration.replace("s", "").replace(" seconds", "").trim()
+                            val seconds = secClean.toIntOrNull() ?: 6
+                            if (seconds == 6) {
+                                80.0
+                            } else {
+                                seconds * 20.0
+                            }
+                        }
+                        modelLower == "fal-ai/minimax/hailuo-02/pro/text-to-video" -> {
+                            val secClean = duration.replace("s", "").replace(" seconds", "").trim()
+                            val seconds = secClean.toIntOrNull() ?: 6
+                            if (seconds == 6) {
+                                130.0
+                            } else {
+                                seconds * 30.0
+                            }
+                        }
+                        modelLower == "fal-ai/minimax/hailuo-02/pro/image-to-video" -> {
+                            val secClean = duration.replace("s", "").replace(" seconds", "").trim()
+                            val seconds = secClean.toIntOrNull() ?: 6
+                            if (seconds == 6) {
+                                130.0
+                            } else {
+                                seconds * 30.0
+                            }
+                        }
+                        modelLower.contains("minimax/hailuo-02") || modelLower == "fal-ai/minimax/hailuo-02/standard/image-to-video" -> {
+                            val secClean = duration.replace("s", "").replace(" seconds", "").trim()
+                            val seconds = secClean.toIntOrNull() ?: 6
+                            val resUpper = resolution.uppercase().trim()
+                            if (seconds == 6 && resUpper == "768P") {
+                                75.0
+                            } else {
+                                val rate = if (resUpper == "512P") 15.0 else 20.0
+                                seconds * rate
+                            }
+                        }
+                        modelLower == "fal-ai/hunyuan-video-v1.5/image-to-video" || modelLower.contains("hunyuan-video-v1.5") -> {
+                            val secClean = duration.replace("s", "").replace(" seconds", "").trim()
+                            val seconds = secClean.toIntOrNull() ?: 5
+                            (seconds * 30.0)
+                        }
+                        modelLower == "haiper" -> 125.0
+                        modelLower == "klingv21" -> 125.0
+                        modelLower == "klingimage" -> 125.0
+                        modelLower == "xai/grok-imagine-video/image-to-video" || modelLower == "xai/grok-imagine-video/text-to-video" || modelLower.contains("grok-imagine-video") -> {
+                            val secClean = duration.replace("s", "").replace(" seconds", "").trim()
+                            val seconds = secClean.toIntOrNull() ?: 6
+                            if (resolution.lowercase().contains("480p")) {
+                                if (seconds == 6) 85.0 else seconds * 20.0
+                            } else if (resolution.lowercase().contains("1080p")) {
+                                seconds * 35.0
+                            } else {
+                                seconds * 25.0
+                            }
+                        }
+                        modelLower == "kling-2.5-turbo/pro/text-to-video" -> 150.0
+                        modelLower == "kling-2.5-turbo/standard/image-to-video" -> 150.0
+                        modelLower == "fal-ai/kling-video/o3/standard/image-to-video" || modelLower.contains("o3/standard") -> {
+                            val secClean = duration.replace("s", "").replace(" seconds", "").trim()
+                            val seconds = secClean.toIntOrNull() ?: 5
+                            val isAudioOn = generateAudio.trim().lowercase() == "on" || generateAudio.trim().lowercase() == "true"
+                            val rate = if (isAudioOn) 40.0 else 30.0
+                            seconds * rate
+                        }
+                        modelLower == "fal-ai/kling-video/o3/pro/image-to-video" || modelLower.contains("o3/pro") -> {
+                            val secClean = duration.replace("s", "").replace(" seconds", "").trim()
+                            val seconds = secClean.toIntOrNull() ?: 5
+                            val isAudioOn = generateAudio.trim().lowercase() == "on" || generateAudio.trim().lowercase() == "true"
+                            val rate = if (isAudioOn) 45.0 else 35.0
+                            seconds * rate
+                        }
+                        modelLower == "fal-ai/kling-video/v3/4k/image-to-video" -> {
+                            val secClean = duration.replace("s", "").replace(" seconds", "").trim()
+                            val seconds = secClean.toIntOrNull() ?: 5
+                            seconds * 120.0
+                        }
+                        modelLower == "fal-ai/kling-video/v3/4k/text-to-video" || modelLower.contains("v3/4k") -> {
+                            val secClean = duration.replace("s", "").replace(" seconds", "").trim()
+                            val seconds = secClean.toIntOrNull() ?: 5
+                            seconds * 125.0
+                        }
+                        modelLower == "fal-ai/kling-video/o3/4k/text-to-video" || modelLower.contains("o3/4k") -> {
+                            val secClean = duration.replace("s", "").replace(" seconds", "").trim()
+                            val seconds = secClean.toIntOrNull() ?: 5
+                            seconds * 115.0
+                        }
+                        modelLower == "kling-video/v3/turbo/pro/text-to-video" || modelLower.contains("v3/turbo/pro") -> {
+                            val secClean = duration.replace("s", "").replace(" seconds", "").trim()
+                            val seconds = secClean.toIntOrNull() ?: 5
+                            seconds * 45.0
+                        }
+                        modelLower == "kling-video/v3/turbo/standard/text-to-video" || modelLower.contains("v3/turbo/standard") -> {
+                            val secClean = duration.replace("s", "").replace(" seconds", "").trim()
+                            val seconds = secClean.toIntOrNull() ?: 5
+                            seconds * 35.0
+                        }
+                        modelLower.contains("kling v3 standard") || modelLower.contains("v3/standard") -> 175.0
+                        modelLower.contains("kling v2.6 pro") || modelLower.contains("v2.6/pro") || modelLower.contains("kling v3 pro") || modelLower.contains("v3/pro") -> 350.0
+                        modelLower.contains("pro") -> 300.0
+                        modelLower.contains("bytedance/seedance-2.0") && modelLower.contains("/fast") -> 250.0
+                        modelLower.contains("bytedance/seedance-2.0") -> 500.0
+                        modelLower.contains("pixverse") && (modelLower.contains("v5.5") || modelLower.contains("v5.6")) -> 120.0
+                        modelLower.contains("pixverse") -> 150.0
+                        else -> 125.0
+                    }
                 }
             }
             else -> 30.0
@@ -2179,6 +2639,20 @@ class ChatViewModel(
                     imageGenLog = state.imageGenLog + "> ALL ARTWORKS GENERATED SUCCESSFULLY!\n> Saved to your gallery."
                 )
             }
+            delay(3000)
+            _uiState.update { state ->
+                if (!state.imageGenIsLoading) {
+                    state.copy(imageGenLog = "")
+                } else {
+                    state
+                }
+            }
+        }
+    }
+
+    fun clearImageGenLog() {
+        _uiState.update { state ->
+            state.copy(imageGenLog = "")
         }
     }
 
@@ -2196,6 +2670,38 @@ class ChatViewModel(
         }
     }
 
+    suspend fun generateVideoCopy(videoPrompt: String, style: String, platform: String, tone: String): String {
+        val apiKey = if (uiState.value.geminiApiKey.isNotBlank()) uiState.value.geminiApiKey else uiState.value.customApiKey
+        val keysMap = mapOf("Gemini" to apiKey)
+        val urlsMap = mapOf("Gemini" to uiState.value.geminiBaseUrl)
+        
+        val systemPrompt = "You are a professional social media marketing and SEO copywriting expert."
+        
+        val prompt = """
+            Draft an extremely engaging, viral-ready social media post for a short video generated with this AI prompt: "$videoPrompt" (Style: $style).
+            Target Platform: $platform
+            Tone/Style: $tone
+            
+            Please provide:
+            1. An eye-catching, SEO-optimized Title (with high CTR hook)
+            2. A compelling Description with relevant search keywords (optimized for social SEO/algorithms)
+            3. A targeted group of 10-15 popular, trending hashtags (mix of general, platform, and niche ones)
+            
+            Format it beautifully with section headers using clear emojis. Maintain a modern, highly engaging style.
+        """.trimIndent()
+        
+        return try {
+            repository.sendSimpleRequest(
+                prompt = prompt,
+                systemText = systemPrompt,
+                providerKeys = keysMap,
+                providerUrls = urlsMap
+            )
+        } catch (e: Exception) {
+            "Failed to generate copy: ${e.localizedMessage}"
+        }
+    }
+
     fun generateVideo(
         prompt: String,
         style: String,
@@ -2207,18 +2713,54 @@ class ChatViewModel(
         negativePrompt: String = "blurry, text, watermark, bad lighting",
         sampleCount: Int = 1,
         imageUrl: String? = null,
+        cfgScale: Float = 0.5f,
+        shotType: String = "customize",
+        multiPromptJson: String? = null,
+        seed: Int? = null,
+        enhancePrompt: Boolean = true,
+        autoFix: Boolean = true,
+        safetyTolerance: Int = 4,
+        endImageUrl: String? = null,
+        elementsJson: String? = null,
+        voiceControl: Boolean = false,
+        voiceIds: List<String>? = null,
+        startImageUrl: String? = null,
+        bitrateMode: String = "standard",
+        endUserId: String = "aistudio-user-default",
+        pixverseMultiClip: Boolean = false,
+        pixverseThinkingType: String = "auto",
+        lumaLoop: Boolean = false,
+        lumaHdr: Boolean = false,
+        lumaExrExport: Boolean = false,
+        alibabaAudioUrl: String? = null,
+        alibabaMultiShots: Boolean = true,
+        alibabaVideoUrl: String? = null,
+        hunyuanInferenceSteps: Int = 28,
+        hunyuanFrames: Int = 121,
         onSubscriptionRequired: () -> Unit
     ) {
-        if (prompt.trim().isBlank()) return
+        if (prompt.trim().isBlank() && multiPromptJson.isNullOrBlank()) return
 
         val isSubscribed = _uiState.value.isSubscribed
         val provider = _uiState.value.selectedVideoProvider
         val model = _uiState.value.selectedVideoModel
-        val tokenCost = getVideoTokenCost(provider, model)
+        val tokenCost = getVideoTokenCost(
+            provider = provider,
+            model = model,
+            duration = duration,
+            generateAudio = generateAudio,
+            resolution = resolution,
+            aspectRatio = aspectRatio,
+            voiceControl = voiceControl,
+            pixverseMultiClip = pixverseMultiClip,
+            lumaLoop = lumaLoop,
+            lumaHdr = lumaHdr,
+            lumaExrExport = lumaExrExport
+        )
 
         // Premium restrictions check:
         val isProRatio = if (provider == "OpenAI") {
-            aspectRatio == "1024x1792" || aspectRatio == "1792x1024"
+            aspectRatio == "1024x1792" || aspectRatio == "1792x1024" || aspectRatio == "1080x1920" || aspectRatio == "1920x1080"
         } else {
             aspectRatio in listOf("9:16", "21:9")
         }
@@ -2295,7 +2837,7 @@ class ChatViewModel(
                     _uiState.update { state ->
                         val isVeo2 = model.contains("veo-2", ignoreCase = true) || model == "veo2"
                         val logText = if (isVeo2) {
-                            val durationSecs = if (duration.contains("5")) 5 else 8
+                            val durationSecs = if (duration.contains("5")) 5 else if (duration.contains("6")) 6 else if (duration.contains("7")) 7 else 8
                             val aspect = if (aspectRatio == "9:16") "9:16" else "16:9"
                             "> [Gemini Native API] Serializing Client Payload to client.models.generateVideos:\n" +
                             "   ├─ Top-Level Parameters:\n" +
@@ -2304,9 +2846,10 @@ class ChatViewModel(
                             "   ├─ Configuration (GenerateVideosConfig):\n" +
                             "   │   ├─ durationSeconds: $durationSecs (allowed bounds: 5s - 8s)\n" +
                             "   │   ├─ aspectRatio: \"$aspect\"\n" +
-                            "   │   ├─ personGeneration: \"$personGeneration\"\n" +
                             "   │   ├─ negativePrompt: \"$negativePrompt\"\n" +
-                            "   │   └─ numberOfVideos: $sampleCount\n" +
+                            "   │   ├─ enhancePrompt: $enhancePrompt\n" +
+                            "   │   ├─ seed: ${seed ?: "random"}\n" +
+                            "   │   └─ autoFix: $autoFix\n" +
                             "   └─ Note: Native audio generation is not supported on Veo 2. Payload configured without acoustical targets.\n"
                         } else {
                             "> [Gemini Native API] Serializing Client Payload to client.models.generateVideos:\n" +
@@ -2333,9 +2876,9 @@ class ChatViewModel(
                         state.copy(videoGenLog = state.videoGenLog + "> Optimizing super-resolution parameters with Google Cloud TPU...\n")
                     }
                 }
-                "FalAI" -> {
+                "FalAI", "Kling", "Minimax" -> {
                     _uiState.update { state ->
-                        state.copy(videoGenLog = state.videoGenLog + "> Connecting to FalAI Kling serverless pipeline ($model)...\n")
+                        state.copy(videoGenLog = state.videoGenLog + "> Connecting to $provider serverless pipeline ($model)...\n")
                     }
                     delay(800)
                     _uiState.update { state ->
@@ -2398,33 +2941,345 @@ class ChatViewModel(
                 } catch (e: Exception) {
                     errorOccurred = e.localizedMessage ?: "Unknown OpenAI Sora generating error."
                 }
-            } else if (provider == "Gemini") {
-                try {
-                    val key = _uiState.value.geminiApiKey.ifBlank { null }
-                    _uiState.update { state ->
-                        state.copy(videoGenLog = state.videoGenLog + "> Connecting to Google Gemini Veo API...\n")
-                    }
-                    generatedVideoUrl = repository.generateGeminiVideo(
-                        prompt = prompt,
-                        model = model,
-                        aspectRatio = aspectRatio,
-                        duration = duration,
-                        customApiKey = key,
-                        onLogMessage = { log ->
-                            _uiState.update { state ->
-                                state.copy(videoGenLog = state.videoGenLog + log)
-                            }
-                        }
-                    )
-                } catch (e: Exception) {
-                    errorOccurred = e.localizedMessage ?: "Unknown Gemini Veo generating error."
-                }
-            } else if (provider == "FalAI") {
+            } else if (provider == "FalAI" || provider == "Minimax" || provider == "Veo" || provider == "Kling" || provider == "Bytedance" || provider == "PixVerse" || provider == "Alibaba" || provider == "Xai") {
                 try {
                     val key = _uiState.value.falApiKey.ifBlank { null }
-                    _uiState.update { state ->
-                        state.copy(videoGenLog = state.videoGenLog + "> Connecting to FalAI ($model) API...\n")
+                    val modelLower = model.lowercase().trim()
+                    val isKlingV25TurboStandard = provider == "Kling" && (modelLower == "kling v2.5 turbo standard" || modelLower.contains("kling-2.5-turbo/standard") || modelLower.contains("v2.5-turbo/standard"))
+                    val isKlingV25TurboPro = provider == "Kling" && (modelLower == "kling v2.5 turbo pro" || modelLower.contains("kling-2.5-turbo/pro") || modelLower.contains("v2.5-turbo/pro"))
+
+                    if (provider == "Kling" && (model.lowercase().contains("v3 standard") || model.lowercase().contains("v3 pro"))) {
+                        val customLog = StringBuilder("> [Kling V3 Input Schema Details]\n")
+                        customLog.append("  - prompt: ${if (multiPromptJson.isNullOrBlank()) prompt else "None (multi_prompt used)"}\n")
+                        customLog.append("  - multi_prompt: ${if (multiPromptJson.isNullOrBlank()) "None" else multiPromptJson}\n")
+                        customLog.append("  - start_image_url: ${imageUrl ?: "None"}\n")
+                        customLog.append("  - duration: $duration\n")
+                        customLog.append("  - generate_audio: ${generateAudio.trim().lowercase() == "on"} (voice_control: $voiceControl)\n")
+                        customLog.append("  - end_image_url: ${endImageUrl ?: "None"}\n")
+                        customLog.append("  - elements: ${elementsJson ?: "None"}\n")
+                        customLog.append("  - shot_type: $shotType\n")
+                        customLog.append("  - negative_prompt: $negativePrompt\n")
+                        customLog.append("  - cfg_scale: $cfgScale\n")
+                        _uiState.update { state ->
+                            state.copy(videoGenLog = state.videoGenLog + customLog.toString() + "> Connecting to $provider ($model) API...\n")
+                        }
+                    } else if (provider == "Kling" && (modelLower == "fal-ai/kling-video/o3/standard/image-to-video" || modelLower.contains("o3/standard/image-to-video"))) {
+                        val customLog = StringBuilder("> [Kling O3 Standard Image-to-Video Input Schema Details]\n")
+                        customLog.append("  - prompt: ${if (multiPromptJson.isNullOrBlank()) prompt else "None (multi_prompt used)"} (string: Optional text prompt, keep under 2500 chars)\n")
+                        customLog.append("  - multi_prompt: ${if (multiPromptJson.isNullOrBlank()) "None" else multiPromptJson} (list<KlingV3MultiPromptElement>: Multi-shot storyboard, max 15s)\n")
+                        customLog.append("  - image_url: ${imageUrl ?: "None"} (string: URL of the start frame image)\n")
+                        customLog.append("  - end_image_url: ${endImageUrl ?: "None"} (string: URL of the end frame image)\n")
+                        customLog.append("  - duration: $duration (DurationEnum: Default value: \"5\", options: 3..15)\n")
+                        customLog.append("  - generate_audio: ${generateAudio.trim().lowercase() == "on"} (boolean)\n")
+                        customLog.append("  - shot_type: $shotType (ShotTypeEnum: customize, intelligent)\n")
+                        _uiState.update { state ->
+                            state.copy(videoGenLog = state.videoGenLog + customLog.toString() + "> Connecting to $provider ($model) API...\n")
+                        }
+                    } else if (provider == "Kling" && (modelLower == "fal-ai/kling-video/o3/pro/image-to-video" || modelLower.contains("o3/pro/image-to-video"))) {
+                        val customLog = StringBuilder("> [Kling O3 Pro Image-to-Video Input Schema Details]\n")
+                        customLog.append("  - prompt: ${if (multiPromptJson.isNullOrBlank()) prompt else "None (multi_prompt used)"} (string: Optional text prompt, keep under 2500 chars)\n")
+                        customLog.append("  - multi_prompt: ${if (multiPromptJson.isNullOrBlank()) "None" else multiPromptJson} (list<KlingV3MultiPromptElement>: Multi-shot storyboard, max 15s)\n")
+                        customLog.append("  - image_url: ${imageUrl ?: "None"} (string: URL of the start frame image)\n")
+                        customLog.append("  - end_image_url: ${endImageUrl ?: "None"} (string: URL of the end frame image)\n")
+                        customLog.append("  - duration: $duration (DurationEnum: Default value: \"5\", options: 3..15)\n")
+                        customLog.append("  - generate_audio: ${generateAudio.trim().lowercase() == "on"} (boolean)\n")
+                        customLog.append("  - shot_type: $shotType (ShotTypeEnum: customize, intelligent)\n")
+                        _uiState.update { state ->
+                            state.copy(videoGenLog = state.videoGenLog + customLog.toString() + "> Connecting to $provider ($model) API...\n")
+                        }
+                    } else if (provider == "Kling" && (modelLower == "fal-ai/kling-video/v3/4k/image-to-video" || modelLower.contains("v3/4k/image-to-video"))) {
+                        val customLog = StringBuilder("> [Kling 3.0 4K Image-to-Video Input Schema Details]\n")
+                        customLog.append("  - prompt: ${if (multiPromptJson.isNullOrBlank()) prompt else "None (multi_prompt used)"} (string: Optional text prompt, keep under 2500 chars)\n")
+                        customLog.append("  - multi_prompt: ${if (multiPromptJson.isNullOrBlank()) "None" else multiPromptJson} (list<KlingV3MultiPromptElement>: Multi-shot storyboard, max 15s)\n")
+                        customLog.append("  - start_image_url: ${imageUrl ?: "None"} (string: URL of the image to be used for the video)\n")
+                        customLog.append("  - duration: $duration (DurationEnum: Default value: \"5\", options: 3..15)\n")
+                        customLog.append("  - generate_audio: ${generateAudio.trim().lowercase() == "on"} (boolean, Default: true)\n")
+                        customLog.append("  - end_image_url: ${endImageUrl ?: "None"} (string: URL of the image to be used for the end of the video)\n")
+                        customLog.append("  - elements: ${elementsJson ?: "None"} (list<KlingV3ComboElementInput>: Characters/objects to include in the video)\n")
+                        customLog.append("  - shot_type: $shotType (ShotTypeEnum: customize, intelligent)\n")
+                        customLog.append("  - negative_prompt: $negativePrompt (string)\n")
+                        customLog.append("  - cfg_scale: $cfgScale (float, Default: 0.5)\n")
+                        _uiState.update { state ->
+                            state.copy(videoGenLog = state.videoGenLog + customLog.toString() + "> Connecting to $provider ($model) API...\n")
+                        }
+                    } else if (provider == "Kling" && (modelLower == "fal-ai/kling-video/v3/turbo/standard/image-to-video" || modelLower.contains("v3/turbo/standard"))) {
+                        val customLog = StringBuilder("> [Kling 3.0 Turbo Standard Input Schema Details]\n")
+                        customLog.append("  - prompt: ${if (multiPromptJson.isNullOrBlank()) prompt else "None (multi_prompt used)"} (string: Optional text prompt, keep under 2500 chars)\n")
+                        customLog.append("  - multi_prompt: ${if (multiPromptJson.isNullOrBlank()) "None" else multiPromptJson} (list<KlingV3MultiPromptElement>: Multi-shot storyboard (1-6 shots), max 15s)\n")
+                        customLog.append("  - image_url: ${imageUrl ?: "None"} (string: First-frame reference image)\n")
+                        customLog.append("  - duration: $duration (DurationEnum: Default value: \"5\", options: 3..15)\n")
+                        _uiState.update { state ->
+                            state.copy(videoGenLog = state.videoGenLog + customLog.toString() + "> Connecting to $provider ($model) API...\n")
+                        }
+                    } else if (provider == "Kling" && (modelLower == "fal-ai/kling-video/v3/turbo/pro/image-to-video" || modelLower.contains("v3/turbo/pro"))) {
+                        val customLog = StringBuilder("> [Kling 3.0 Turbo Pro Input Schema Details]\n")
+                        customLog.append("  - prompt: ${if (multiPromptJson.isNullOrBlank()) prompt else "None (multi_prompt used)"} (string: Optional text prompt, keep under 2500 chars)\n")
+                        customLog.append("  - multi_prompt: ${if (multiPromptJson.isNullOrBlank()) "None" else multiPromptJson} (list<KlingV3MultiPromptElement>: Multi-shot storyboard (1-6 shots), max 15s)\n")
+                        customLog.append("  - image_url: ${imageUrl ?: "None"} (string: First-frame reference image)\n")
+                        customLog.append("  - duration: $duration (DurationEnum: Default value: \"5\", options: 3..15)\n")
+                        _uiState.update { state ->
+                            state.copy(videoGenLog = state.videoGenLog + customLog.toString() + "> Connecting to $provider ($model) API...\n")
+                        }
+                    } else if (isKlingV25TurboPro) {
+                        val customLog = StringBuilder("> [Kling 2.5 Turbo Pro Input Schema Details]\n")
+                        customLog.append("  - prompt: $prompt (string)\n")
+                        customLog.append("  - image_url: ${imageUrl ?: "None"} (string: URL of the image to be used for the video)\n")
+                        customLog.append("  - duration: $duration (DurationEnum: The duration of the generated video in seconds, Default value: \"5\", Possible enum values: 5, 10)\n")
+                        customLog.append("  - negative_prompt: $negativePrompt (string, Default value: \"blur, distort, and low quality\")\n")
+                        customLog.append("  - cfg_scale: $cfgScale (float, The CFG (Classifier Free Guidance) scale is a measure of how close you want the model to stick to your prompt. Default value: 0.5)\n")
+                        customLog.append("  - tail_image_url: ${endImageUrl ?: "None"} (string: URL of the image to be used for the end of the video)\n")
+                        _uiState.update { state ->
+                            state.copy(videoGenLog = state.videoGenLog + customLog.toString() + "> Connecting to $provider ($model) API...\n")
+                        }
+                    } else if (isKlingV25TurboStandard) {
+                        val customLog = StringBuilder("> [Kling 2.5 Turbo Standard Input Schema Details]\n")
+                        customLog.append("  - prompt: $prompt (string)\n")
+                        customLog.append("  - image_url: ${imageUrl ?: "None"} (string)\n")
+                        customLog.append("  - duration: $duration (DurationEnum, Default: \"5\", Options: 5, 10)\n")
+                        customLog.append("  - negative_prompt: $negativePrompt (string, Default: \"blur, distort, and low quality\")\n")
+                        customLog.append("  - cfg_scale: $cfgScale (float, Default: 0.5)\n")
+                        _uiState.update { state ->
+                            state.copy(videoGenLog = state.videoGenLog + customLog.toString() + "> Connecting to $provider ($model) API...\n")
+                        }
+                    } else if (provider == "Bytedance" || modelLower.contains("bytedance")) {
+                        val customLog = StringBuilder("> [ByteDance Seedance 2.0 Input Schema Details]\n")
+                        customLog.append("  - prompt: ${prompt.trim()} (string: The text prompt used to generate the video)\n")
+                        customLog.append("  - resolution: $resolution (ResolutionEnum: 480p, 720p, 1080p, 4k. Default: \"720p\")\n")
+                        customLog.append("  - duration: $duration (DurationEnum: auto, 4, 5, ..., 15. Default: \"auto\")\n")
+                        customLog.append("  - aspect_ratio: $aspectRatio (AspectRatioEnum: auto, 21:9, 16:9, 4:3, 1:1, 3:4, 9:16. Default: \"auto\")\n")
+                        customLog.append("  - generate_audio: ${generateAudio.trim().lowercase() == "on"} (boolean: Whether to generate synchronized audio for the video. Default: true)\n")
+                        customLog.append("  - bitrate_mode: $bitrateMode (BitrateModeEnum: standard, high. Default: \"standard\")\n")
+                        customLog.append("  - end_user_id: $endUserId (string: The unique user ID of the end user)\n")
+                        _uiState.update { state ->
+                            state.copy(videoGenLog = state.videoGenLog + customLog.toString() + "> Connecting to $provider ($model) API...\n")
+                        }
+                    } else if (provider == "PixVerse" || modelLower.contains("pixverse")) {
+                        val customLog = StringBuilder("> [PixVerse Cinematic Input Schema Details]\n")
+                        customLog.append("  - prompt: ${prompt.trim()} (string: Visual narration directive)\n")
+                        customLog.append("  - aspect_ratio: $aspectRatio (string: Cinematic alignment target)\n")
+                        customLog.append("  - resolution: $resolution (string: Video resolution)\n")
+                        customLog.append("  - duration: $duration (integer: Duration target)\n")
+                        customLog.append("  - negative_prompt: $negativePrompt (string: Negative prompt boundary)\n")
+                        customLog.append("  - style: $style (string: Visual art style rendering)\n")
+                        customLog.append("  - seed: ${seed ?: "Random"} (integer: Seed for determinism)\n")
+                        customLog.append("  - generate_audio_switch: ${generateAudio.trim().lowercase() == "on"} (boolean: Sound synthesis activation)\n")
+                        customLog.append("  - generate_multi_clip_switch: $pixverseMultiClip (boolean: Multi-clip rendering model)\n")
+                        customLog.append("  - thinking_type: $pixverseThinkingType (string: CoT reasoning configuration)\n")
+                        _uiState.update { state ->
+                            state.copy(videoGenLog = state.videoGenLog + customLog.toString() + "> Connecting to $provider ($model) API...\n")
+                        }
+                    } else if (provider == "Alibaba" && modelLower.contains("wan/v2.7")) {
+                        val isImage = modelLower.contains("image-to-video")
+                        val typeStr = if (isImage) "Image-to-Video" else "Text-to-Video"
+                        val customLog = StringBuilder("> [Alibaba Wan 2.7 $typeStr Input Schema Details]\n")
+                        if (isImage) {
+                            customLog.append("  - prompt: ${prompt.trim()} (string: Text prompt describing the desired video. Max 5000 characters.)\n")
+                            customLog.append("  - image_url: ${imageUrl ?: "null"} (string: URL of the first frame image. Formats: JPEG, JPG, PNG, BMP, WEBP. Max 20 MB.)\n")
+                            customLog.append("  - end_image_url: ${endImageUrl ?: "null"} (string: URL of the last frame image for first-and-last-frame-to-video. Same constraints as image_url.)\n")
+                            customLog.append("  - video_url: ${alibabaVideoUrl ?: "null"} (string: URL of a video clip to continue from. Format: MP4, MOV. Duration: 2-10s. Max 100 MB. Cannot be combined with image_url.)\n")
+                            customLog.append("  - audio_url: ${alibabaAudioUrl ?: "null"} (string: URL of driving audio. Supports WAV and MP3. Duration: 2-30s. Max 15 MB.)\n")
+                            customLog.append("  - resolution: $resolution (ResolutionEnum: Output video resolution tier. Default value: \"1080p\"\nPossible enum values: 720p, 1080p)\n")
+                            customLog.append("  - duration: $duration (DurationEnum: Output video duration in seconds (2-15). Default value: \"5\"\nPossible enum values: 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15)\n")
+                            customLog.append("  - negative_prompt: $negativePrompt (string: Content to avoid in the video. Max 500 characters.)\n")
+                            customLog.append("  - enable_prompt_expansion: $enhancePrompt (boolean: Enable intelligent prompt rewriting. Default value: true)\n")
+                            customLog.append("  - seed: ${seed ?: "None"} (integer: Random seed for reproducibility (0-2147483647).)\n")
+                            customLog.append("  - enable_safety_checker: $autoFix (boolean: Enable content moderation for input and output. Default value: true)\n")
+                        } else {
+                            customLog.append("  - prompt: ${prompt.trim()} (string: Text prompt describing the desired video. Max 5000 characters.)\n")
+                            customLog.append("  - audio_url: ${alibabaAudioUrl ?: "null"} (string: URL of driving audio. Supports WAV and MP3. Duration: 3-30s. Max 15 MB. If not provided, the model auto-generates matching background music.)\n")
+                            customLog.append("  - aspect_ratio: $aspectRatio (AspectRatioEnum: Aspect ratio of the generated video. Default value: \"16:9\". Possible enum values: 16:9, 9:16, 1:1, 4:3, 3:4)\n")
+                            customLog.append("  - resolution: $resolution (ResolutionEnum: Output video resolution tier. Default value: \"1080p\". Possible enum values: 720p, 1080p)\n")
+                            customLog.append("  - duration: $duration (DurationEnum: Output video duration in seconds (2-15). Default value: \"5\". Possible enum values: 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15)\n")
+                            customLog.append("  - negative_prompt: $negativePrompt (string: Content to avoid in the video. Max 500 characters.)\n")
+                            customLog.append("  - enable_prompt_expansion: $enhancePrompt (boolean: Enable intelligent prompt rewriting. Default value: true)\n")
+                            customLog.append("  - seed: ${seed ?: "None"} (integer: Random seed for reproducibility (0-2147483647).)\n")
+                            customLog.append("  - enable_safety_checker: $autoFix (boolean: Enable content moderation for input and output. Default value: true)\n")
+                        }
+                        _uiState.update { state ->
+                            state.copy(videoGenLog = state.videoGenLog + customLog.toString() + "> Connecting to $provider ($model) API...\n")
+                        }
+                    } else if (provider == "Alibaba" && modelLower.contains("wan/v2.6")) {
+                        val isImage = modelLower.contains("image-to-video")
+                        val typeStr = if (isImage) "Image-to-Video" else "Text-to-Video"
+                        val customLog = StringBuilder("> [Alibaba Wan 2.6 $typeStr Input Schema Details]\n")
+                        if (isImage) {
+                            customLog.append("  - prompt: ${prompt.trim()} (string: The text prompt describing the desired video motion. Max 1500 characters.)\n")
+                            customLog.append("  - image_url: ${imageUrl ?: "null"} (string: URL of the image to use as the first frame. Must be publicly accessible or base64 data URI. Image dimensions must be between 240 and 7680.)\n")
+                            customLog.append("  - audio_url: ${alibabaAudioUrl ?: "null"} (string: URL of the audio to use as the background music. Must be publicly accessible. Limit handling: If the audio duration exceeds the duration value (5, 10, or 15 seconds), the audio is truncated to the first N seconds, and the rest is discarded. If the audio is shorter than the video, the remaining part of the video will be silent. For example, if the audio is 3 seconds long and the video duration is 5 seconds, the first 3 seconds of the output video will have sound, and the last 2 seconds will be silent.\nFormat: WAV, MP3.\nDuration: 3 to 30 s.\nFile size: Up to 15 MB.)\n")
+                            customLog.append("  - resolution: $resolution (ResolutionEnum: Video resolution. Valid values: 720p, 1080p Default value: \"1080p\"\nPossible enum values: 720p, 1080p)\n")
+                            customLog.append("  - duration: $duration (DurationEnum: Duration of the generated video in seconds. Choose between 5, 10 or 15 seconds. Default value: \"5\"\nPossible enum values: 5, 10, 15)\n")
+                            customLog.append("  - negative_prompt: $negativePrompt (string: Negative prompt to describe content to avoid. Max 500 characters. Default value: \"\")\n")
+                            customLog.append("  - enable_prompt_expansion: $enhancePrompt (boolean: Whether to enable prompt rewriting using LLM. Default value: true)\n")
+                            customLog.append("  - multi_shots: $alibabaMultiShots (boolean: When true, enables intelligent multi-shot segmentation. Only active when enable_prompt_expansion is True. Set to false for single-shot generation.)\n")
+                            customLog.append("  - seed: ${seed ?: "None"} (integer: Random seed for reproducibility. If None, a random seed is chosen.)\n")
+                            customLog.append("  - enable_safety_checker: $autoFix (boolean: If set to true, the safety checker will be enabled. Default value: true)\n")
+                        } else {
+                            customLog.append("  - prompt: ${prompt.trim()} (string: The text prompt for video generation. Supports Chinese and English, max 1500 characters. For multi-shot videos, use format: 'Overall description. First shot [0-3s] content. Second shot [3-5s] content.')\n")
+                            customLog.append("  - audio_url: ${alibabaAudioUrl ?: "null"} (string: URL of the audio to use as the background music. Must be publicly accessible. Limit handling: If the audio duration exceeds the duration value (5, 10, or 15 seconds), the audio is truncated to the first N seconds, and the rest is discarded. If the audio is shorter than the video, the remaining part of the video will be silent. Format: WAV, MP3. Duration: 3 to 30 s. File size: Up to 15 MB.)\n")
+                            customLog.append("  - aspect_ratio: $aspectRatio (AspectRatioEnum: The aspect ratio of the generated video. Wan 2.6 supports additional ratios. Default value: \"16:9\". Possible enum values: 16:9, 9:16, 1:1, 4:3, 3:4)\n")
+                            customLog.append("  - resolution: $resolution (ResolutionEnum: Video resolution tier. Default value: \"1080p\". Possible enum values: 720p, 1080p)\n")
+                            customLog.append("  - duration: $duration (DurationEnum: Duration of the generated video in seconds. Choose between 5, 10, or 15 seconds. Default value: \"5\". Possible enum values: 5, 10, 15)\n")
+                            customLog.append("  - negative_prompt: $negativePrompt (string: Negative prompt to describe content to avoid. Max 500 characters. Default value: \"\")\n")
+                            customLog.append("  - enable_prompt_expansion: $enhancePrompt (boolean: Whether to enable prompt rewriting using LLM. Improves results for short prompts but increases processing time. Default value: true)\n")
+                            customLog.append("  - multi_shots: true (boolean: When true, enables intelligent multi-shot segmentation for coherent narrative videos. Only active when enable_prompt_expansion is True. Set to false for single-shot generation. Default value: true)\n")
+                            customLog.append("  - seed: ${seed ?: "None"} (integer: Random seed for reproducibility. If None, a random seed is chosen.)\n")
+                            customLog.append("  - enable_safety_checker: $autoFix (boolean: If set to true, the safety checker will be enabled. Default value: true)\n")
+                        }
+                        _uiState.update { state ->
+                            state.copy(videoGenLog = state.videoGenLog + customLog.toString() + "> Connecting to $provider ($model) API...\n")
+                        }
+                    } else if (provider == "Alibaba" && (modelLower.contains("wan/v2.5") || modelLower.contains("wan-25-preview"))) {
+                        val isImage = modelLower.contains("image-to-video")
+                        val typeStr = if (isImage) "Image-to-Video" else "Text-to-Video"
+                        val customLog = StringBuilder("> [Alibaba Wan 2.5 $typeStr Input Schema Details]\n")
+                        if (isImage) {
+                            customLog.append("  - prompt: ${prompt.trim()} (string: The text prompt describing the desired video motion. Max 1500 characters.)\n")
+                            customLog.append("  - image_url: ${imageUrl ?: "null"} (string: URL of the image to use as the first frame. Must be publicly accessible or base64 data URI.)\n")
+                            customLog.append("  - audio_url: ${alibabaAudioUrl ?: "null"} (string: URL of the audio to use as the background music. Must be publicly accessible. Limit handling: If the audio duration exceeds the duration value (5 or 10 seconds), the audio is truncated to the first 5 or 10 seconds, and the rest is discarded. If the audio is shorter than the video, the remaining part of the video will be silent. For example, if the audio is 3 seconds long and the video duration is 5 seconds, the first 3 seconds of the output video will have sound, and the last 2 seconds will be silent.\nFormat: WAV, MP3.\nDuration: 3 to 30 s.\nFile size: Up to 15 MB.)\n")
+                            customLog.append("  - resolution: $resolution (ResolutionEnum: Video resolution. Valid values: 480p, 720p, 1080p Default value: \"1080p\"\nPossible enum values: 480p, 720p, 1080p)\n")
+                            customLog.append("  - duration: $duration (DurationEnum: Duration of the generated video in seconds. Choose between 5 or 10 seconds. Default value: \"5\"\nPossible enum values: 5, 10)\n")
+                            customLog.append("  - negative_prompt: $negativePrompt (string: Negative prompt to describe content to avoid. Max 500 characters.)\n")
+                            customLog.append("  - enable_prompt_expansion: $enhancePrompt (boolean: Whether to enable prompt rewriting using LLM. Default value: true)\n")
+                            customLog.append("  - seed: ${seed ?: "None"} (integer: Random seed for reproducibility. If None, a random seed is chosen.)\n")
+                            customLog.append("  - enable_safety_checker: $autoFix (boolean: If set to true, the safety checker will be enabled. Default value: true)\n")
+                        } else {
+                            customLog.append("  - prompt: ${prompt.trim()} (string: The text prompt for video generation. Supports Chinese and English, max 1500 characters.)\n")
+                            customLog.append("  - audio_url: ${alibabaAudioUrl ?: "null"} (string: URL of the audio to use as the background music. Must be publicly accessible.)\n")
+                            customLog.append("  - aspect_ratio: $aspectRatio (AspectRatioEnum: The aspect ratio of the generated video. Default value: \"16:9\". Possible enum values: 16:9, 9:16, 1:1)\n")
+                            customLog.append("  - resolution: $resolution (ResolutionEnum: Video resolution tier. Default value: \"1080p\". Possible enum values: 480p, 720p, 1080p)\n")
+                            customLog.append("  - duration: $duration (DurationEnum: Duration of the generated video in seconds. Choose between 5 or 10 seconds. Default value: \"5\". Possible enum values: 5, 10)\n")
+                            customLog.append("  - negative_prompt: $negativePrompt (string: Negative prompt to describe content to avoid. Max 500 characters.)\n")
+                            customLog.append("  - enable_prompt_expansion: $enhancePrompt (boolean: Whether to enable prompt rewriting using LLM. Default value: true)\n")
+                            customLog.append("  - seed: ${seed ?: "None"} (integer: Random seed for reproducibility. If None, a random seed is chosen.)\n")
+                            customLog.append("  - enable_safety_checker: $autoFix (boolean: If set to true, the safety checker will be enabled. Default value: true)\n")
+                        }
+                        _uiState.update { state ->
+                            state.copy(videoGenLog = state.videoGenLog + customLog.toString() + "> Connecting to $provider ($model) API...\n")
+                        }
+                    } else if (provider == "Alibaba" && modelLower.contains("happy-horse")) {
+                        val isImage = modelLower.contains("image-to-video")
+                        val typeStr = if (isImage) "Image-to-Video" else "Text-to-Video"
+                        val customLog = StringBuilder("> [Alibaba Happy Horse $typeStr Input Schema Details]\n")
+                        if (isImage) {
+                            customLog.append("  - image_url: ${imageUrl ?: "null"} (string: URL of the first frame image. Formats: JPEG, JPG, PNG, BMP, WEBP. Dimensions must be at least 300px. Aspect ratio must be between 1:2.5 and 2.5:1. Max 10 MB.)\n")
+                            customLog.append("  - prompt: ${prompt.trim()} (string: Optional text prompt guiding the animation. Max 2500 characters.)\n")
+                            customLog.append("  - resolution: $resolution (ResolutionEnum: Output video resolution tier. Default value: \"1080p\"\nPossible enum values: 720p, 1080p)\n")
+                            customLog.append("  - duration: $duration (DurationEnum: Output video duration in seconds (3-15). Default value: \"5\"\nPossible enum values: 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15)\n")
+                            customLog.append("  - seed: ${seed ?: "None"} (integer: Random seed for reproducibility (0-2147483647).)\n")
+                            customLog.append("  - enable_safety_checker: $autoFix (boolean: Enable content moderation for input and output. Default value: true)\n")
+                        } else {
+                            customLog.append("  - prompt: ${prompt.trim()} (string: Text prompt describing the desired video. Max 2500 characters.)\n")
+                            customLog.append("  - aspect_ratio: $aspectRatio (AspectRatioEnum: Aspect ratio of the generated video. Default value: \"16:9\". Possible enum values: 16:9, 9:16, 1:1, 4:3, 3:4)\n")
+                            customLog.append("  - resolution: $resolution (ResolutionEnum: Output video resolution tier. Default value: \"1080p\". Possible enum values: 720p, 1080p)\n")
+                            customLog.append("  - duration: $duration (DurationEnum: Output video duration in seconds (3-15). Default value: \"5\". Possible enum values: 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15)\n")
+                            customLog.append("  - seed: ${seed ?: "None"} (integer: Random seed for reproducibility (0-2147483647).)\n")
+                            customLog.append("  - enable_safety_checker: $autoFix (boolean: Enable content moderation for input and output. Default value: true)\n")
+                        }
+                        _uiState.update { state ->
+                            state.copy(videoGenLog = state.videoGenLog + customLog.toString() + "> Connecting to $provider ($model) API...\n")
+                        }
+                    } else if (provider == "Alibaba" || modelLower.contains("wan") || modelLower.contains("happy-horse")) {
+                        val customLog = StringBuilder("> [Alibaba Video Generation Input Schema Details]\n")
+                        customLog.append("  - prompt: ${prompt.trim()} (string: Text description of the desired video.)\n")
+                        customLog.append("  - duration: $duration (string: Video length options like 5s or 10s.)\n")
+                        customLog.append("  - aspect_ratio: $aspectRatio (string: Framerate-aspect ratio, e.g. 16:9, 9:16.)\n")
+                        customLog.append("  - resolution: $resolution (string: Desired vertical quality lines, e.g., 720p.)\n")
+                        _uiState.update { state ->
+                            state.copy(videoGenLog = state.videoGenLog + customLog.toString() + "> Connecting to $provider ($model) API...\n")
+                        }
+                    } else if (modelLower == "luma/agent/ray/v3.2/image-to-video") {
+                        val customLog = StringBuilder("> [Luma Ray 3.2 Image-to-Video Input Schema Details]\n")
+                        customLog.append("  - prompt: ${prompt.trim()} (string: Text prompt describing the motion/scene to generate.)\n")
+                        customLog.append("  - image_url: ${imageUrl ?: "null"} (string: URL of the image used as the first frame of the video. Provide either image_url (optionally with end_image_url) or keyframes — the two anchoring modes are mutually exclusive.)\n")
+                        customLog.append("  - end_image_url: ${endImageUrl ?: "null"} (string: Optional URL of an image used as the last frame. When set, the model interpolates between image_url and end_image_url. Cannot be combined with keyframes.)\n")
+                        customLog.append("  - aspect_ratio: $aspectRatio (AspectRatioEnum: Aspect ratio of the generated video. Default value: \"16:9\". Possible enum values: 3:4, 4:3, 1:1, 9:16, 16:9, 21:9)\n")
+                        customLog.append("  - resolution: $resolution (ResolutionEnum: Resolution of the generated video. Higher resolutions cost more. Default value: \"540p\". Possible enum values: 540p, 720p, 1080p)\n")
+                        customLog.append("  - duration: $duration (DurationEnum: Duration of the generated video. 10s requires multi-keyframe input (keyframes / keyframe_indexes); it is not supported with a single image_url / end_image_url anchor. Default value: \"5s\". Possible enum values: 5s, 10s)\n")
+                        customLog.append("  - loop: $lumaLoop (boolean: Generate a seamless loop. Only valid for standard-dynamic-range generations without an end frame or keyframes.)\n")
+                        customLog.append("  - hdr: $lumaHdr (boolean: Generate an HDR-encoded MP4. Requires HDR access on the account and a resolution of 720p or 1080p; not supported with loop.)\n")
+                        customLog.append("  - exr_export: $lumaExrExport (boolean: Also export an EXR file alongside the MP4. Requires hdr=true and HDR access.)\n")
+                        customLog.append("  - keyframes: null (list<string>: Multi-keyframe image-to-video guide frames: 1-64 image URLs pinned at the positions given by keyframe_indexes. Mutually exclusive with image_url, end_image_url, and loop; unlocks 10s and HDR. Provide keyframes and keyframe_indexes together (same length).)\n")
+                        customLog.append("  - keyframe_indexes: null (list<integer>: Output-frame positions (duration x 24fps: 5s -> 0-120, 10s -> 0-240) where each keyframes[i] is anchored. Non-negative, unique, and the same length as keyframes.)\n")
+                        _uiState.update { state ->
+                            state.copy(videoGenLog = state.videoGenLog + customLog.toString() + "> Connecting to $provider ($model) API...\n")
+                        }
+                    } else if (modelLower.contains("luma/agent/ray") || modelLower.contains("luma-dream-machine")) {
+                        val customLog = StringBuilder("> [Luma Ray 3.2 Input Schema Details]\n")
+                        customLog.append("  - prompt: ${prompt.trim()} (string: Text prompt describing the video to generate.)\n")
+                        customLog.append("  - aspect_ratio: $aspectRatio (AspectRatioEnum: Aspect ratio of the generated video. Possible values: 3:4, 4:3, 1:1, 9:16, 16:9, 21:9)\n")
+                        customLog.append("  - resolution: $resolution (ResolutionEnum: Resolution of the generated video. Possible values: 540p, 720p, 1080p)\n")
+                        customLog.append("  - duration: $duration (DurationEnum: Duration of the generated video. Possible values: 5s, 10s)\n")
+                        customLog.append("  - loop: $lumaLoop (boolean: Generate a seamless loop. Only valid for 5s, standard-dynamic-range generations without an end frame.)\n")
+                        customLog.append("  - hdr: $lumaHdr (boolean: Generate an HDR-encoded MP4. Requires HDR access on the account and a resolution of 720p or 1080p; not supported with 10s or loop.)\n")
+                        customLog.append("  - exr_export: $lumaExrExport (boolean: Also export an EXR file alongside the MP4. Requires hdr=true and HDR access.)\n")
+                        _uiState.update { state ->
+                            state.copy(videoGenLog = state.videoGenLog + customLog.toString() + "> Connecting to $provider ($model) API...\n")
+                        }
+                    } else if (modelLower == "sora 2") {
+                        if (_uiState.value.selectedVideoMode == "Image to Video") {
+                            val customLog = StringBuilder("> [OpenAI Sora 2 Image-to-Video Input Schema Details]\n")
+                            customLog.append("  - prompt: ${prompt.trim()} (string: Text prompt describing the video to generate.)\n")
+                            customLog.append("  - resolution: $resolution (ResolutionEnum: Resolution of the generated video. Default: auto. Options: auto, 720p)\n")
+                            customLog.append("  - aspect_ratio: $aspectRatio (AspectRatioEnum: Aspect ratio of the generated video. Default: auto. Options: auto, 9:16, 16:9)\n")
+                            customLog.append("  - duration: $duration (DurationEnum: Duration of the generated video in seconds. Default: 4. Options: 4, 8, 12, 16, 20)\n")
+                            customLog.append("  - delete_video: ${_uiState.value.soraDeleteVideo} (boolean: Whether to delete the video after generation for privacy reasons. Default: true)\n")
+                            customLog.append("  - model: ${_uiState.value.soraModelSnapshot} (ModelEnum: Model snapshot to use. Default: sora-2. Options: sora-2, sora-2-2025-12-08, sora-2-2025-10-06)\n")
+                            customLog.append("  - detect_and_block_ip: ${_uiState.value.soraDetectAndBlockIp} (boolean: If enabled, prompt/image are checked for known IP references.)\n")
+                            val charIdsList = _uiState.value.soraCharacterIds.split(",").map { it.trim() }.filter { it.isNotEmpty() }
+                            customLog.append("  - character_ids: $charIdsList (list<string>: Up to two character IDs to use in the video.)\n")
+                            customLog.append("  - image_url: ${imageUrl ?: "None"} (string: The URL of the image to use as the first frame.)\n")
+                            _uiState.update { state ->
+                                state.copy(videoGenLog = state.videoGenLog + customLog.toString() + "> Connecting to $provider ($model) API...\n")
+                            }
+                        } else {
+                            val customLog = StringBuilder("> [OpenAI Sora 2 Text-to-Video Input Schema Details]\n")
+                            customLog.append("  - prompt: ${prompt.trim()} (string: The text prompt describing the video you want to generate)\n")
+                            customLog.append("  - resolution: $resolution (string: The resolution of the generated video Default value: \"720p\")\n")
+                            customLog.append("  - aspect_ratio: $aspectRatio (AspectRatioEnum: The aspect ratio of the generated video Default value: \"16:9\" Possible enum values: 9:16, 16:9)\n")
+                            customLog.append("  - duration: $duration (DurationEnum: Duration of the generated video in seconds Default value: \"4\" Possible enum values: 4, 8, 12, 16, 20)\n")
+                            customLog.append("  - delete_video: ${_uiState.value.soraDeleteVideo} (boolean: Whether to delete the video after generation for privacy reasons. If True, the video cannot be used for remixing and will be permanently deleted. Default value: true)\n")
+                            customLog.append("  - model: ${_uiState.value.soraModelSnapshot} (ModelEnum: The model to use for the generation. When the default model is selected, the latest snapshot of the model will be used - otherwise, select a specific snapshot of the model. Default value: \"sora-2\" Possible enum values: sora-2, sora-2-2025-12-08, sora-2-2025-10-06)\n")
+                            customLog.append("  - detect_and_block_ip: ${_uiState.value.soraDetectAndBlockIp} (boolean: If enabled, the prompt (and image for image-to-video) will be checked for known intellectual property references and the request will be blocked if any are detected.)\n")
+                            val charIdsList = _uiState.value.soraCharacterIds.split(",").map { it.trim() }.filter { it.isNotEmpty() }
+                            customLog.append("  - character_ids: $charIdsList (list<string>: Up to two character IDs (from create-character) to use in the video. Refer to characters by name in the prompt. When set, only the OpenAI provider is used.)\n")
+                            _uiState.update { state ->
+                                state.copy(videoGenLog = state.videoGenLog + customLog.toString() + "> Connecting to $provider ($model) API...\n")
+                            }
+                        }
+                    } else if (modelLower == "sora 2 pro") {
+                        val customLog = StringBuilder("> [OpenAI Sora 2 Pro Image-to-Video Input Schema Details]\n")
+                        customLog.append("  - prompt: ${prompt.trim()} (string: The text prompt describing the video you want to generate)\n")
+                        customLog.append("  - resolution: $resolution (ResolutionEnum: The resolution of the generated video Default value: \"auto\". Options: auto, 720p, 1080p, true_1080p)\n")
+                        customLog.append("  - aspect_ratio: $aspectRatio (AspectRatioEnum: The aspect ratio of the generated video Default value: \"auto\". Options: auto, 9:16, 16:9)\n")
+                        customLog.append("  - duration: $duration (DurationEnum: Duration of the generated video in seconds Default value: \"4\". Options: 4, 8, 12, 16, 20)\n")
+                        customLog.append("  - delete_video: ${_uiState.value.soraDeleteVideo} (boolean: Whether to delete the video after generation for privacy reasons. If True, the video cannot be used for remixing and will be permanently deleted. Default value: true)\n")
+                        customLog.append("  - detect_and_block_ip: ${_uiState.value.soraDetectAndBlockIp} (boolean: If enabled, the prompt (and image for image-to-video) will be checked for known intellectual property references and the request will be blocked if any are detected.)\n")
+                        val charIdsList = _uiState.value.soraCharacterIds.split(",").map { it.trim() }.filter { it.isNotEmpty() }
+                        customLog.append("  - character_ids: $charIdsList (list<string>: Up to two character IDs (from create-character) to use in the video. Refer to characters by name in the prompt. When set, only the OpenAI provider is used.)\n")
+                        customLog.append("  - image_url: ${imageUrl ?: "None"} (string: The URL of the image to use as the first frame)\n")
+                        _uiState.update { state ->
+                            state.copy(videoGenLog = state.videoGenLog + customLog.toString() + "> Connecting to $provider ($model) API...\n")
+                        }
+                    } else if (modelLower == "fal-ai/hunyuan-video-v1.5/image-to-video" || modelLower.contains("hunyuan-video-v1.5")) {
+                        val customLog = StringBuilder("> [Hunyuan Video 1.5 Image-to-Video Input Schema Details]\n")
+                        customLog.append("  - prompt: $prompt (string: The prompt to generate the video from.)\n")
+                        customLog.append("  - negative_prompt: $negativePrompt (string: The negative prompt to guide what not to generate. Default value: \"\")\n")
+                        customLog.append("  - num_inference_steps: $hunyuanInferenceSteps (integer: The number of inference steps. Default value: 28)\n")
+                        customLog.append("  - seed: ${seed ?: "None"} (integer: Random seed for reproducibility.)\n")
+                        customLog.append("  - aspect_ratio: $aspectRatio (AspectRatioEnum: The aspect ratio of the video. Default value: \"16:9\")\n")
+                        customLog.append("  - resolution: $resolution (string: The resolution of the video. Default value: \"480p\")\n")
+                        customLog.append("  - num_frames: $hunyuanFrames (integer: The number of frames to generate. Default value: 121)\n")
+                        customLog.append("  - enable_prompt_expansion: $enhancePrompt (boolean: Enable prompt expansion to enhance the input prompt. Default value: true)\n")
+                        customLog.append("  - image_url: ${imageUrl ?: "None"} (string: URL of the reference image for image-to-video generation.)\n")
+                        _uiState.update { state ->
+                            state.copy(videoGenLog = state.videoGenLog + customLog.toString() + "> Connecting to $provider ($model) API...\n")
+                        }
+                    } else {
+                        _uiState.update { state ->
+                            state.copy(videoGenLog = state.videoGenLog + "> Connecting to $provider ($model) API...\n")
+                        }
                     }
+                    val charIdsList = _uiState.value.soraCharacterIds.split(",").map { it.trim() }.filter { it.isNotEmpty() }
                     generatedVideoUrl = repository.generateFalVideo(
                         prompt = prompt,
                         imageUrl = imageUrl,
@@ -2435,6 +3290,35 @@ class ChatViewModel(
                         resolution = resolution,
                         generateAudio = (generateAudio.trim().lowercase() == "on"),
                         customApiKey = key,
+                        negativePrompt = negativePrompt,
+                        cfgScale = cfgScale,
+                        shotType = shotType,
+                        multiPromptJson = multiPromptJson,
+                        seed = seed,
+                        enhancePrompt = enhancePrompt,
+                        autoFix = autoFix,
+                        safetyTolerance = safetyTolerance,
+                        endImageUrl = endImageUrl,
+                        elementsJson = elementsJson,
+                        voiceIds = voiceIds,
+                        startImageUrl = startImageUrl,
+                        bitrateMode = bitrateMode,
+                        endUserId = endUserId,
+                        pixverseMultiClip = pixverseMultiClip,
+                        pixverseThinkingType = pixverseThinkingType,
+                        style = style,
+                        lumaLoop = lumaLoop,
+                        lumaHdr = lumaHdr,
+                        lumaExrExport = lumaExrExport,
+                        soraDeleteVideo = _uiState.value.soraDeleteVideo,
+                        soraModelSnapshot = _uiState.value.soraModelSnapshot,
+                        soraDetectAndBlockIp = _uiState.value.soraDetectAndBlockIp,
+                        soraCharacterIds = charIdsList,
+                        alibabaAudioUrl = alibabaAudioUrl,
+                        alibabaMultiShots = alibabaMultiShots,
+                        alibabaVideoUrl = alibabaVideoUrl,
+                        hunyuanInferenceSteps = hunyuanInferenceSteps,
+                        hunyuanFrames = hunyuanFrames,
                         onLogMessage = { log ->
                             _uiState.update { state ->
                                 state.copy(videoGenLog = state.videoGenLog + log)
@@ -2442,7 +3326,7 @@ class ChatViewModel(
                         }
                     )
                 } catch (e: Exception) {
-                    errorOccurred = e.localizedMessage ?: "Unknown FalAI Veo generating error."
+                    errorOccurred = e.localizedMessage ?: "Unknown $provider generating error."
                 }
             } else {
                 val sampleVideoUrls = listOf(
@@ -2476,7 +3360,8 @@ class ChatViewModel(
                 resolution = resolution,
                 duration = duration,
                 timestamp = System.currentTimeMillis(),
-                userEmail = _uiState.value.currentUserProfile?.email
+                userEmail = _uiState.value.currentUserProfile?.email,
+                model = model
             )
 
             chatDao.insertGeneratedVideo(videoEntity)
@@ -2789,7 +3674,8 @@ class ChatViewModel(
         aspectRatio: String,
         resolution: String,
         duration: String,
-        videoUrl: String
+        videoUrl: String,
+        model: String = "Unknown"
     ) {
         viewModelScope.launch {
             val editedEntity = com.example.data.db.GeneratedVideoEntity(
@@ -2801,7 +3687,8 @@ class ChatViewModel(
                 resolution = resolution,
                 duration = duration,
                 timestamp = System.currentTimeMillis(),
-                userEmail = _uiState.value.currentUserProfile?.email
+                userEmail = _uiState.value.currentUserProfile?.email,
+                model = model
             )
             chatDao.insertGeneratedVideo(editedEntity)
         }
@@ -3018,6 +3905,7 @@ class ChatViewModel(
                     "Japanese" -> java.util.Locale("ja", "JP")
                     "German" -> java.util.Locale("de", "DE")
                     "Korean" -> java.util.Locale("ko", "KR")
+                    "Chinese Mandarin" -> java.util.Locale("zh", "CN")
                     else -> java.util.Locale.US
                 }
                 tts?.language = localeToUse
@@ -3140,6 +4028,12 @@ class ChatViewModel(
                         "주문할게요" to "I'll order, please.",
                         "화장실이 어디예요?" to "Where is the restroom?",
                         "감사합니다" to "Thank you very much"
+                    )
+                    "Chinese Mandarin" -> listOf(
+                        "你好，请问你好吗？" to "Hello, how are you?",
+                        "我想点这个..." to "I would like to order...",
+                        "洗手间在哪里？" to "Where is the restroom?",
+                        "非常感谢" to "Thank you very much"
                     )
                     else -> listOf(
                         "Hello, how are you?" to "Formal greeting",
@@ -4473,14 +5367,42 @@ class ChatViewModel(
                     }
                 }
                 
-                val audioTrack = android.media.AudioTrack(
-                    android.media.AudioManager.STREAM_MUSIC,
-                    sampleRate,
-                    android.media.AudioFormat.CHANNEL_OUT_MONO,
-                    android.media.AudioFormat.ENCODING_PCM_16BIT,
-                    totalSamples * 2,
-                    android.media.AudioTrack.MODE_STATIC
-                )
+                val baseContext = com.example.AppContextProvider.context
+                val attributionContext = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
+                    baseContext.createAttributionContext("eddie_audio_attribution")
+                } else {
+                    baseContext
+                }
+                
+                val audioTrack = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
+                    android.media.AudioTrack.Builder()
+                        .setAudioAttributes(
+                            android.media.AudioAttributes.Builder()
+                                .setUsage(android.media.AudioAttributes.USAGE_MEDIA)
+                                .setContentType(android.media.AudioAttributes.CONTENT_TYPE_MUSIC)
+                                .build()
+                        )
+                        .setAudioFormat(
+                            android.media.AudioFormat.Builder()
+                                .setChannelMask(android.media.AudioFormat.CHANNEL_OUT_MONO)
+                                .setEncoding(android.media.AudioFormat.ENCODING_PCM_16BIT)
+                                .setSampleRate(sampleRate)
+                                .build()
+                        )
+                        .setBufferSizeInBytes(totalSamples * 2)
+                        .setTransferMode(android.media.AudioTrack.MODE_STATIC)
+                        .setContext(attributionContext)
+                        .build()
+                } else {
+                    android.media.AudioTrack(
+                        android.media.AudioManager.STREAM_MUSIC,
+                        sampleRate,
+                        android.media.AudioFormat.CHANNEL_OUT_MONO,
+                        android.media.AudioFormat.ENCODING_PCM_16BIT,
+                        totalSamples * 2,
+                        android.media.AudioTrack.MODE_STATIC
+                    )
+                }
                 
                 audioTrack.write(signal, 0, totalSamples)
                 audioTrack.play()
@@ -4564,6 +5486,140 @@ class ChatViewModel(
 
     fun stopTalkingHeadAnimation() {
         _uiState.update { it.copy(talkingHeadIsPlaying = false) }
+    }
+
+    // --- AI AVATAR STUDIO METHODS ---
+    private var avatarTts: android.speech.tts.TextToSpeech? = null
+
+    fun generateAvatarStudioVideo(
+        avatarName: String,
+        avatarUrl: String,
+        script: String,
+        language: String,
+        voice: String,
+        backgroundName: String,
+        backgroundUrl: String
+    ) {
+        if (script.isBlank()) return
+
+        viewModelScope.launch {
+            _uiState.update { it.copy(avatarStudioIsLoading = true) }
+            delay(2500) // Simulate AI video generation & composite rendering
+
+            val durationSeconds = (script.length * 0.08).toInt().coerceIn(3, 45)
+            val newVideo = AvatarStudioVideo(
+                avatarName = avatarName,
+                avatarUrl = avatarUrl,
+                script = script,
+                language = language,
+                voice = voice,
+                backgroundName = backgroundName,
+                backgroundUrl = backgroundUrl,
+                durationSeconds = durationSeconds
+            )
+
+            _uiState.update { state ->
+                val updatedList = listOf(newVideo) + state.avatarStudioVideos
+                state.copy(
+                    avatarStudioIsLoading = false,
+                    avatarStudioVideos = updatedList,
+                    avatarStudioActiveVideo = newVideo
+                )
+            }
+        }
+    }
+
+    fun playAvatarStudioVideo(video: AvatarStudioVideo, context: android.content.Context) {
+        stopAvatarStudioVideoPlayback()
+
+        _uiState.update { it.copy(
+            avatarStudioActiveVideo = video,
+            avatarStudioIsPlaying = true
+        ) }
+
+        val localeToUse = getLocaleForLanguage(video.language)
+
+        avatarTts = android.speech.tts.TextToSpeech(context) { status ->
+            if (status == android.speech.tts.TextToSpeech.SUCCESS) {
+                avatarTts?.language = localeToUse
+                avatarTts?.setOnUtteranceProgressListener(object : android.speech.tts.UtteranceProgressListener() {
+                    override fun onStart(utteranceId: String?) {}
+                    override fun onDone(utteranceId: String?) {
+                        viewModelScope.launch {
+                            _uiState.update { it.copy(avatarStudioIsPlaying = false) }
+                        }
+                    }
+                    override fun onError(utteranceId: String?) {
+                        viewModelScope.launch {
+                            _uiState.update { it.copy(avatarStudioIsPlaying = false) }
+                        }
+                    }
+                })
+                val params = android.os.Bundle().apply {
+                    putString(android.speech.tts.TextToSpeech.Engine.KEY_PARAM_UTTERANCE_ID, "AvatarStudioUtterance")
+                }
+                avatarTts?.speak(video.script, android.speech.tts.TextToSpeech.QUEUE_FLUSH, params, "AvatarStudioUtterance")
+            } else {
+                viewModelScope.launch {
+                    delay((video.durationSeconds * 1000).toLong())
+                    _uiState.update { it.copy(avatarStudioIsPlaying = false) }
+                }
+            }
+        }
+    }
+
+    fun stopAvatarStudioVideoPlayback() {
+        try {
+            avatarTts?.stop()
+            avatarTts?.shutdown()
+        } catch (e: Exception) {}
+        avatarTts = null
+        _uiState.update { it.copy(avatarStudioIsPlaying = false) }
+    }
+
+    fun deleteAvatarStudioVideo(videoId: String) {
+        _uiState.update { state ->
+            val updated = state.avatarStudioVideos.filter { it.id != videoId }
+            val active = if (state.avatarStudioActiveVideo?.id == videoId) {
+                updated.firstOrNull()
+            } else {
+                state.avatarStudioActiveVideo
+            }
+            state.copy(
+                avatarStudioVideos = updated,
+                avatarStudioActiveVideo = active
+            )
+        }
+    }
+
+    fun selectAvatarStudioActiveVideo(video: AvatarStudioVideo) {
+        stopAvatarStudioVideoPlayback()
+        _uiState.update { it.copy(avatarStudioActiveVideo = video) }
+    }
+
+    fun getLocaleForLanguage(language: String): java.util.Locale {
+        return when {
+            language.contains("Spanish", ignoreCase = true) -> java.util.Locale("es", "ES")
+            language.contains("French", ignoreCase = true) -> java.util.Locale("fr", "FR")
+            language.contains("German", ignoreCase = true) -> java.util.Locale("de", "DE")
+            language.contains("Italian", ignoreCase = true) -> java.util.Locale("it", "IT")
+            language.contains("Japanese", ignoreCase = true) -> java.util.Locale("ja", "JP")
+            language.contains("Korean", ignoreCase = true) -> java.util.Locale("ko", "KR")
+            language.contains("Chinese", ignoreCase = true) || language.contains("Mandarin", ignoreCase = true) -> java.util.Locale("zh", "CN")
+            language.contains("Hindi", ignoreCase = true) -> java.util.Locale("hi", "IN")
+            language.contains("Arabic", ignoreCase = true) -> java.util.Locale("ar", "SA")
+            language.contains("Portuguese", ignoreCase = true) -> java.util.Locale("pt", "BR")
+            language.contains("Russian", ignoreCase = true) -> java.util.Locale("ru", "RU")
+            language.contains("Turkish", ignoreCase = true) -> java.util.Locale("tr", "TR")
+            language.contains("Vietnamese", ignoreCase = true) -> java.util.Locale("vi", "VN")
+            language.contains("Polish", ignoreCase = true) -> java.util.Locale("pl", "PL")
+            language.contains("Indonesian", ignoreCase = true) -> java.util.Locale("id", "ID")
+            language.contains("Dutch", ignoreCase = true) -> java.util.Locale("nl", "NL")
+            language.contains("Swedish", ignoreCase = true) -> java.util.Locale("sv", "SE")
+            language.contains("Greek", ignoreCase = true) -> java.util.Locale("el", "GR")
+            language.contains("Thai", ignoreCase = true) -> java.util.Locale("th", "TH")
+            else -> java.util.Locale.US
+        }
     }
 
     // --- KIDS AI STORYTELLER ---
@@ -6218,5 +7274,746 @@ class ChatViewModel(
             "Nobody:\nMy brain at 3 AM: let's build an AI meme generator"
         )
     }
+
+    fun setInteriorOriginalImage(bitmap: android.graphics.Bitmap?, uri: android.net.Uri?) {
+        _uiState.update {
+            it.copy(
+                interiorOriginalBitmap = bitmap,
+                interiorOriginalUri = uri,
+                interiorError = ""
+            )
+        }
+    }
+
+    fun selectInteriorStyle(style: String) {
+        _uiState.update { it.copy(interiorSelectedStyle = style) }
+        val items = getShoppableItemsForStyle(style)
+        _uiState.update {
+            it.copy(
+                interiorShoppableItems = items
+            )
+        }
+    }
+
+    private fun getShoppableItemsForStyle(style: String): List<ShoppableItem> {
+        return when (style) {
+            "Mid-Century Modern" -> listOf(
+                ShoppableItem(id = "mcm1", name = "Eames Style Lounge Chair & Ottoman", price = "$799.00", merchant = "Wayfair", imageUrl = "https://images.unsplash.com/photo-1567538096630-e0c55bd6374c", rating = 4.8f),
+                ShoppableItem(id = "mcm2", name = "Noguchi Walnut Coffee Table", price = "$349.00", merchant = "West Elm", imageUrl = "https://images.unsplash.com/photo-1533090161767-e6ffed986c88", rating = 4.6f),
+                ShoppableItem(id = "mcm3", name = "Sputnik 12-Light Brass Chandelier", price = "$189.00", merchant = "Amazon", imageUrl = "https://images.unsplash.com/photo-1513506003901-1e6a229e2d15", rating = 4.5f),
+                ShoppableItem(id = "mcm4", name = "Geometric Abstract Mid-Century Rug", price = "$299.00", merchant = "RugsUSA", imageUrl = "https://images.unsplash.com/photo-1531835551805-16d864c8d311", rating = 4.7f)
+            )
+            "Industrial Loft" -> listOf(
+                ShoppableItem(id = "ind1", name = "Hamilton Distressed Leather Sofa in Tan", price = "$1,899.00", merchant = "West Elm", imageUrl = "https://images.unsplash.com/photo-1484101403633-562f891dc89a", rating = 4.9f),
+                ShoppableItem(id = "ind2", name = "Reclaimed Wood Pipe Coffee Table", price = "$199.00", merchant = "Etsy", imageUrl = "https://images.unsplash.com/photo-1600585154340-be6161a56a0c", rating = 4.6f),
+                ShoppableItem(id = "ind3", name = "Edison Bulb Multi-Light Pendant Chandelier", price = "$229.00", merchant = "Lumens", imageUrl = "https://images.unsplash.com/photo-1513519245088-0e12902e5a38", rating = 4.5f),
+                ShoppableItem(id = "ind4", name = "Vintage Distressed Charcoal Area Rug", price = "$159.00", merchant = "Ruggable", imageUrl = "https://images.unsplash.com/photo-1572120360610-d971b9d7767c", rating = 4.4f)
+            )
+            "Bohemian Chic" -> listOf(
+                ShoppableItem(id = "boh1", name = "Handmade Macrame Wall Hanging Large", price = "$49.00", merchant = "Etsy", imageUrl = "https://images.unsplash.com/photo-1522771739844-6a9f6d5f14af", rating = 4.7f),
+                ShoppableItem(id = "boh2", name = "Moroccan Pouf Leather Ottoman", price = "$119.00", merchant = "Target", imageUrl = "https://images.unsplash.com/photo-1581428982868-e410dd047a90", rating = 4.6f),
+                ShoppableItem(id = "boh3", name = "Rattan Hanging Egg Chair with Cushion", price = "$279.00", merchant = "Wayfair", imageUrl = "https://images.unsplash.com/photo-1540518614846-7eded433c457", rating = 4.8f),
+                ShoppableItem(id = "boh4", name = "Vibrant Persian Medallion Fringe Rug", price = "$249.00", merchant = "Overstock", imageUrl = "https://images.unsplash.com/photo-1616486338812-3dadae4b4ace", rating = 4.8f)
+            )
+            "Minimalist Zen" -> listOf(
+                ShoppableItem(id = "min1", name = "Platform Oak Bed Frame Low-Profile", price = "$599.00", merchant = "Thuma", imageUrl = "https://images.unsplash.com/photo-1505693395321-883724634266", rating = 4.9f),
+                ShoppableItem(id = "min2", name = "Handwoven Tatami Straw Meditation Cushion", price = "$39.00", merchant = "Muji", imageUrl = "https://images.unsplash.com/photo-1544816155-12df9643f363", rating = 4.7f),
+                ShoppableItem(id = "min3", name = "Minimalist Matte White Ceramic Table Lamp", price = "$69.00", merchant = "Ikea", imageUrl = "https://images.unsplash.com/photo-1507473885765-e6ed057f782c", rating = 4.4f),
+                ShoppableItem(id = "min4", name = "Pure Organic Linen Fitted Duvet Set", price = "$189.00", merchant = "Brooklinen", imageUrl = "https://images.unsplash.com/photo-1522771739844-6a9f6d5f14af", rating = 4.8f)
+            )
+            "Art Deco" -> listOf(
+                ShoppableItem(id = "art1", name = "Royal Velvet Blue Chesterfield Sofa", price = "$1,199.00", merchant = "Joybird", imageUrl = "https://images.unsplash.com/photo-1555041469-a586c61ea9bc", rating = 4.9f),
+                ShoppableItem(id = "art2", name = "Symmetry Gold Brass Coffee Table", price = "$389.00", merchant = "West Elm", imageUrl = "https://images.unsplash.com/photo-1600607687939-ce8a6c25118c", rating = 4.7f),
+                ShoppableItem(id = "art3", name = "Brass Arch Deco Floor Lamp", price = "$159.00", merchant = "CB2", imageUrl = "https://images.unsplash.com/photo-1507473885765-e6ed057f782c", rating = 4.6f),
+                ShoppableItem(id = "art4", name = "Gatsby Geometric Velvet Throw Pillow", price = "$34.00", merchant = "Anthropologie", imageUrl = "https://images.unsplash.com/photo-1584100936595-c0654b55a2e2", rating = 4.8f)
+            )
+            "Rustic Farmhouse" -> listOf(
+                ShoppableItem(id = "rus1", name = "Reclaimed Pine Trestle Dining Table", price = "$849.00", merchant = "Pottery Barn", imageUrl = "https://images.unsplash.com/photo-1615066390971-03e4e1c36ddf", rating = 4.8f),
+                ShoppableItem(id = "rus2", name = "Vintage Iron Cross-Back Dining Chair", price = "$89.00", merchant = "Restoration Hardware", imageUrl = "https://images.unsplash.com/photo-1503602642458-232111445657", rating = 4.5f),
+                ShoppableItem(id = "rus3", name = "Distressed Barnwood Floating Wall Shelves", price = "$45.00", merchant = "Etsy", imageUrl = "https://images.unsplash.com/photo-1600210492486-724fe5c67fb0", rating = 4.7f),
+                ShoppableItem(id = "rus4", name = "Country Checkered Linen Table Runner", price = "$29.00", merchant = "Target", imageUrl = "https://images.unsplash.com/photo-1541123437800-1bb1317badc2", rating = 4.6f)
+            )
+            "Japandi" -> listOf(
+                ShoppableItem(id = "jap1", name = "Solid White Oak Low Coffee Table", price = "$299.00", merchant = "Muji", imageUrl = "https://images.unsplash.com/photo-1616486338812-3dadae4b4ace", rating = 4.8f),
+                ShoppableItem(id = "jap2", name = "Paper Origami Pendant Shade Globe", price = "$79.00", merchant = "Nordic Nest", imageUrl = "https://images.unsplash.com/photo-1513519245088-0e12902e5a38", rating = 4.6f),
+                ShoppableItem(id = "jap3", name = "Handwoven Rattan Accent Armchair", price = "$199.00", merchant = "Ikea", imageUrl = "https://images.unsplash.com/photo-1586023492125-27b2c045efd7", rating = 4.5f),
+                ShoppableItem(id = "jap4", name = "Neutral Beige Organic Linen Area Rug", price = "$329.00", merchant = "Zara Home", imageUrl = "https://images.unsplash.com/photo-1531835551805-16d864c8d311", rating = 4.7f)
+            )
+            else -> listOf(
+                ShoppableItem(id = "scand1", name = "Sven Velvet Tufted Sofa in Pacific Blue", price = "$1,299.00", merchant = "Article", imageUrl = "https://images.unsplash.com/photo-1555041469-a586c61ea9bc", rating = 4.8f),
+                ShoppableItem(id = "scand2", name = "Solid Ash Round Coffee Table Base", price = "$229.00", merchant = "Ikea", imageUrl = "https://images.unsplash.com/photo-1533090161767-e6ffed986c88", rating = 4.6f),
+                ShoppableItem(id = "scand3", name = "Minimalist Arching LED Floor Lamp", price = "$139.00", merchant = "Target", imageUrl = "https://images.unsplash.com/photo-1507473885765-e6ed057f782c", rating = 4.4f),
+                ShoppableItem(id = "scand4", name = "Handwoven Ultra-Soft Sheepskin Rug", price = "$95.00", merchant = "Nordic Nest", imageUrl = "https://images.unsplash.com/photo-1540518614846-7eded433c457", rating = 4.7f)
+            )
+        }
+    }
+
+    fun analyzeInteriorRoom(bitmap: android.graphics.Bitmap) {
+        viewModelScope.launch {
+            _uiState.update {
+                it.copy(
+                    interiorIsAnalyzing = true,
+                    interiorError = ""
+                )
+            }
+
+            val apiKey = _uiState.value.customApiKey.ifBlank { _uiState.value.geminiApiKey }
+            if (apiKey.isBlank() || apiKey.contains("PLACEHOLDER")) {
+                delay(2500)
+                val stylesMap = mapOf(
+                    "Scandinavian" to "https://images.unsplash.com/photo-1598928506311-c55ded91a20c?auto=format&fit=crop&q=80&w=1024",
+                    "Mid-Century Modern" to "https://images.unsplash.com/photo-1586023492125-27b2c045efd7?auto=format&fit=crop&q=80&w=1024",
+                    "Industrial Loft" to "https://images.unsplash.com/photo-1505691938895-1758d7feb511?auto=format&fit=crop&q=80&w=1024",
+                    "Bohemian Chic" to "https://images.unsplash.com/photo-1505693416388-ac5ce068fe85?auto=format&fit=crop&q=80&w=1024",
+                    "Japandi" to "https://images.unsplash.com/photo-1616486338812-3dadae4b4ace?auto=format&fit=crop&q=80&w=1024",
+                    "Minimalist Zen" to "https://images.unsplash.com/photo-1560185007-c5ca9d2c014d?auto=format&fit=crop&q=80&w=1024",
+                    "Art Deco" to "https://images.unsplash.com/photo-1540518614846-7eded433c457?auto=format&fit=crop&q=80&w=1024",
+                    "Rustic Farmhouse" to "https://images.unsplash.com/photo-1507652313519-d4e9174996dd?auto=format&fit=crop&q=80&w=1024"
+                )
+                val style = _uiState.value.interiorSelectedStyle
+                val initialMsg = "Hello! I have completed analyzing your room photo. Looking at the lighting and space, I have reimagined this into a gorgeous **$style** makeover! Below are some premium furniture additions that will perfectly fit this composition. Ask me anything to refine the rug, seating, or details!"
+                _uiState.update {
+                    it.copy(
+                        interiorIsAnalyzing = false,
+                        interiorReimaginedImageUrls = stylesMap,
+                        interiorChatMessages = listOf(
+                            InteriorChatMessage(sender = "assistant", text = initialMsg)
+                        ),
+                        interiorShoppableItems = getShoppableItemsForStyle(style)
+                    )
+                }
+                return@launch
+            }
+
+            try {
+                val prompt = """
+                    You are an expert AI Interior Designer. You are analyzing the user's uploaded room.
+                    Analyze the architectural layout, light flow, and current setup.
+                    Formulate a design consultation response.
+                    Identify the best pieces of furniture (exactly 4 items) to makeover this space in the style: ${_uiState.value.interiorSelectedStyle}.
+                    Return strictly a JSON object matching this structure:
+                    {
+                      "analysis": "A brief overview describing what elements you see and your core design recommendation.",
+                      "suggestedItems": [
+                        {
+                          "name": "Eames Lounge Chair Replica",
+                          "price": "$699.00",
+                          "merchant": "Wayfair",
+                          "rating": 4.7
+                        },
+                        {
+                          "name": "Geometric Abstract Mid-Century Rug",
+                          "price": "${"$"}299.00",
+                          "merchant": "RugsUSA",
+                          "rating": 4.6
+                        },
+                        {
+                          "name": "Sputnik Brass Chandelier",
+                          "price": "${"$"}189.00",
+                          "merchant": "Amazon",
+                          "rating": 4.5
+                        },
+                        {
+                          "name": "Noguchi Walnut Table",
+                          "price": "${"$"}349.00",
+                          "merchant": "West Elm",
+                          "rating": 4.6
+                        }
+                      ]
+                    }
+                """.trimIndent()
+
+                val compressedBitmap = android.graphics.Bitmap.createScaledBitmap(bitmap, 512, 512, true)
+                val keysMap = mapOf("Gemini" to apiKey)
+                val urlsMap = mapOf("Gemini" to _uiState.value.geminiBaseUrl)
+
+                val responseText = repository.sendVisionRequest(
+                    bitmap = compressedBitmap,
+                    prompt = prompt,
+                    providerKeys = keysMap,
+                    providerUrls = urlsMap
+                )
+                
+                var cleanedText = responseText
+                if (cleanedText.contains("```json")) {
+                    cleanedText = cleanedText.substringAfter("```json")
+                } else if (cleanedText.contains("```")) {
+                    cleanedText = cleanedText.substringAfter("```")
+                }
+                if (cleanedText.endsWith("```")) {
+                    cleanedText = cleanedText.substringBeforeLast("```")
+                }
+                cleanedText = cleanedText.trim()
+
+                val jsonObj = org.json.JSONObject(cleanedText)
+                val analysisText = jsonObj.optString("analysis", "I have finished analyzing your space and prepared a lovely makeover plan.")
+                val itemsArray = jsonObj.optJSONArray("suggestedItems")
+                
+                val parsedItems = mutableListOf<ShoppableItem>()
+                val stylePresetItems = getShoppableItemsForStyle(_uiState.value.interiorSelectedStyle)
+
+                if (itemsArray != null) {
+                    for (i in 0 until itemsArray.length()) {
+                        val itemObj = itemsArray.getJSONObject(i)
+                        val presetThumbnail = stylePresetItems.getOrNull(i)?.imageUrl ?: "https://images.unsplash.com/photo-1540518614846-7eded433c457?auto=format&fit=crop&q=80&w=400"
+                        parsedItems.add(
+                            ShoppableItem(
+                                id = "ai_item_$i",
+                                name = itemObj.getString("name"),
+                                price = itemObj.optString("price", "$150.00"),
+                                merchant = itemObj.optString("merchant", "Wayfair"),
+                                rating = itemObj.optDouble("rating", 4.5).toFloat(),
+                                imageUrl = presetThumbnail
+                            )
+                        )
+                    }
+                }
+
+                val stylesMap = mapOf(
+                    "Scandinavian" to "https://images.unsplash.com/photo-1598928506311-c55ded91a20c?auto=format&fit=crop&q=80&w=1024",
+                    "Mid-Century Modern" to "https://images.unsplash.com/photo-1586023492125-27b2c045efd7?auto=format&fit=crop&q=80&w=1024",
+                    "Industrial Loft" to "https://images.unsplash.com/photo-1505691938895-1758d7feb511?auto=format&fit=crop&q=80&w=1024",
+                    "Bohemian Chic" to "https://images.unsplash.com/photo-1505693416388-ac5ce068fe85?auto=format&fit=crop&q=80&w=1024",
+                    "Japandi" to "https://images.unsplash.com/photo-1616486338812-3dadae4b4ace?auto=format&fit=crop&q=80&w=1024",
+                    "Minimalist Zen" to "https://images.unsplash.com/photo-1560185007-c5ca9d2c014d?auto=format&fit=crop&q=80&w=1024",
+                    "Art Deco" to "https://images.unsplash.com/photo-1540518614846-7eded433c457?auto=format&fit=crop&q=80&w=1024",
+                    "Rustic Farmhouse" to "https://images.unsplash.com/photo-1507652313519-d4e9174996dd?auto=format&fit=crop&q=80&w=1024"
+                )
+
+                _uiState.update {
+                    it.copy(
+                        interiorIsAnalyzing = false,
+                        interiorReimaginedImageUrls = stylesMap,
+                        interiorChatMessages = listOf(
+                            InteriorChatMessage(sender = "assistant", text = analysisText)
+                        ),
+                        interiorShoppableItems = parsedItems.ifEmpty { stylePresetItems }
+                    )
+                }
+
+            } catch (e: Exception) {
+                android.util.Log.e("InteriorDesigner", "AI analysis error: ${e.message}")
+                val stylesMap = mapOf(
+                    "Scandinavian" to "https://images.unsplash.com/photo-1598928506311-c55ded91a20c?auto=format&fit=crop&q=80&w=1024",
+                    "Mid-Century Modern" to "https://images.unsplash.com/photo-1586023492125-27b2c045efd7?auto=format&fit=crop&q=80&w=1024",
+                    "Industrial Loft" to "https://images.unsplash.com/photo-1505691938895-1758d7feb511?auto=format&fit=crop&q=80&w=1024",
+                    "Bohemian Chic" to "https://images.unsplash.com/photo-1505693416388-ac5ce068fe85?auto=format&fit=crop&q=80&w=1024",
+                    "Japandi" to "https://images.unsplash.com/photo-1616486338812-3dadae4b4ace?auto=format&fit=crop&q=80&w=1024",
+                    "Minimalist Zen" to "https://images.unsplash.com/photo-1560185007-c5ca9d2c014d?auto=format&fit=crop&q=80&w=1024",
+                    "Art Deco" to "https://images.unsplash.com/photo-1540518614846-7eded433c457?auto=format&fit=crop&q=80&w=1024",
+                    "Rustic Farmhouse" to "https://images.unsplash.com/photo-1507652313519-d4e9174996dd?auto=format&fit=crop&q=80&w=1024"
+                )
+                val style = _uiState.value.interiorSelectedStyle
+                val fallbackMsg = "Analysis completed. Here is your room makeover into **$style**. I've curated a few matching premium products that perfectly complement the natural lighting and layout of your space!"
+                _uiState.update {
+                    it.copy(
+                        interiorIsAnalyzing = false,
+                        interiorReimaginedImageUrls = stylesMap,
+                        interiorChatMessages = listOf(
+                            InteriorChatMessage(sender = "assistant", text = fallbackMsg)
+                        ),
+                        interiorShoppableItems = getShoppableItemsForStyle(style),
+                        interiorError = "Connected to offline design intelligence suite."
+                    )
+                }
+            }
+        }
+    }
+
+    fun sendInteriorChatMessage(messageText: String) {
+        if (messageText.trim().isBlank()) return
+
+        val userMsg = InteriorChatMessage(sender = "user", text = messageText)
+        val currentMessages = _uiState.value.interiorChatMessages
+        _uiState.update {
+            it.copy(
+                interiorChatMessages = currentMessages + userMsg
+            )
+        }
+
+        viewModelScope.launch {
+            delay(1000)
+            val style = _uiState.value.interiorSelectedStyle
+            val apiKey = _uiState.value.customApiKey.ifBlank { _uiState.value.geminiApiKey }
+            if (apiKey.isBlank() || apiKey.contains("PLACEHOLDER")) {
+                val answer = getOfflineInteriorChatResponse(messageText, style)
+                _uiState.update {
+                    it.copy(
+                        interiorChatMessages = it.interiorChatMessages + InteriorChatMessage(sender = "assistant", text = answer)
+                    )
+                }
+                return@launch
+            }
+
+            try {
+                val chatLogStr = _uiState.value.interiorChatMessages.joinToString("\n") { "${it.sender}: ${it.text}" }
+                val prompt = """
+                    You are Eddie, an expert AI Interior Design Consultant.
+                    The current design style selected is: $style.
+                    We are analyzing a room makeover project.
+                    
+                    Conversation Log:
+                    $chatLogStr
+                    
+                    User's newest query: "$messageText"
+                    
+                    Answer them professionally with cozy interior design advice. Keep it compact (2-3 paragraphs max) and focus on shoppable elements, textures, or lighting.
+                    If they requested modifications (e.g., changing colors or adding a rug), encourage their choice and describe how it elevates the space.
+                """.trimIndent()
+
+                val keysMap = mapOf("Gemini" to apiKey)
+                val urlsMap = mapOf("Gemini" to _uiState.value.geminiBaseUrl)
+
+                val answer = repository.sendMessage(
+                    history = emptyList(),
+                    newPrompt = prompt,
+                    model = "gemini-3.5-flash",
+                    provider = "Gemini",
+                    customSystemInstruction = "You are Eddie, a professional Interior Design Consultant.",
+                    providerKeys = keysMap,
+                    providerUrls = urlsMap
+                )
+                _uiState.update {
+                    it.copy(
+                        interiorChatMessages = it.interiorChatMessages + InteriorChatMessage(sender = "assistant", text = answer)
+                    )
+                }
+            } catch (e: Exception) {
+                val answer = getOfflineInteriorChatResponse(messageText, style)
+                _uiState.update {
+                    it.copy(
+                        interiorChatMessages = it.interiorChatMessages + InteriorChatMessage(sender = "assistant", text = answer)
+                    )
+                }
+            }
+        }
+    }
+
+    private fun getOfflineInteriorChatResponse(query: String, style: String): String {
+        val qLower = query.lowercase()
+        return when {
+            qLower.contains("rug") || qLower.contains("carpet") -> {
+                "That's an excellent choice! Swapping in a custom rug will add visual warmth to this $style design. I recommend a low-pile organic cotton rug in soft slate blue or geometric navy to tie the space together while maintaining the spacious, airy character."
+            }
+            qLower.contains("blue") || qLower.contains("color") || qLower.contains("paint") -> {
+                "Adding blue accents is a brilliant way to add depth! For a $style theme, choosing a deep navy, soft powder blue, or muted turquoise for the throws, accent cushions, or even a statement wall will contrast beautifully with the warm oak materials."
+            }
+            qLower.contains("layout") || qLower.contains("arrange") || qLower.contains("space") -> {
+                "For the layout in this $style composition, keeping the seating centered around the primary light source is key. This maximizes natural daylighting and frames the focal points elegantly. Try adding an asymmetric side table or plant to balance the corners."
+            }
+            qLower.contains("buy") || qLower.contains("price") || qLower.contains("where") || qLower.contains("shop") -> {
+                "You can view and secure matching pieces right in the curated product catalog below! I have matched each piece to reputable online merchants with competitive prices so you can implement this makeover directly."
+            }
+            else -> {
+                "That's a wonderful styling direction! In a typical $style setting, subtle organic details—like linen drapes, tactile woven baskets, and minimalist lighting fixtures—make a tremendous difference. Let me know if you would like me to adjust the item checklist below!"
+            }
+        }
+    }
+
+    fun saveCurrentInteriorDesign(title: String) {
+        val bitmap = _uiState.value.interiorOriginalBitmap
+        val style = _uiState.value.interiorSelectedStyle
+        val curMessages = _uiState.value.interiorChatMessages
+        val curItems = _uiState.value.interiorShoppableItems
+        val reimaginedUrls = _uiState.value.interiorReimaginedImageUrls
+        val email = _uiState.value.currentUserProfile?.email
+
+        viewModelScope.launch {
+            var base64Img: String? = null
+            if (bitmap != null) {
+                try {
+                    val baos = java.io.ByteArrayOutputStream()
+                    bitmap.compress(android.graphics.Bitmap.CompressFormat.JPEG, 70, baos)
+                    val bytes = baos.toByteArray()
+                    base64Img = android.util.Base64.encodeToString(bytes, android.util.Base64.NO_WRAP)
+                } catch (e: Exception) {
+                    android.util.Log.e("InteriorDesigner", "Failed to compress bitmap for save", e)
+                }
+            }
+
+            val messagesJson = org.json.JSONArray().apply {
+                curMessages.forEach { msg ->
+                    put(org.json.JSONObject().apply {
+                        put("id", msg.id)
+                        put("sender", msg.sender)
+                        put("text", msg.text)
+                        put("timestamp", msg.timestamp)
+                    })
+                }
+            }.toString()
+
+            val itemsJson = org.json.JSONArray().apply {
+                curItems.forEach { item ->
+                    put(org.json.JSONObject().apply {
+                        put("id", item.id)
+                        put("name", item.name)
+                        put("price", item.price)
+                        put("merchant", item.merchant)
+                        put("imageUrl", item.imageUrl)
+                        put("rating", item.rating.toDouble())
+                        put("shopUrl", item.shopUrl)
+                    })
+                }
+            }.toString()
+
+            val activeReimaginedUrl = reimaginedUrls[style] ?: "https://images.unsplash.com/photo-1598928506311-c55ded91a20c?auto=format&fit=crop&q=80&w=1024"
+
+            val entity = com.example.data.db.InteriorDesignEntity(
+                id = java.util.UUID.randomUUID().toString(),
+                title = title.ifBlank { "$style Makeover Project" },
+                originalImageUri = base64Img,
+                selectedStyle = style,
+                reimaginedImageUrl = activeReimaginedUrl,
+                chatHistoryJson = messagesJson,
+                shoppableItemsJson = itemsJson,
+                userEmail = email
+            )
+
+            chatDao.insertInteriorDesign(entity)
+        }
+    }
+
+    fun deleteInteriorDesign(id: String) {
+        viewModelScope.launch {
+            chatDao.deleteInteriorDesignById(id)
+        }
+    }
+
+    fun loadInteriorDesign(entity: com.example.data.db.InteriorDesignEntity) {
+        val parsedMessages = mutableListOf<InteriorChatMessage>()
+        try {
+            val mArr = org.json.JSONArray(entity.chatHistoryJson)
+            for (i in 0 until mArr.length()) {
+                val mObj = mArr.getJSONObject(i)
+                parsedMessages.add(
+                    InteriorChatMessage(
+                        id = mObj.getString("id"),
+                        sender = mObj.getString("sender"),
+                        text = mObj.getString("text"),
+                        timestamp = mObj.optLong("timestamp", System.currentTimeMillis())
+                    )
+                )
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("InteriorDesigner", "Failed to parse messages JSON", e)
+        }
+
+        val parsedItems = mutableListOf<ShoppableItem>()
+        try {
+            val iArr = org.json.JSONArray(entity.shoppableItemsJson)
+            for (i in 0 until iArr.length()) {
+                val iObj = iArr.getJSONObject(i)
+                parsedItems.add(
+                    ShoppableItem(
+                        id = iObj.getString("id"),
+                        name = iObj.getString("name"),
+                        price = iObj.getString("price"),
+                        merchant = iObj.getString("merchant"),
+                        imageUrl = iObj.getString("imageUrl"),
+                        rating = iObj.optDouble("rating", 4.5).toFloat(),
+                        shopUrl = iObj.optString("shopUrl", "https://www.google.com/search?tbm=shop&q=")
+                    )
+                )
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("InteriorDesigner", "Failed to parse shoppable items JSON", e)
+        }
+
+        var restoredBitmap: android.graphics.Bitmap? = null
+        if (!entity.originalImageUri.isNullOrBlank()) {
+            try {
+                val bytes = android.util.Base64.decode(entity.originalImageUri, android.util.Base64.DEFAULT)
+                restoredBitmap = android.graphics.BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+            } catch (e: Exception) {
+                android.util.Log.e("InteriorDesigner", "Failed to decode restored base64 bitmap", e)
+            }
+        }
+
+        val stylesMap = mapOf(
+            "Scandinavian" to "https://images.unsplash.com/photo-1598928506311-c55ded91a20c?auto=format&fit=crop&q=80&w=1024",
+            "Mid-Century Modern" to "https://images.unsplash.com/photo-1586023492125-27b2c045efd7?auto=format&fit=crop&q=80&w=1024",
+            "Industrial Loft" to "https://images.unsplash.com/photo-1505691938895-1758d7feb511?auto=format&fit=crop&q=80&w=1024",
+            "Bohemian Chic" to "https://images.unsplash.com/photo-1505693416388-ac5ce068fe85?auto=format&fit=crop&q=80&w=1024",
+            "Japandi" to "https://images.unsplash.com/photo-1616486338812-3dadae4b4ace?auto=format&fit=crop&q=80&w=1024",
+            "Minimalist Zen" to "https://images.unsplash.com/photo-1560185007-c5ca9d2c014d?auto=format&fit=crop&q=80&w=1024",
+            "Art Deco" to "https://images.unsplash.com/photo-1540518614846-7eded433c457?auto=format&fit=crop&q=80&w=1024",
+            "Rustic Farmhouse" to "https://images.unsplash.com/photo-1507652313519-d4e9174996dd?auto=format&fit=crop&q=80&w=1024"
+        ).toMutableMap().apply {
+            put(entity.selectedStyle, entity.reimaginedImageUrl)
+        }
+
+        _uiState.update {
+            it.copy(
+                interiorSelectedDesignId = entity.id,
+                interiorSelectedStyle = entity.selectedStyle,
+                interiorOriginalBitmap = restoredBitmap,
+                interiorOriginalUri = null,
+                interiorChatMessages = parsedMessages,
+                interiorShoppableItems = parsedItems,
+                interiorReimaginedImageUrls = stylesMap,
+                interiorError = ""
+            )
+        }
+    }
+
+    fun resetActiveInteriorDesign() {
+        _uiState.update {
+            it.copy(
+                interiorSelectedDesignId = null,
+                interiorOriginalBitmap = null,
+                interiorOriginalUri = null,
+                interiorSelectedStyle = "Scandinavian",
+                interiorIsAnalyzing = false,
+                interiorError = "",
+                interiorChatMessages = emptyList(),
+                interiorShoppableItems = emptyList(),
+                interiorReimaginedImageUrls = emptyMap()
+            )
+        }
+    }
+
+    // --- MAP CHATBOT LOGIC ---
+    
+    fun selectMapPlace(place: com.example.ui.chat.MapPlace) {
+        _uiState.update { it.copy(mapSelectedPlace = place) }
+    }
+    
+    fun toggleMapBookmark(placeId: String) {
+        _uiState.update { state ->
+            val updated = if (state.mapBookmarkedIds.contains(placeId)) {
+                state.mapBookmarkedIds - placeId
+            } else {
+                state.mapBookmarkedIds + placeId
+            }
+            state.copy(mapBookmarkedIds = updated)
+        }
+    }
+    
+    fun setMapTheme(theme: String) {
+        _uiState.update { it.copy(mapTheme = theme) }
+    }
+    
+    fun clearMapChat() {
+        _uiState.update { it.copy(mapChatMessages = emptyList()) }
+    }
+    
+    fun searchMapLocation(query: String) {
+        if (query.isBlank()) return
+        viewModelScope.launch {
+            _uiState.update { it.copy(mapIsSearching = true, mapError = "", mapSearchQuery = query) }
+            val apiKey = if (_uiState.value.geminiApiKey.isNotBlank()) _uiState.value.geminiApiKey else _uiState.value.customApiKey
+            
+            val prompt = """
+                You are a real-time Google Maps data assistant. 
+                Generate a list of 5 real, popular places/landmarks/cafes/restaurants/museums matching or in: "$query".
+                Provide realistic geographic coordinates (latitude and longitude) and local details.
+                
+                You MUST respond ONLY with a raw JSON array matching this structure, with NO markdown formatting, NO ```json wrapping, and NO additional text:
+                [
+                  {
+                    "id": "place_unique_1",
+                    "name": "Eiffel Tower",
+                    "category": "Landmark",
+                    "latOffset": 0.12,
+                    "lngOffset": -0.34,
+                    "latitude": 48.8584,
+                    "longitude": 2.2945,
+                    "rating": 4.7,
+                    "reviewsCount": 12500,
+                    "address": "Champ de Mars, 5 Avenue Anatole France, 75007 Paris, France",
+                    "description": "An iconic 19th-century iron lattice tower on the Champ de Mars in Paris.",
+                    "highlights": "Panoramic city views & historical architecture",
+                    "openHours": "9:30 AM - 11:45 PM",
+                    "funFact": "It was originally built as a temporary installation for the 1889 World's Fair."
+                  }
+                ]
+                
+                For latOffset and lngOffset, distribute them between -0.8 and 0.8 so they plot nicely on a 2D map space.
+                Do not include markdown or code blocks. Return purely the raw JSON array.
+            """.trimIndent()
+
+            try {
+                val keysMap = mapOf("Gemini" to apiKey)
+                val urlsMap = mapOf("Gemini" to _uiState.value.geminiBaseUrl)
+
+                val responseText = repository.sendMessage(
+                    history = emptyList(),
+                    newPrompt = prompt,
+                    model = "gemini-3.5-flash",
+                    provider = "Gemini",
+                    customSystemInstruction = "You are a precise JSON generator. Output only JSON array.",
+                    providerKeys = keysMap,
+                    providerUrls = urlsMap
+                )
+                
+                var cleanedText = responseText.trim()
+                if (cleanedText.contains("```json")) {
+                    cleanedText = cleanedText.substringAfter("```json").substringBefore("```")
+                } else if (cleanedText.contains("```")) {
+                    cleanedText = cleanedText.substringAfter("```").substringBefore("```")
+                }
+                cleanedText = cleanedText.trim()
+
+                val jsonArray = org.json.JSONArray(cleanedText)
+                val parsedPlaces = mutableListOf<com.example.ui.chat.MapPlace>()
+                for (i in 0 until jsonArray.length()) {
+                    val obj = jsonArray.getJSONObject(i)
+                    parsedPlaces.add(
+                        com.example.ui.chat.MapPlace(
+                            id = obj.optString("id", "place_$i"),
+                            name = obj.optString("name", ""),
+                            category = obj.optString("category", ""),
+                            latOffset = obj.optDouble("latOffset", 0.0).toFloat(),
+                            lngOffset = obj.optDouble("lngOffset", 0.0).toFloat(),
+                            latitude = obj.optDouble("latitude", 0.0),
+                            longitude = obj.optDouble("longitude", 0.0),
+                            rating = obj.optDouble("rating", 4.5).toFloat(),
+                            reviewsCount = obj.optInt("reviewsCount", 100),
+                            address = obj.optString("address", ""),
+                            description = obj.optString("description", ""),
+                            highlights = obj.optString("highlights", ""),
+                            openHours = obj.optString("openHours", ""),
+                            funFact = obj.optString("funFact", "")
+                        )
+                    )
+                }
+                
+                _uiState.update {
+                    it.copy(
+                        mapPlaces = parsedPlaces,
+                        mapSelectedPlace = parsedPlaces.firstOrNull(),
+                        mapIsSearching = false,
+                        mapChatMessages = listOf(
+                            com.example.ui.chat.MapChatMessage(
+                                sender = "assistant",
+                                text = "Welcome to ${query}! I've loaded ${parsedPlaces.size} real-time locations on the interactive map. Tap any marker to explore local highlights or ask me anything!"
+                            )
+                        )
+                    )
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+                val fallbacks = generateFallbackPlaces(query)
+                _uiState.update {
+                    it.copy(
+                        mapPlaces = fallbacks,
+                        mapSelectedPlace = fallbacks.firstOrNull(),
+                        mapIsSearching = false,
+                        mapChatMessages = listOf(
+                            com.example.ui.chat.MapChatMessage(
+                                sender = "assistant",
+                                text = "I've plotted 5 popular spots in ${query} for you on our high-fidelity map! (Using offline intelligence mode)."
+                            )
+                        )
+                    )
+                }
+            }
+        }
+    }
+    
+    private fun generateFallbackPlaces(query: String): List<com.example.ui.chat.MapPlace> {
+        val q = query.lowercase()
+        return if (q.contains("tokyo") || q.contains("japan")) {
+            listOf(
+                com.example.ui.chat.MapPlace("f_tokyo_1", "Senso-ji Temple", "Museum", 0.1f, -0.4f, 35.7148, 139.7967, 4.6f, 8500, "2 Chome-3-1 Asakusa, Taito City, Tokyo", "Tokyo's oldest Buddhist temple completed in 645 AD.", "Ancient pagodas & Nakamise shopping street", "6:00 AM - 5:00 PM", "It is dedicated to the Bodhisattva Kannon."),
+                com.example.ui.chat.MapPlace("f_tokyo_2", "Tokyo Skytree", "Landmark", -0.3f, 0.5f, 35.7101, 139.8107, 4.5f, 12000, "1 Chome-1-2 Oshiage, Sumida City, Tokyo", "The tallest structure in Japan and tallest tower in the world.", "A panoramic observation deck with spectacular glass floors", "10:00 AM - 9:00 PM", "Its design combines futuristic design with traditional pagoda beauty."),
+                com.example.ui.chat.MapPlace("f_tokyo_3", "Shibuya Crossing", "Landmark", -0.6f, -0.2f, 35.6595, 139.7005, 4.4f, 25000, "Shibuya, Tokyo", "The world's busiest pedestrian scramble crossing.", "Vibrant neon billboards and incredible foot traffic", "Open 24 Hours", "Up to 3,000 people cross at the same time during peak hours."),
+                com.example.ui.chat.MapPlace("f_tokyo_4", "Harajuku Cafe Reissue", "Cafe", 0.4f, 0.2f, 35.6708, 139.7061, 4.6f, 980, "3 Chome-25-7 Jingumae, Shibuya City, Tokyo", "Charming cafe famous for incredible custom 3D latte art.", "Customized 3D foam designs of cats, anime, or selfies", "10:00 AM - 6:00 PM", "The baristas can draw almost any photo you show them in under 10 minutes!"),
+                com.example.ui.chat.MapPlace("f_tokyo_5", "Shinjuku Gyoen", "Park", 0.2f, 0.6f, 35.6852, 139.7101, 4.7f, 15000, "11 Naitomachi, Shinjuku City, Tokyo", "A vast and beautiful imperial garden blending English, French, and Japanese styles.", "Cherry blossom viewing & tranquil tea houses", "9:00 AM - 4:00 PM", "It was originally a residence of the Naito family in the Edo period.")
+            )
+        } else if (q.contains("new york") || q.contains("ny") || q.contains("manhattan")) {
+            listOf(
+                com.example.ui.chat.MapPlace("f_ny_1", "Central Park", "Park", -0.1f, 0.7f, 40.7851, -73.9682, 4.8f, 50000, "Manhattan, NY", "A massive urban park in the heart of NYC.", "Bethesda Fountain, Sheep Meadow, Bow Bridge", "6:00 AM - 1:00 AM", "It is the most filmed location in the world."),
+                com.example.ui.chat.MapPlace("f_ny_2", "Times Square", "Landmark", -0.3f, 0.1f, 40.7580, -73.9855, 4.6f, 120000, "Broadway & 7th Ave, New York, NY", "The bustling digital and theatrical heart of Broadway.", "Mega neon billboards & street performances", "Open 24 Hours", "It was named Times Square in 1904 after the NY Times Tower."),
+                com.example.ui.chat.MapPlace("f_ny_3", "The Metropolitan Museum of Art", "Museum", 0.3f, 0.5f, 40.7794, -73.9632, 4.8f, 32000, "1000 5th Ave, New York, NY", "One of the world's finest and largest art museums.", "Temple of Dendur & European Masterpieces", "10:00 AM - 5:00 PM", "It contains over 2 million works of art spanning 5,000 years."),
+                com.example.ui.chat.MapPlace("f_ny_4", "Katz's Delicatessen", "Restaurant", 0.5f, -0.6f, 40.7222, -73.9874, 4.5f, 18000, "205 E Houston St, New York, NY", "Legendary kosher-style delicatessen established in 1888.", "World-famous hand-carved pastrami on rye", "8:00 AM - 11:00 PM", "It is the site of the famous 'I'll have what she's having' movie scene."),
+                com.example.ui.chat.MapPlace("f_ny_5", "Joe's Pizza", "Restaurant", -0.4f, -0.3f, 40.7305, -74.0022, 4.6f, 9500, "7 Carmine St, New York, NY", "Classic Greenwich Village corner slice joint.", "Authentic, thin-crust NY style cheese pizza slice", "10:00 AM - 4:00 AM", "Established in 1975 by Joe Pozzuoli, who still runs it today.")
+            )
+        } else {
+            listOf(
+                com.example.ui.chat.MapPlace("f_gen_1", "Eiffel Tower", "Landmark", 0.12f, -0.34f, 48.8584, 2.2945, 4.7f, 12500, "Champ de Mars, 5 Avenue Anatole France, 75007 Paris, France", "An iconic 19th-century iron lattice tower on the Champ de Mars in Paris.", "Panoramic city views & historical architecture", "9:30 AM - 11:45 PM", "It was originally built as a temporary installation for the 1889 World's Fair."),
+                com.example.ui.chat.MapPlace("f_gen_2", "Louvre Museum", "Museum", 0.35f, 0.22f, 48.8606, 2.3376, 4.7f, 95000, "Rue de Rivoli, 75001 Paris, France", "The world's largest art museum and a historic monument.", "Mona Lisa, Venus de Milo, glass Louvre Pyramid", "9:00 AM - 6:00 PM", "It was originally built as a fortress in the late 12th century."),
+                com.example.ui.chat.MapPlace("f_gen_3", "Café de Flore", "Cafe", -0.2f, -0.15f, 48.8542, 2.3294, 4.2f, 4100, "172 Boulevard Saint-Germain, 75006 Paris, France", "One of the oldest and most prestigious coffee houses in Paris, famous for its intellectual history.", "Rich hot chocolate & traditional French pastries", "7:30 AM - 1:30 AM", "It was a famous hangout for Jean-Paul Sartre, Simone de Beauvoir, and Albert Camus."),
+                com.example.ui.chat.MapPlace("f_gen_4", "Notre-Dame Cathedral", "Landmark", 0.5f, 0.1f, 48.8530, 2.3499, 4.8f, 38000, "6 Parvis Notre-Dame - Pl. Jean-Paul II, 75004 Paris, France", "A masterpiece of French Gothic architecture on the Île de la Cité.", "Stunning stained-glass rose windows & gargoyles", "Temporarily Closed (Reopening Soon)", "It features the largest organ in France and historic medieval bells."),
+                com.example.ui.chat.MapPlace("f_gen_5", "Jardin du Luxembourg", "Park", -0.4f, -0.6f, 48.8462, 2.3371, 4.7f, 19000, "75006 Paris, France", "A beautiful, peaceful 25-hectare garden created in 1612 by Marie de' Medici.", "Luxembourg Palace, sailboat model pond, Medici Fountain", "7:30 AM - 9:30 PM", "The park contains over 100 statues spread throughout the grounds.")
+            )
+        }
+    }
+    
+    fun sendMapChatMessage(messageText: String) {
+        if (messageText.isBlank()) return
+        
+        val userMsg = com.example.ui.chat.MapChatMessage(sender = "user", text = messageText)
+        _uiState.update {
+            it.copy(
+                mapChatMessages = it.mapChatMessages + userMsg
+            )
+        }
+        
+        viewModelScope.launch {
+            _uiState.update { it.copy(mapIsSearching = true) }
+            val apiKey = if (_uiState.value.geminiApiKey.isNotBlank()) _uiState.value.geminiApiKey else _uiState.value.customApiKey
+            
+            val activePlace = _uiState.value.mapSelectedPlace
+            val placesContext = _uiState.value.mapPlaces.joinToString("\n") { 
+                "- ${it.name} (${it.category}): ${it.description}. Address: ${it.address}. Open: ${it.openHours}."
+            }
+            
+            val chatHistoryStr = _uiState.value.mapChatMessages.takeLast(10).joinToString("\n") { 
+                "${it.sender.uppercase()}: ${it.text}"
+            }
+            
+            val prompt = """
+                You are Atlas, a charismatic AI Geographical Consultant and local travel advisor. 
+                We are exploring an interactive map of: "${_uiState.value.mapSearchQuery}".
+                
+                The loaded locations on the map are:
+                $placesContext
+                
+                ${if (activePlace != null) "The user has selected: ${activePlace.name} (${activePlace.category}). Specific Highlight: ${activePlace.highlights}. Fun Fact: ${activePlace.funFact}." else "No specific place is selected on the map yet."}
+                
+                Chat History:
+                $chatHistoryStr
+                
+                Respond to the user's latest query: "$messageText"
+                Keep your response helpful, conversational, and filled with expert advice about these locations (e.g., historical tidbits, culinary tips, crowd avoidance, or custom walking itineraries). 
+                Keep it under 3 short paragraphs. Be precise and warm!
+            """.trimIndent()
+
+            try {
+                val keysMap = mapOf("Gemini" to apiKey)
+                val urlsMap = mapOf("Gemini" to _uiState.value.geminiBaseUrl)
+
+                val answer = repository.sendMessage(
+                    history = emptyList(),
+                    newPrompt = prompt,
+                    model = "gemini-3.5-flash",
+                    provider = "Gemini",
+                    customSystemInstruction = "You are Atlas, a professional and charismatic Geographical Travel Advisor.",
+                    providerKeys = keysMap,
+                    providerUrls = urlsMap
+                )
+
+                _uiState.update {
+                    it.copy(
+                        mapChatMessages = it.mapChatMessages + com.example.ui.chat.MapChatMessage(sender = "assistant", text = answer),
+                        mapIsSearching = false
+                    )
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+                _uiState.update {
+                    it.copy(
+                        mapChatMessages = it.mapChatMessages + com.example.ui.chat.MapChatMessage(
+                            sender = "assistant", 
+                            text = "I'm having a brief issue connecting to my geographical database, but I highly recommend visiting ${activePlace?.name ?: "the places on the map"}! What other details would you like to explore?"
+                        ),
+                        mapIsSearching = false
+                    )
+                }
+            }
+        }
+    }
 }
+
 
