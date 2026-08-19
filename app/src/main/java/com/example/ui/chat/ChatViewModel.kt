@@ -244,8 +244,8 @@ data class ChatUiState(
     val videoGenIsLoading: Boolean = false,
     val videoGenLog: String = "",
     val generatedMusic: List<com.example.data.db.GeneratedMusicEntity> = emptyList(),
-    val selectedMusicProvider: String = "Suno AI",
-    val selectedMusicModel: String = "Chirp v3",
+    val selectedMusicProvider: String = "ElevenLabs",
+    val selectedMusicModel: String = "Eleven Music v1 Pro",
     val musicGenIsLoading: Boolean = false,
     val musicGenLog: String = "",
     val codeSelectedLanguage: String = "Kotlin",
@@ -278,8 +278,8 @@ data class ChatUiState(
     val languageError: String = "",
     
     // Kids Storyteller State Properties
-    val storySelectedTheme: String = "Magic Fairy Forest",
-    val storyChildName: String = "Leo",
+    val storySelectedTheme: String = "",
+    val storyChildName: String = "",
     val storySelectedStyle: String = "Watercolor Illustration",
     val storyIsLoading: String? = null,
     val storyIsPlayingAudio: Boolean = false,
@@ -294,12 +294,16 @@ data class ChatUiState(
     val voiceAssistantResponse: String = "",
     val voiceIsLoading: Boolean = false,
     val voiceChatLog: List<Pair<String, Boolean>> = emptyList(), // Message to isUser
+    val selectedVoiceProvider: String = "OpenAI",
+    val selectedVoiceModel: String = "gpt-4o-mini",
     
     // Vision & Image Analyzer
     val visionSelectedImageUri: android.net.Uri? = null,
     val visionSelectedBitmap: android.graphics.Bitmap? = null,
     val visionResult: String = "",
     val visionIsLoading: Boolean = false,
+    val selectedVisionProvider: String = "OpenAI",
+    val selectedVisionModel: String = "gpt-4o-mini",
     
     // Document Intelligence
     val docSelectedUri: android.net.Uri? = null,
@@ -327,7 +331,7 @@ data class ChatUiState(
     val activeAutomationStatus: String = "",
     
     // Agentic Tooltip / Guide Status
-    val showAgenticTooltip: Boolean = true,
+    val showAgenticTooltip: Boolean = false,
 
     // 1. Gemini Nano On-Device state
     val nanoModelStatus: String = "NOT_DOWNLOADED", // "NOT_DOWNLOADED", "DOWNLOADING", "DOWNLOADED"
@@ -415,8 +419,8 @@ data class ChatUiState(
     val mathTutorHistory: List<String> = emptyList(),
 
     // Children's Coloring Book Generator
-    val colorBookTheme: String = "space dinosaurs",
-    val colorBookChildName: String = "Alex",
+    val colorBookTheme: String = "",
+    val colorBookChildName: String = "",
     val colorBookPages: List<com.example.ui.chat.ColoringPage> = emptyList(),
     val colorBookIsLoading: Boolean = false,
     val colorBookError: String? = null,
@@ -449,7 +453,7 @@ data class ChatUiState(
     val memeIsCapitalized: Boolean = true,
     
     // Map Chatbot State Properties
-    val mapSearchQuery: String = "Paris, France",
+    val mapSearchQuery: String = "",
     val mapIsSearching: Boolean = false,
     val mapError: String = "",
     val mapPlaces: List<com.example.ui.chat.MapPlace> = emptyList(),
@@ -538,7 +542,7 @@ class ChatViewModel(
             android.util.Log.e("ChatViewModel", "Failed to retrieve shared preferences in init", e)
             null
         }
-        val showTooltip = prefs?.getBoolean("show_agentic_tooltip", true) ?: true
+        val showTooltip = prefs?.getBoolean("show_agentic_tooltip", false) ?: false
         
         var existingOpenai = prefs?.getString("openai_key", "") ?: ""
         if (existingOpenai == "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") {
@@ -626,49 +630,22 @@ class ChatViewModel(
         observeInteriorDesignsByCurrentUser()
         observeMemoriesByCurrentUser()
         observeTokenUsagesByCurrentUser()
-        generateSuggestedVocabulary()
-        
-        // Preload charming children's storybooks
-        val preloaded1 = getOfflineStory("Magic Fairy Forest", "Leo", "Watercolor Illustration")
-        val preloaded2 = KidStory(
-            title = "Alice's Deep Ocean Voyage",
-            theme = "Underwater Dolphin Voyage",
-            childName = "Alice",
-            illustrationStyle = "Playful 3D Claymation",
-            pages = listOf(
-                StoryPage(
-                    pageNumber = 1,
-                    title = "The Golden Submarine",
-                    text = "Once upon a time, Alice boarded a shiny yellow submarine named Bubbles. With a joyful cheer, they dove under the warm turquoise waves to seek out friendly sea creatures!",
-                    imagePrompt = "a cute round golden submarine diving down beneath sparkling blue ocean waters with reef"
-                ),
-                StoryPage(
-                    pageNumber = 2,
-                    title = "The Dolphin’s Dance",
-                    text = "A smiling dolphin named Daisy leaped past the window. Daisy did three happy flips in the water, showing Alice the path towards a glowing coral cove full of wonders.",
-                    imagePrompt = "a cute smiling cartoon baby dolphin doing a flip in clear water near coral reefs"
-                ),
-                StoryPage(
-                    pageNumber = 3,
-                    title = "The Glowing Coral Reef",
-                    text = "They arrived at a mystical glowing reef where the corals shone like neon stars. Colorful clownfish played hide-and-seek, floating lazily around Alice's beautiful yellow submarine.",
-                    imagePrompt = "neon glowing coral reef underwater at night with colorful clownfish playing"
-                ),
-                StoryPage(
-                    pageNumber = 4,
-                    title = "Finding the Mystery Vault",
-                    text = "Daisy the dolphin tapped a shell that slid open- revealing a tiny golden music box! It played a soft, cozy lullaby that made Alice feel warm, safe, and super happy.",
-                    imagePrompt = "a tiny golden music jewel box glowing softly inside a clam shell underwater"
-                ),
-                StoryPage(
-                    pageNumber = 5,
-                    title = "Bedtime Under the Sea",
-                    text = "As bubbles drifted like starry lights, Daisy whispered, 'Sweet dreams, noble captain!' Alice curled up cozy in a soft sub bunk, drifting off to the gentle rocking ocean sounds.",
-                    imagePrompt = "a happy kid tucked asleep cozily inside a submarine bedroom bunk under deep blue waters"
-                )
-            )
-        )
-        _uiState.update { it.copy(storyBookList = listOf(preloaded1, preloaded2)) }
+
+        // Start with a clean window in Chat Assistant every app open
+        val startSessionId = java.util.UUID.randomUUID().toString()
+        _uiState.update { it.copy(currentSessionId = startSessionId) }
+        viewModelScope.launch {
+            try {
+                chatDao.insertSession(ChatSessionEntity(
+                    id = startSessionId,
+                    title = "Percakapan Baru",
+                    modelValue = _uiState.value.selectedModel.apiValue,
+                    userEmail = _uiState.value.currentUserProfile?.email
+                ))
+            } catch (e: Exception) {
+                android.util.Log.e("ChatViewModel", "Failed to create initial clean session", e)
+            }
+        }
     }
 
     fun dismissAgenticTooltip() {
@@ -680,11 +657,20 @@ class ChatViewModel(
     }
 
     fun resetAgenticTooltip() {
-        val prefs = AppContextProvider.context.getSharedPreferences("eddie_prefs", Context.MODE_PRIVATE)
-        prefs.edit().putBoolean("show_agentic_tooltip", true).apply()
-        _uiState.update { state ->
-            state.copy(showAgenticTooltip = true)
+        val nextState = !_uiState.value.showAgenticTooltip
+        try {
+            val prefs = AppContextProvider.context.getSharedPreferences("eddie_prefs", Context.MODE_PRIVATE)
+            prefs.edit().putBoolean("show_agentic_tooltip", nextState).apply()
+        } catch (e: Exception) {
+            // Ignore
         }
+        _uiState.update { state ->
+            state.copy(showAgenticTooltip = nextState)
+        }
+    }
+
+    fun toggleAgenticTooltip() {
+        resetAgenticTooltip()
     }
 
     fun updateProviderApiKey(provider: String, key: String) {
@@ -1203,9 +1189,8 @@ class ChatViewModel(
 
     fun selectMusicProvider(provider: String) {
         val defaultModel = when (provider) {
-            "Gemini" -> "Lyria 3 pro"
-            "Suno AI" -> "Suno v4 pro"
-            else -> "Lyria 3 pro"
+            "ElevenLabs" -> "Eleven Music v1 Pro"
+            else -> "Eleven Music v1 Pro"
         }
         _uiState.update { state ->
             state.copy(
@@ -2304,8 +2289,8 @@ class ChatViewModel(
 
     fun getMusicTokenCost(provider: String, model: String): Int {
         return when (provider) {
+            "ElevenLabs" -> 20
             "Gemini" -> 15
-            "Suno" -> 20
             "Stable Audio" -> 12
             else -> 10
         }
@@ -3468,22 +3453,13 @@ class ChatViewModel(
             delay(1200)
 
             when (provider) {
-                "Gemini" -> {
+                "ElevenLabs" -> {
                     _uiState.update { state ->
-                        state.copy(musicGenLog = state.musicGenLog + "> Initializing Google Lyria system ($model)...\n")
+                        state.copy(musicGenLog = state.musicGenLog + "> Connecting to ElevenLabs ($model) Sound & Music Synthesizer pipeline...\n")
                     }
                     delay(800)
                     _uiState.update { state ->
-                        state.copy(musicGenLog = state.musicGenLog + "> Activating temporal audio latent model for phrase transitions...\n")
-                    }
-                }
-                "Suno AI" -> {
-                    _uiState.update { state ->
-                        state.copy(musicGenLog = state.musicGenLog + "> Connecting to Suno AI ($model) Music Synthesizer pipeline...\n")
-                    }
-                    delay(800)
-                    _uiState.update { state ->
-                        state.copy(musicGenLog = state.musicGenLog + "> Initializing premium multilingual vocal generator...\n")
+                        state.copy(musicGenLog = state.musicGenLog + "> Initializing ElevenLabs neural audio generator & acoustic stem synthesis...\n")
                     }
                 }
             }
@@ -3601,27 +3577,17 @@ class ChatViewModel(
                 else -> input
             }
 
+            val keysMap = mapOf("OpenAI" to _uiState.value.openaiApiKey)
+            val urlsMap = mapOf("OpenAI" to _uiState.value.openaiBaseUrl)
+
             try {
-                val response = repository.sendMessage(
-                    history = emptyList(),
-                    newPrompt = customPrompt,
-                    model = _uiState.value.selectedModel.apiValue,
-                    provider = _uiState.value.selectedModel.provider,
-                    customSystemInstruction = developerSystemInstruction,
-                    providerKeys = mapOf(
-                        "Gemini" to _uiState.value.geminiApiKey,
-                        "OpenAI" to _uiState.value.openaiApiKey,
-                        "DeepSeek" to _uiState.value.deepseekApiKey,
-                        "Claude" to _uiState.value.claudeApiKey,
-                        "XAI" to _uiState.value.xaiApiKey
-                    ),
-                    providerUrls = mapOf(
-                        "Gemini" to _uiState.value.geminiBaseUrl,
-                        "OpenAI" to _uiState.value.openaiBaseUrl,
-                        "DeepSeek" to _uiState.value.deepseekBaseUrl,
-                        "Claude" to _uiState.value.claudeBaseUrl,
-                        "XAI" to _uiState.value.xaiBaseUrl
-                    )
+                val response = repository.sendSimpleRequest(
+                    prompt = customPrompt,
+                    systemText = developerSystemInstruction,
+                    provider = "OpenAI",
+                    model = "gpt-4o-mini",
+                    providerKeys = keysMap,
+                    providerUrls = urlsMap
                 )
 
                 _uiState.update { state ->
@@ -3720,6 +3686,21 @@ class ChatViewModel(
     // --- NEW FEATURES IN COMPLIANCE WITH USER_REQUEST ---
 
     // 1. Asisten Suara (Conversational Voice AI)
+    fun selectVoiceProvider(provider: String = "OpenAI") {
+        _uiState.update { state ->
+            state.copy(
+                selectedVoiceProvider = "OpenAI",
+                selectedVoiceModel = if (state.selectedVoiceModel.contains("gemini")) "gpt-4o-mini" else state.selectedVoiceModel
+            )
+        }
+    }
+
+    fun selectVoiceModel(model: String) {
+        _uiState.update { state ->
+            state.copy(selectedVoiceModel = model)
+        }
+    }
+
     fun processVoiceInput(text: String, tts: android.speech.tts.TextToSpeech?) {
         if (text.isBlank()) return
         
@@ -3736,16 +3717,18 @@ class ChatViewModel(
             }
             
             val keysMap = mapOf(
-                "Gemini" to _uiState.value.geminiApiKey
+                "OpenAI" to _uiState.value.openaiApiKey
             )
             val urlsMap = mapOf(
-                "Gemini" to _uiState.value.geminiBaseUrl
+                "OpenAI" to _uiState.value.openaiBaseUrl
             )
             
             try {
                 val response = repository.sendSimpleRequest(
                     prompt = text,
-                    systemText = "You are Eddie, an intelligent voice assistant speaking directly with the user. Provide concise, interactive, warm, and natural answers (avoid markdown if possible as it will be read aloud). Max 2-3 sentences in English (US).",
+                    systemText = "You are Eddie, an intelligent AI voice assistant powered by OpenAI. Provide concise, interactive, warm, and natural answers (avoid markdown if possible as it will be read aloud). Max 2-3 sentences in English (US) or match the user's language.",
+                    provider = "OpenAI",
+                    model = if (_uiState.value.selectedVoiceModel.isBlank() || _uiState.value.selectedVoiceModel.contains("gemini")) "gpt-4o-mini" else _uiState.value.selectedVoiceModel,
                     providerKeys = keysMap,
                     providerUrls = urlsMap
                 )
@@ -4048,6 +4031,22 @@ class ChatViewModel(
     }
 
     // 2. Vision & Image Analyzer
+    fun selectVisionProvider(provider: String) {
+        val defaultModel = "gpt-4o-mini"
+        _uiState.update { state ->
+            state.copy(
+                selectedVisionProvider = provider,
+                selectedVisionModel = defaultModel
+            )
+        }
+    }
+
+    fun selectVisionModel(model: String) {
+        _uiState.update { state ->
+            state.copy(selectedVisionModel = model)
+        }
+    }
+
     fun selectVisionImage(uri: android.net.Uri?, bitmap: android.graphics.Bitmap?) {
         _uiState.update { it.copy(
             visionSelectedImageUri = uri,
@@ -4076,16 +4075,18 @@ class ChatViewModel(
             val finalPrompt = if (promptText.isNotBlank()) "$promptPrefix Additional instructions: $promptText" else promptPrefix
             
             val keysMap = mapOf(
-                "Gemini" to _uiState.value.geminiApiKey
+                "OpenAI" to _uiState.value.openaiApiKey
             )
             val urlsMap = mapOf(
-                "Gemini" to _uiState.value.geminiBaseUrl
+                "OpenAI" to _uiState.value.openaiBaseUrl
             )
             
             try {
                 val result = repository.sendVisionRequest(
                     bitmap = bitmap,
                     prompt = finalPrompt,
+                    provider = _uiState.value.selectedVisionProvider,
+                    model = _uiState.value.selectedVisionModel,
                     providerKeys = keysMap,
                     providerUrls = urlsMap
                 )
@@ -4097,7 +4098,7 @@ class ChatViewModel(
             } catch (e: Exception) {
                 _uiState.update { it.copy(
                     visionIsLoading = false,
-                    visionResult = "Error: Connection failed or timeout occurred while analyzing the image: ${e.localizedMessage}. Please try again later or add your Gemini API Key in Settings."
+                    visionResult = "Error: Connection failed or timeout occurred while analyzing the image: ${e.localizedMessage}. Please try again later or verify your API Key in Settings."
                 )}
             }
         }
@@ -4396,8 +4397,8 @@ class ChatViewModel(
                 }
             }
 
-            val keysMap = mapOf("Gemini" to _uiState.value.geminiApiKey)
-            val urlsMap = mapOf("Gemini" to _uiState.value.geminiBaseUrl)
+            val keysMap = mapOf("OpenAI" to _uiState.value.openaiApiKey)
+            val urlsMap = mapOf("OpenAI" to _uiState.value.openaiBaseUrl)
             val studentLevel = _uiState.value.mathStudentLevel
 
             val systemInstruction = """
@@ -4428,6 +4429,8 @@ class ChatViewModel(
                     repository.sendVisionRequest(
                         bitmap = bitmap,
                         prompt = "$systemInstruction\nPrompt: $prompt",
+                        provider = "OpenAI",
+                        model = "gpt-4o-mini",
                         providerKeys = keysMap,
                         providerUrls = urlsMap
                     )
@@ -4435,6 +4438,8 @@ class ChatViewModel(
                     repository.sendSimpleRequest(
                         prompt = prompt,
                         systemText = systemInstruction,
+                        provider = "OpenAI",
+                        model = "gpt-4o-mini",
                         providerKeys = keysMap,
                         providerUrls = urlsMap
                     )
@@ -4481,7 +4486,7 @@ class ChatViewModel(
                 _uiState.update { it.copy(
                     mathIsLoading = false,
                     mathProblemOverview = sampleOverview,
-                    mathError = "We couldn't connect to Gemini AI (Verify keys). To help you study, here's a simulated Socratic deconstruction of a related derivative problem! (Or try selecting a preset math challenge above.)",
+                    mathError = "We couldn't connect to OpenAI API (Verify keys). To help you study, here's a simulated Socratic deconstruction of a related derivative problem! (Or try selecting a preset math challenge above.)",
                     mathSteps = listOf(
                         com.example.ui.chat.MathStep(
                             stepIndex = 1,
@@ -4525,8 +4530,8 @@ class ChatViewModel(
                 mathConceptExplanation = ""
             ) }
 
-            val keysMap = mapOf("Gemini" to _uiState.value.geminiApiKey)
-            val urlsMap = mapOf("Gemini" to _uiState.value.geminiBaseUrl)
+            val keysMap = mapOf("OpenAI" to _uiState.value.openaiApiKey)
+            val urlsMap = mapOf("OpenAI" to _uiState.value.openaiBaseUrl)
 
             val currentStepExpress = activeStep.mathematicalExpression
             val currentStepExplain = activeStep.intuitiveExplanation
@@ -4554,6 +4559,8 @@ class ChatViewModel(
                 val explanation = repository.sendSimpleRequest(
                     prompt = prompt,
                     systemText = systemText,
+                    provider = "OpenAI",
+                    model = "gpt-4o-mini",
                     providerKeys = keysMap,
                     providerUrls = urlsMap
                 )
@@ -4617,16 +4624,18 @@ class ChatViewModel(
             val prompt = "Please summarize the following document content in English (US) using the style format: $promptStyle.\n\nDocument Content:\n$content"
             
             val keysMap = mapOf(
-                "Gemini" to _uiState.value.geminiApiKey
+                "OpenAI" to _uiState.value.openaiApiKey
             )
             val urlsMap = mapOf(
-                "Gemini" to _uiState.value.geminiBaseUrl
+                "OpenAI" to _uiState.value.openaiBaseUrl
             )
             
             try {
                 val result = repository.sendSimpleRequest(
                     prompt = prompt,
                     systemText = "You are Eddie, a Document Intelligence expert and smart text analyst. Provide an accurate, informative, and well-structured summary matching the requested style in English (US).",
+                    provider = "OpenAI",
+                    model = "gpt-4o-mini",
                     providerKeys = keysMap,
                     providerUrls = urlsMap
                 )
@@ -4658,16 +4667,18 @@ class ChatViewModel(
             val prompt = "Based on the following document content, please answer the user's question accurately, objectively, and honestly based on the data in the document.\nQuestion: $question\n\nDocument Content:\n$content"
             
             val keysMap = mapOf(
-                "Gemini" to _uiState.value.geminiApiKey
+                "OpenAI" to _uiState.value.openaiApiKey
             )
             val urlsMap = mapOf(
-                "Gemini" to _uiState.value.geminiBaseUrl
+                "OpenAI" to _uiState.value.openaiBaseUrl
             )
             
             try {
                 val result = repository.sendSimpleRequest(
                     prompt = prompt,
                     systemText = "You are Eddie, an interactive document Q&A assistant. Answer in a friendly, detailed, and accurate manner in English (US), referring only to the provided document content.",
+                    provider = "OpenAI",
+                    model = "gpt-4o-mini",
                     providerKeys = keysMap,
                     providerUrls = urlsMap
                 )
@@ -4799,13 +4810,13 @@ class ChatViewModel(
                 researchProgressLogs = it.researchProgressLogs + crawledLogs + listOf(
                     "📊 Step 3: Analyzing ${allResults.size} scraped raw data documents...",
                     "📌 Cross-referencing data contradictions, sorting news bias, and mapping factual correlations...",
-                    "🧠 Step 4: Loading Synthesis Agent using the selected Gemini Model..."
+                    "🧠 Step 4: Loading Synthesis Agent using OpenAI Model..."
                 )
             ) }
             
             delay(2000)
             
-            // Let's actually use Gemini to synthesize the search snippet results for the best real research output!
+            // Let's actually use OpenAI to synthesize the search snippet results for the best real research output!
             val systemDoc = "You are Eddie, the ultimate AI Academic & Market Researcher. Synthesize multiple search results for a given topic and write an exceptionally comprehensive academic/market analysis report in English (US). Format your report with clear markdown headings (e.g., # Abstract, # Key Findings, # Detailed Analysis, # Major Challenges & Outlook, # References). Use extensive styling, bullet points, and data summaries."
             
             val sourcesDump = allResults.mapIndexed { idx, res -> 
@@ -4822,13 +4833,15 @@ class ChatViewModel(
                 Cleanly list all reference sources under the references section at the end of your report.
             """.trimIndent()
             
-            val keysMap = mapOf("Gemini" to _uiState.value.geminiApiKey)
-            val urlsMap = mapOf("Gemini" to _uiState.value.geminiBaseUrl)
+            val keysMap = mapOf("OpenAI" to _uiState.value.openaiApiKey)
+            val urlsMap = mapOf("OpenAI" to _uiState.value.openaiBaseUrl)
             
             try {
                 val reportResult = repository.sendSimpleRequest(
                     prompt = promptText,
                     systemText = systemDoc,
+                    provider = "OpenAI",
+                    model = "gpt-4o-mini",
                     providerKeys = keysMap,
                     providerUrls = urlsMap
                 )
@@ -5002,13 +5015,15 @@ class ChatViewModel(
                 writerOutput = ""
             ) }
             
-            val keysMap = mapOf("Gemini" to _uiState.value.geminiApiKey)
-            val urlsMap = mapOf("Gemini" to _uiState.value.geminiBaseUrl)
+            val keysMap = mapOf("OpenAI" to _uiState.value.openaiApiKey)
+            val urlsMap = mapOf("OpenAI" to _uiState.value.openaiBaseUrl)
             
             try {
                 val output = repository.sendSimpleRequest(
                     prompt = prompt,
                     systemText = systemPrompt,
+                    provider = "OpenAI",
+                    model = "gpt-4o-mini",
                     providerKeys = keysMap,
                     providerUrls = urlsMap
                 )
@@ -5117,13 +5132,15 @@ class ChatViewModel(
             
             val prompt = "Generate social media posts for this core idea: \"$idea\" with a \"$tone\" tone."
             
-            val keysMap = mapOf("Gemini" to _uiState.value.geminiApiKey)
-            val urlsMap = mapOf("Gemini" to _uiState.value.geminiBaseUrl)
+            val keysMap = mapOf("OpenAI" to _uiState.value.openaiApiKey)
+            val urlsMap = mapOf("OpenAI" to _uiState.value.openaiBaseUrl)
             
             try {
                 val output = repository.sendSimpleRequest(
                     prompt = prompt,
                     systemText = systemText,
+                    provider = "OpenAI",
+                    model = "gpt-4o-mini",
                     providerKeys = keysMap,
                     providerUrls = urlsMap
                 )
@@ -6342,7 +6359,10 @@ class ChatViewModel(
                             val cleanPath = page.imagePath.substringAfter("file://").substringAfter("content://")
                             val file = java.io.File(cleanPath)
                             if (file.exists()) {
-                                val bitmap = android.graphics.BitmapFactory.decodeFile(file.absolutePath)
+                                val opts = android.graphics.BitmapFactory.Options().apply {
+                                    inPreferredConfig = android.graphics.Bitmap.Config.ARGB_8888
+                                }
+                                val bitmap = android.graphics.BitmapFactory.decodeFile(file.absolutePath, opts)
                                 if (bitmap != null) {
                                     val destRect = android.graphics.RectF(drawX, drawY, drawX + drawW, drawY + drawH)
                                     canvas.drawBitmap(bitmap, null, destRect, null)
@@ -7172,18 +7192,9 @@ class ChatViewModel(
                 ) 
             }
 
-            val apiKey = _uiState.value.customApiKey.ifBlank { _uiState.value.geminiApiKey }
-            if (apiKey.isBlank() || apiKey.contains("PLACEHOLDER")) {
-                delay(1500)
-                _uiState.update {
-                    it.copy(
-                        memeIsGeneratingCaptions = false,
-                        memeSuggestedCaptions = getOfflineMemeCaptions(),
-                        memeError = "Using offline sample captions (API Key is missing or default placeholder)!"
-                    )
-                }
-                return@launch
-            }
+            val apiKey = _uiState.value.openaiApiKey.ifBlank { _uiState.value.customApiKey }
+            val keysMap = mapOf("OpenAI" to apiKey)
+            val urlsMap = mapOf("OpenAI" to _uiState.value.openaiBaseUrl)
 
             try {
                 val prompt = """
@@ -7202,12 +7213,11 @@ class ChatViewModel(
                     Strict rule: Do not output any markdown code blocks or wrapper tags around the JSON.
                 """.trimIndent()
 
-                val keysMap = mapOf("Gemini" to apiKey)
-                val urlsMap = mapOf("Gemini" to _uiState.value.geminiBaseUrl)
-
                 val output = repository.sendVisionRequest(
                     bitmap = bitmap,
                     prompt = prompt,
+                    provider = "OpenAI",
+                    model = "gpt-4o-mini",
                     providerKeys = keysMap,
                     providerUrls = urlsMap
                 )
@@ -7357,7 +7367,7 @@ class ChatViewModel(
                 )
             }
 
-            val apiKey = _uiState.value.customApiKey.ifBlank { _uiState.value.geminiApiKey }
+            val apiKey = _uiState.value.openaiApiKey.ifBlank { _uiState.value.customApiKey }
             if (apiKey.isBlank() || apiKey.contains("PLACEHOLDER")) {
                 delay(2500)
                 val stylesMap = mapOf(
@@ -7424,12 +7434,14 @@ class ChatViewModel(
                 """.trimIndent()
 
                 val compressedBitmap = android.graphics.Bitmap.createScaledBitmap(bitmap, 512, 512, true)
-                val keysMap = mapOf("Gemini" to apiKey)
-                val urlsMap = mapOf("Gemini" to _uiState.value.geminiBaseUrl)
+                val keysMap = mapOf("OpenAI" to apiKey)
+                val urlsMap = mapOf("OpenAI" to _uiState.value.openaiBaseUrl)
 
                 val responseText = repository.sendVisionRequest(
                     bitmap = compressedBitmap,
                     prompt = prompt,
+                    provider = "OpenAI",
+                    model = "gpt-4o-mini",
                     providerKeys = keysMap,
                     providerUrls = urlsMap
                 )
@@ -7534,7 +7546,7 @@ class ChatViewModel(
         viewModelScope.launch {
             delay(1000)
             val style = _uiState.value.interiorSelectedStyle
-            val apiKey = _uiState.value.customApiKey.ifBlank { _uiState.value.geminiApiKey }
+            val apiKey = _uiState.value.openaiApiKey.ifBlank { _uiState.value.customApiKey }
             if (apiKey.isBlank() || apiKey.contains("PLACEHOLDER")) {
                 val answer = getOfflineInteriorChatResponse(messageText, style)
                 _uiState.update {
@@ -7561,14 +7573,14 @@ class ChatViewModel(
                     If they requested modifications (e.g., changing colors or adding a rug), encourage their choice and describe how it elevates the space.
                 """.trimIndent()
 
-                val keysMap = mapOf("Gemini" to apiKey)
-                val urlsMap = mapOf("Gemini" to _uiState.value.geminiBaseUrl)
+                val keysMap = mapOf("OpenAI" to apiKey)
+                val urlsMap = mapOf("OpenAI" to _uiState.value.openaiBaseUrl)
 
                 val answer = repository.sendMessage(
                     history = emptyList(),
                     newPrompt = prompt,
-                    model = "gemini-3.5-flash",
-                    provider = "Gemini",
+                    model = "gpt-4o-mini",
+                    provider = "OpenAI",
                     customSystemInstruction = "You are Eddie, a professional Interior Design Consultant.",
                     providerKeys = keysMap,
                     providerUrls = urlsMap
@@ -7723,7 +7735,10 @@ class ChatViewModel(
         if (!entity.originalImageUri.isNullOrBlank()) {
             try {
                 val bytes = android.util.Base64.decode(entity.originalImageUri, android.util.Base64.DEFAULT)
-                restoredBitmap = android.graphics.BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+                val opts = android.graphics.BitmapFactory.Options().apply {
+                    inPreferredConfig = android.graphics.Bitmap.Config.ARGB_8888
+                }
+                restoredBitmap = android.graphics.BitmapFactory.decodeByteArray(bytes, 0, bytes.size, opts)
             } catch (e: Exception) {
                 android.util.Log.e("InteriorDesigner", "Failed to decode restored base64 bitmap", e)
             }

@@ -2,7 +2,9 @@ package com.example.ui.chat
 
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.graphics.ImageDecoder
 import android.net.Uri
+import android.os.Build
 import android.speech.tts.TextToSpeech
 import android.speech.tts.UtteranceProgressListener
 import android.os.Bundle
@@ -225,13 +227,13 @@ fun EddiePhotoTourismView(
         )
     }
 
-    // Set a default landmark at start
-    var activeSampleId by remember { mutableStateOf("borobudur") }
-    val activeSample = sampleLandmarks.first { it.id == activeSampleId }
+    // Set a default landmark at start - clean state by default
+    var activeSampleId by remember { mutableStateOf<String?>(null) }
+    val activeSample = sampleLandmarks.firstOrNull { it.id == activeSampleId }
 
     // Synchronize sample data to local state if no custom snapshot is scanned
     LaunchedEffect(activeSampleId) {
-        if (uiState.arSelectedBitmap == null) {
+        if (activeSampleId != null && uiState.arSelectedBitmap == null) {
             onImageSelected(null, null)
             // Pre-fill fields with selected sample monument content!
             onScanClick("AUTO_LOAD_SAMPLE_${activeSampleId}")
@@ -263,8 +265,19 @@ fun EddiePhotoTourismView(
     ) { uri: Uri? ->
         if (uri != null) {
             try {
-                val stream: InputStream? = context.contentResolver.openInputStream(uri)
-                val decoded = BitmapFactory.decodeStream(stream)
+                val decoded: Bitmap? = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                    val source = ImageDecoder.createSource(context.contentResolver, uri)
+                    ImageDecoder.decodeBitmap(source) { decoder, _, _ ->
+                        decoder.allocator = ImageDecoder.ALLOCATOR_SOFTWARE
+                    }
+                } else {
+                    val options = BitmapFactory.Options().apply {
+                        inPreferredConfig = Bitmap.Config.ARGB_8888
+                    }
+                    context.contentResolver.openInputStream(uri)?.use { stream ->
+                        BitmapFactory.decodeStream(stream, null, options)
+                    }
+                }
                 if (decoded != null) {
                     val downscaled = resizeArBitmapToMax(decoded, 1080)
                     onImageSelected(uri, downscaled)
@@ -441,13 +454,45 @@ fun EddiePhotoTourismView(
                         modifier = Modifier.fillMaxSize(),
                         contentScale = ContentScale.Crop
                     )
-                } else {
+                } else if (activeSample != null) {
                     // Render Gorgeous Procedural Canvas Drawing based on active sample
                     ProceduralLandmarkCanvas(
                         drawingType = activeSample.drawingType,
                         themeColors = activeSample.themeColors,
                         modifier = Modifier.fillMaxSize()
                     )
+                } else {
+                    // Clean AR Viewfinder Placeholder
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(Color(0xFF0F172A)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(8.dp),
+                            modifier = Modifier.padding(24.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.LocationOn,
+                                contentDescription = "Landmark Scan",
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(40.dp)
+                            )
+                            Text(
+                                text = "AR Optical Telemetry Ready",
+                                style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                                color = Color.White
+                            )
+                            Text(
+                                text = "Snap a landmark photo or select a destination below to begin the tour.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = Color.LightGray,
+                                textAlign = TextAlign.Center
+                            )
+                        }
+                    }
                 }
 
                 // AR Grid / Coordinates Overlay HUD
@@ -527,7 +572,7 @@ fun EddiePhotoTourismView(
                 }
 
                 // Interactive Scanned AR Hotspots Overlay (Float buttons at x,y percentages)
-                val activeHotspotsList = if (uiState.arSelectedBitmap != null) uiState.arHotspots else activeSample.hotspots
+                val activeHotspotsList = if (uiState.arSelectedBitmap != null) uiState.arHotspots else (activeSample?.hotspots ?: emptyList())
 
                 activeHotspotsList.forEach { spot ->
                     Box(
@@ -762,10 +807,10 @@ fun EddiePhotoTourismView(
             }
 
             // --- REAL-TIME AI RECOGNITION RESULTS PANEL ---
-            val activeLandmarkName = if (uiState.arSelectedBitmap != null) uiState.arLandmarkName else activeSample.name
-            val activeLandmarkLocation = if (uiState.arSelectedBitmap != null) uiState.arLandmarkLocation else activeSample.country
-            val activeLandmarkDesc = if (uiState.arSelectedBitmap != null) uiState.arLandmarkDescription else activeSample.description
-            val activeLandmarkNarrative = if (uiState.arSelectedBitmap != null) uiState.arNarrativeText else activeSample.narrative
+            val activeLandmarkName = if (uiState.arSelectedBitmap != null) uiState.arLandmarkName else (activeSample?.name ?: "")
+            val activeLandmarkLocation = if (uiState.arSelectedBitmap != null) uiState.arLandmarkLocation else (activeSample?.country ?: "")
+            val activeLandmarkDesc = if (uiState.arSelectedBitmap != null) uiState.arLandmarkDescription else (activeSample?.description ?: "")
+            val activeLandmarkNarrative = if (uiState.arSelectedBitmap != null) uiState.arNarrativeText else (activeSample?.narrative ?: "")
 
             if (activeLandmarkName.isNotBlank()) {
                 ElevatedCard(
@@ -941,7 +986,7 @@ fun EddiePhotoTourismView(
 
                             // Displays retrieved live facts search list out
                             val activeFactsList = if (uiState.arSelectedBitmap != null) uiState.arFactsList else {
-                                if (uiState.arFactsList.isNotEmpty()) uiState.arFactsList else activeSample.defaultFacts
+                                if (uiState.arFactsList.isNotEmpty()) uiState.arFactsList else (activeSample?.defaultFacts ?: emptyList())
                             }
 
                             if (activeFactsList.isNotEmpty()) {

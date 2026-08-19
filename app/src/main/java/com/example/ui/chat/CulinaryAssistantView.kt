@@ -2,7 +2,9 @@ package com.example.ui.chat
 
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.graphics.ImageDecoder
 import android.net.Uri
+import android.os.Build
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -61,8 +63,19 @@ fun CulinaryAssistantView(
     ) { uri: Uri? ->
         if (uri != null) {
             try {
-                val stream: InputStream? = context.contentResolver.openInputStream(uri)
-                val decoded = BitmapFactory.decodeStream(stream)
+                val decoded: Bitmap? = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                    val source = ImageDecoder.createSource(context.contentResolver, uri)
+                    ImageDecoder.decodeBitmap(source) { decoder, _, _ ->
+                        decoder.allocator = ImageDecoder.ALLOCATOR_SOFTWARE
+                    }
+                } else {
+                    val options = BitmapFactory.Options().apply {
+                        inPreferredConfig = Bitmap.Config.ARGB_8888
+                    }
+                    context.contentResolver.openInputStream(uri)?.use { stream ->
+                        BitmapFactory.decodeStream(stream, null, options)
+                    }
+                }
                 if (decoded != null) {
                     val downscaled = resizeCulinaryBitmap(decoded, 1080)
                     onImageSelected(downscaled, uri)

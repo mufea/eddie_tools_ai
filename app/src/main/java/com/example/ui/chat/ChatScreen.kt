@@ -41,6 +41,8 @@ import androidx.compose.material.icons.filled.Face
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.automirrored.filled.ExitToApp
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -237,8 +239,6 @@ fun ChatScreen(
             if (spokenText != null) {
                 if (activeTab == "voice_ai") {
                     viewModel.processVoiceInput(spokenText, ttsUser)
-                } else if (activeTab == "language_learning") {
-                    viewModel.processLanguageLearningInput(spokenText, ttsUser)
                 } else {
                     inputText = spokenText
                 }
@@ -404,16 +404,6 @@ fun ChatScreen(
                     )
 
                     NavigationDrawerItem(
-                        icon = { Text("👥", style = TextStyle(fontSize = 16.sp)) },
-                        label = { Text("AI Avatar Studio", fontWeight = FontWeight.SemiBold) },
-                        selected = activeTab == "avatar_studio",
-                        onClick = {
-                            activeTab = "avatar_studio"
-                            scope.launch { drawerState.close() }
-                        }
-                    )
-
-                    NavigationDrawerItem(
                         icon = { Text("💻", style = TextStyle(fontSize = 16.sp)) },
                         label = { Text("AI Code Studio", fontWeight = FontWeight.SemiBold) },
                         selected = activeTab == "ai_code",
@@ -462,26 +452,6 @@ fun ChatScreen(
                     )
 
                     NavigationDrawerItem(
-                        icon = { Text("📐", style = TextStyle(fontSize = 16.sp)) },
-                        label = { Text("AI Socratic Tutor", fontWeight = FontWeight.SemiBold) },
-                        selected = activeTab == "socratic_math_tutor",
-                        onClick = {
-                            activeTab = "socratic_math_tutor"
-                            scope.launch { drawerState.close() }
-                        }
-                    )
-
-                    NavigationDrawerItem(
-                        icon = { Text("🗣️", style = TextStyle(fontSize = 16.sp)) },
-                        label = { Text("AI Language Practice", fontWeight = FontWeight.SemiBold) },
-                        selected = activeTab == "language_learning",
-                        onClick = {
-                            activeTab = "language_learning"
-                            scope.launch { drawerState.close() }
-                        }
-                    )
-
-                    NavigationDrawerItem(
                         icon = { Text("📄", style = TextStyle(fontSize = 16.sp)) },
                         label = { Text("AI Document & PDF Summary", fontWeight = FontWeight.SemiBold) },
                         selected = activeTab == "doc_intelligence",
@@ -493,25 +463,7 @@ fun ChatScreen(
 
 
 
-                    NavigationDrawerItem(
-                        icon = { Text("🎭", style = TextStyle(fontSize = 16.sp)) },
-                        label = { Text("AI Meme Lab Generator", fontWeight = FontWeight.SemiBold) },
-                        selected = activeTab == "meme_generator",
-                        onClick = {
-                            activeTab = "meme_generator"
-                            scope.launch { drawerState.close() }
-                        }
-                    )
 
-                    NavigationDrawerItem(
-                        icon = { Text("🛋️", style = TextStyle(fontSize = 16.sp)) },
-                        label = { Text("AI Interior Consultant", fontWeight = FontWeight.SemiBold) },
-                        selected = activeTab == "interior_designer",
-                        onClick = {
-                            activeTab = "interior_designer"
-                            scope.launch { drawerState.close() }
-                        }
-                    )
 
                     Spacer(modifier = Modifier.height(12.dp))
                     Text(
@@ -527,16 +479,6 @@ fun ChatScreen(
                         selected = activeTab == "web_researcher",
                         onClick = {
                             activeTab = "web_researcher"
-                            scope.launch { drawerState.close() }
-                        }
-                    )
-
-                    NavigationDrawerItem(
-                        icon = { Text("📊", style = TextStyle(fontSize = 16.sp)) },
-                        label = { Text("AI Slide Outline Gen", fontWeight = FontWeight.SemiBold) },
-                        selected = activeTab == "slide_outline",
-                        onClick = {
-                            activeTab = "slide_outline"
                             scope.launch { drawerState.close() }
                         }
                     )
@@ -620,25 +562,6 @@ fun ChatScreen(
 
                     // Gemini Nano drawer item removed
 
-                    NavigationDrawerItem(
-                        icon = { Text("🌙", style = TextStyle(fontSize = 16.sp)) },
-                        label = {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text("Dark Theme")
-                                Switch(
-                                    checked = uiState.isDarkTheme,
-                                    onCheckedChange = { viewModel.toggleTheme() },
-                                    thumbContent = { Box(modifier = Modifier.size(SwitchDefaults.IconSize)) }
-                                )
-                            }
-                        },
-                        selected = false,
-                        onClick = { viewModel.toggleTheme() }
-                    )
 
                     NavigationDrawerItem(
                         icon = { Text("🤖", style = TextStyle(fontSize = 16.sp)) },
@@ -880,23 +803,12 @@ fun ChatScreen(
             }
         }
     ) {
-        val backgroundGradient = if (uiState.isDarkTheme) {
-            Brush.verticalGradient(
-                colors = listOf(
-                    Color(0xFF0B0F19),
-                    Color(0xFF1E1B4B),
-                    Color(0xFF111827)
-                )
+        val backgroundGradient = Brush.verticalGradient(
+            colors = listOf(
+                Color(0xFFFFFFFF),
+                Color(0xFFFFFFFF)
             )
-        } else {
-            Brush.verticalGradient(
-                colors = listOf(
-                    Color(0xFFFFFFFF),
-                    Color(0xFFEBF4FF),
-                    Color(0xFFF1F5F9)
-                )
-            )
-        }
+        )
 
         Scaffold(
             modifier = Modifier.background(backgroundGradient),
@@ -1126,8 +1038,6 @@ fun ChatScreen(
                             items(uiState.messages) { message ->
                                 ChatMessageBubble(
                                     message = message,
-                                    isSpeaking = currentlySpeakingMessageId == message.id,
-                                    onSpeakClick = { speakText(message.id, message.text) },
                                     onCopyClick = { copyToClipboard(message.text) },
                                     onShareClick = { shareMessage(message.text) },
                                     onBookmarkClick = {
@@ -1456,33 +1366,9 @@ fun ChatScreen(
                     paddingValues = paddingValues,
                     onMicClick = { startSpeechToText() },
                     onClearChat = { viewModel.clearVoiceChat() },
-                    onStopTts = { ttsUser?.stop() }
-                )
-            } else if (activeTab == "language_learning") {
-                EddieLanguageLearningView(
-                    uiState = uiState,
-                    paddingValues = paddingValues,
-                    onLangChange = { lang -> viewModel.changeLanguageLocale(lang) },
-                    onTopicChange = { topic -> viewModel.changeLanguageConversationTopic(topic) },
-                    onLevelChange = { lvl -> viewModel.changeLanguagePracticeLevel(lvl) },
-                    onMicClick = { startSpeechToText() },
-                    onClearChat = { viewModel.clearLanguageLearningChat() },
                     onStopTts = { ttsUser?.stop() },
-                    onSendMessage = { msg -> viewModel.processLanguageLearningInput(msg, ttsUser) },
-                    onPlayTts = { text ->
-                        val targetLanguage = uiState.languageSelectedLocale
-                        val localeToUse = when (targetLanguage) {
-                            "Spanish" -> java.util.Locale("es", "ES")
-                            "French" -> java.util.Locale("fr", "FR")
-                            "Japanese" -> java.util.Locale("ja", "JP")
-                            "German" -> java.util.Locale("de", "DE")
-                            "Korean" -> java.util.Locale("ko", "KR")
-                            "Chinese Mandarin" -> java.util.Locale("zh", "CN")
-                            else -> java.util.Locale.US
-                        }
-                        ttsUser?.language = localeToUse
-                        ttsUser?.speak(text, android.speech.tts.TextToSpeech.QUEUE_FLUSH, null, "EddieLanguageUtteranceId")
-                    }
+                    onProviderChange = { provider -> viewModel.selectVoiceProvider(provider) },
+                    onModelChange = { model -> viewModel.selectVoiceModel(model) }
                 )
             } else if (activeTab == "ai_vision") {
                 EddieVisionAnalyzerView(
@@ -1495,7 +1381,9 @@ fun ChatScreen(
                         viewModel.analyzeVisionImage(mode, prompt)
                     },
                     onCopyText = { text -> copyToClipboard(text) },
-                    onShareText = { text -> shareMessage(text) }
+                    onShareText = { text -> shareMessage(text) },
+                    onProviderChange = { provider -> viewModel.selectVisionProvider(provider) },
+                    onModelChange = { model -> viewModel.selectVisionModel(model) }
                 )
             } else if (activeTab == "photo_tourism_ar_guide") {
                 EddiePhotoTourismView(
@@ -1514,29 +1402,6 @@ fun ChatScreen(
                         viewModel.setArTtsSpeaking(speaking)
                     }
                 )
-            } else if (activeTab == "socratic_math_tutor") {
-                SocraticMathTutorView(
-                    uiState = uiState,
-                    paddingValues = paddingValues,
-                    onImageSelected = { uri, bitmap ->
-                        viewModel.selectMathImage(uri, bitmap)
-                    },
-                    onSolveClick = { text, presetJson ->
-                        viewModel.solveMathProblem(text, presetJson)
-                    },
-                    onAskTutorClick = { query ->
-                        viewModel.askMathTutorQuestion(query)
-                    },
-                    onStepChange = { index ->
-                        viewModel.setMathCurrentStepIndex(index)
-                    },
-                    onResetClick = {
-                        viewModel.resetMathTutor()
-                    },
-                    onLevelChange = { level ->
-                        viewModel.setMathStudentLevel(level)
-                    }
-                )
             } else if (activeTab == "culinary_assistant") {
                 CulinaryAssistantView(
                     uiState = uiState,
@@ -1551,25 +1416,6 @@ fun ChatScreen(
                     onAnalyzeImage = { bitmap -> viewModel.analyzeFridgeImage(bitmap, ttsUser) },
                     onSpeakStep = { text -> viewModel.speakCulinaryStep(text, ttsUser) },
                     onStopSpeak = { viewModel.stopCulinarySpeaker(ttsUser) }
-                )
-            } else if (activeTab == "meme_generator") {
-                MemeGeneratorView(
-                    uiState = uiState,
-                    paddingValues = paddingValues,
-                    onImageSelected = { bitmap, uri -> viewModel.setMemeSelectedImage(bitmap, uri) },
-                    onUpdateTopText = { text -> viewModel.updateMemeTopText(text) },
-                    onUpdateBottomText = { text -> viewModel.updateMemeBottomText(text) },
-                    onUpdateTextSize = { size -> viewModel.updateMemeTextSize(size) },
-                    onUpdateTextColor = { color -> viewModel.updateMemeTextColor(color) },
-                    onToggleCapitalization = { viewModel.toggleMemeCapitalization() },
-                    onSelectSuggestedCaption = { caption -> viewModel.selectMemeSuggestedCaption(caption) },
-                    onAnalyzeImage = { bitmap -> viewModel.generateMemeMagicCaptions(bitmap) },
-                    onClearAll = { viewModel.clearMemeState() }
-                )
-            } else if (activeTab == "interior_designer") {
-                EddieInteriorDesignerView(
-                    viewModel = viewModel,
-                    modifier = Modifier.padding(paddingValues)
                 )
             } else if (activeTab == "doc_intelligence") {
                 EddieDocumentIntelligenceView(
@@ -1595,13 +1441,6 @@ fun ChatScreen(
                     onClear = { viewModel.clearResearch() },
                     onShare = { report -> shareMessage(report) }
                 )
-            } else if (activeTab == "slide_outline") {
-                EddieSlideOutlineView(
-                    uiState = uiState,
-                    paddingValues = paddingValues,
-                    onGenerate = { topic -> viewModel.generatePresentationOutline(topic) },
-                    onClear = { viewModel.clearSlides() }
-                )
             } else if (activeTab == "sfx_generator") {
                 EddieSfxGeneratorView(
                     uiState = uiState,
@@ -1610,26 +1449,7 @@ fun ChatScreen(
                     onPlaySfx = { viewModel.playSynthesizedSfx() },
                     onClear = { viewModel.clearSfx() }
                 )
-            } else if (activeTab == "avatar_studio") {
-                EddieAvatarStudioView(
-                    uiState = uiState,
-                    paddingValues = paddingValues,
-                    onGenerate = { avName, avUrl, script, lang, voice, bgName, bgUrl ->
-                        viewModel.generateAvatarStudioVideo(avName, avUrl, script, lang, voice, bgName, bgUrl)
-                    },
-                    onPlay = { video -> viewModel.playAvatarStudioVideo(video, context) },
-                    onStop = { viewModel.stopAvatarStudioVideoPlayback() },
-                    onDelete = { id -> viewModel.deleteAvatarStudioVideo(id) },
-                    onSelectActiveVideo = { video -> viewModel.selectAvatarStudioActiveVideo(video) }
-                )
-            } else if (activeTab == "talking_head") {
-                EddieTalkingHeadView(
-                    uiState = uiState,
-                    paddingValues = paddingValues,
-                    onSelectImage = { url -> viewModel.selectTalkingHeadImage(url) },
-                    onAnimate = { script -> viewModel.animateTalkingHead(script, context) },
-                    onStop = { viewModel.stopTalkingHeadAnimation() }
-                )
+
             } else if (activeTab == "ai_writer") {
                 EddieAiWriterView(
                     uiState = uiState,
@@ -2096,53 +1916,119 @@ fun ChatScreen(
         AlertDialog(
             onDismissRequest = { showHelpDialog = false },
             title = {
-                Text(
-                    text = "Help & Info",
-                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
-                )
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Info,
+                        contentDescription = "Help & Info",
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(24.dp)
+                    )
+                    Text(
+                        text = "Help & Info",
+                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
+                    )
+                }
             },
             text = {
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .verticalScroll(rememberScrollState())
+                        .verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(14.dp)
                 ) {
+                    // App Version Badge & Summary
+                    Surface(
+                        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(12.dp),
+                            verticalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Text(
+                                text = "Eddie Assistant v1.4.0",
+                                style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                            Text(
+                                text = "Your multi-modal AI companion powered by Google Gemini, OpenAI, Claude, DeepSeek, and xAI.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+                    }
+
+                    // What's New / Recent Improvements Section
+                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Text(
+                            text = "✨ What's New & Recent Improvements:",
+                            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                        Text(
+                            text = "• Clean State on App Launch: The Chat Assistant automatically opens to a fresh, clean window on every launch while preserving past conversations in the drawer.\n" +
+                                   "• Ergonomic Input Layout: Document Intelligence and Vision Analyzer now position the prompt input box at the bottom with results prominently displayed on top.\n" +
+                                   "• Streamlined Tools: Creative modules (Storyteller, Coloring Book, Photo Tourism AR, SFX) start cleanly without unwanted pre-filled content.\n" +
+                                   "• Enhanced Reliability: Optimized high-performance image decoding and memory management across all vision tools.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+
+                    // Core Capabilities Section
+                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Text(
+                            text = "🚀 Core Capabilities:",
+                            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold)
+                        )
+                        Text(
+                            text = "• Chat Assistant: Natural conversations with speech input, real-time audio playback, and multi-model intelligence.\n" +
+                                   "• AI Document & PDF Analyzer: In-depth document inspection, multi-page summarization, and key insight extraction.\n" +
+                                   "• AI Vision Analyzer: Visual question answering, image inspection, and optical intelligence.\n" +
+                                   "• Smart Fridge & Culinary Assistant: Instant ingredient recognition from photos with step-by-step interactive cooking recipes.\n" +
+                                   "• Photo Tourism AR: Landmark exploration, live historical facts, interactive AR hotspots, and immersive audio guides.\n" +
+                                   "• Creative Studio: AI Writer, Image Generator, SFX Creator, Coloring Book, and Kids Storyteller.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+
+                    // Data & Privacy Section
+                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text(
+                            text = "🔒 Privacy & Persistence:",
+                            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold)
+                        )
+                        Text(
+                            text = "• On-Device Room Database: Chat histories, saved images, and bookmarked messages are stored securely on your device.\n" +
+                                   "• Custom Personas & Keys: Configure custom system instructions and API keys under the Settings menu.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(4.dp))
                     Text(
-                        text = "Eddie Chat v1.3.0",
-                        style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
-                        color = MaterialTheme.colorScheme.primary
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(
-                        text = "This smart assistant application is built using cutting-edge Google Gemini API technology (model 3.5 Flash & 3.1 Pro).",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Text(
-                        text = "Key Features:",
-                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold)
-                    )
-                    Text(
-                        text = "• Room Database: Your chat session history is securely saved and will not be lost.\n" +
-                               "• Speech-to-Text: Write messages hands-free by recording your voice.\n" +
-                               "• Text-to-Speech: Let the chatbot read out its responses with natural audio.\n" +
-                               "• Unlimited Chat Sessions: Easily delete or create conversation sessions.\n" +
-                               "• Favorite Messages: Bookmark the best AI responses and save them to a dedicated favorite tab.\n" +
-                               "• System Customization: Supports custom persona prompts and personal API key options.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Text(
-                        text = "Disclaimer: AI may produce errors. Please verify important facts periodically.",
+                        text = "Disclaimer: AI can make mistakes. Please verify important facts and information independently.",
                         style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
                     )
                 }
             },
             confirmButton = {
-                Button(onClick = { showHelpDialog = false }) {
+                Button(
+                    onClick = { showHelpDialog = false },
+                    shape = RoundedCornerShape(8.dp)
+                ) {
                     Text("Close")
                 }
             }
@@ -2538,8 +2424,8 @@ fun ChatScreen(
 @Composable
 fun ChatMessageBubble(
     message: ChatMessage,
-    isSpeaking: Boolean,
-    onSpeakClick: () -> Unit,
+    isSpeaking: Boolean = false,
+    onSpeakClick: () -> Unit = {},
     onCopyClick: () -> Unit,
     onShareClick: () -> Unit,
     onBookmarkClick: () -> Unit
@@ -2730,26 +2616,58 @@ fun ChatMessageBubble(
             }
         }
 
-        if (isUser && formattedDateTime.isNotEmpty()) {
+        if (isUser) {
+            if (formattedDateTime.isNotEmpty()) {
+                Row(
+                    modifier = Modifier.padding(top = 4.dp, end = 4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = formattedDateTime,
+                        style = MaterialTheme.typography.bodySmall.copy(
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Normal
+                        ),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.62f)
+                    )
+                    Icon(
+                        imageVector = Icons.Default.CheckCircle,
+                        contentDescription = "Sent",
+                        modifier = Modifier.size(11.dp),
+                        tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.65f)
+                    )
+                }
+            }
+
+            // Action Toolbar for User Input Prompt
             Row(
-                modifier = Modifier.padding(top = 4.dp, end = 4.dp),
-                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                modifier = Modifier
+                    .padding(top = 2.dp, end = 2.dp),
+                horizontalArrangement = Arrangement.spacedBy(2.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    text = formattedDateTime,
-                    style = MaterialTheme.typography.bodySmall.copy(
-                        fontSize = 10.sp,
-                        fontWeight = FontWeight.Normal
-                    ),
-                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.62f)
-                )
-                Icon(
-                    imageVector = Icons.Default.CheckCircle,
-                    contentDescription = "Sent",
-                    modifier = Modifier.size(11.dp),
-                    tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.65f)
-                )
+                TextButton(
+                    onClick = onCopyClick,
+                    contentPadding = PaddingValues(horizontal = 4.dp, vertical = 2.dp),
+                    modifier = Modifier.height(28.dp)
+                ) {
+                    Text(
+                        text = "📋 COPY",
+                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold)
+                    )
+                }
+
+                TextButton(
+                    onClick = onShareClick,
+                    contentPadding = PaddingValues(horizontal = 4.dp, vertical = 2.dp),
+                    modifier = Modifier.height(28.dp)
+                ) {
+                    Text(
+                        text = "📤 SHARE",
+                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold)
+                    )
+                }
             }
         }
 
@@ -2769,7 +2687,7 @@ fun ChatMessageBubble(
             }
         }
 
-        // Action Toolbar (Copy, TTS, Bookmark option for assistant responses)
+        // Action Toolbar (Copy, Share, Bookmark option for assistant responses)
         if (!isUser) {
             Row(
                 modifier = Modifier
@@ -2778,18 +2696,6 @@ fun ChatMessageBubble(
                 horizontalArrangement = Arrangement.spacedBy(2.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                TextButton(
-                    onClick = onSpeakClick,
-                    contentPadding = PaddingValues(horizontal = 4.dp, vertical = 2.dp),
-                    modifier = Modifier.height(28.dp)
-                ) {
-                    Text(
-                        text = if (isSpeaking) "■ STOP" else "🔊 SPEAK",
-                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-                        color = if (isSpeaking) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
-                    )
-                }
-
                 TextButton(
                     onClick = onCopyClick,
                     contentPadding = PaddingValues(horizontal = 4.dp, vertical = 2.dp),
@@ -3677,17 +3583,6 @@ fun EddieImageGeneratorView(
     var editingImageItem by remember { mutableStateOf<com.example.data.db.GeneratedImageEntity?>(null) }
 
     val scrollState = rememberScrollState()
-    val isKeyboardVisible = WindowInsets.isImeVisible
-    LaunchedEffect(isKeyboardVisible) {
-        if (isKeyboardVisible) {
-            scrollState.animateScrollTo(scrollState.maxValue)
-        }
-    }
-    LaunchedEffect(prompt) {
-        if (prompt.isNotEmpty()) {
-            scrollState.animateScrollTo(scrollState.maxValue)
-        }
-    }
 
     val shuffledImageQuickPrompts = remember {
         listOf(
@@ -4385,55 +4280,7 @@ fun EddieImageGeneratorView(
             }
         }
 
-        // Action Button and Status logs
-        if (uiState.imageGenLog.isNotBlank()) {
-            Surface(
-                color = Color(0xFF1E1E1E),
-                shape = RoundedCornerShape(12.dp),
-                modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp)
-            ) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = if (uiState.imageGenIsLoading) "Eddie Art Pro Studio - Processing Rendering..." else "Eddie Art Pro Studio - Complete",
-                            color = Color.Green,
-                            style = TextStyle(fontFamily = FontFamily.Monospace, fontSize = 11.sp, fontWeight = FontWeight.Bold),
-                            modifier = Modifier.weight(1f)
-                        )
-                        IconButton(
-                            onClick = { onClearLog() },
-                            modifier = Modifier.size(24.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Close,
-                                contentDescription = "Clear Logs",
-                                tint = Color.LightGray,
-                                modifier = Modifier.size(16.dp)
-                            )
-                        }
-                    }
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(
-                        text = uiState.imageGenLog,
-                        color = Color.White,
-                        style = TextStyle(fontFamily = FontFamily.Monospace, fontSize = 12.sp, lineHeight = 16.sp)
-                    )
-                    if (uiState.imageGenIsLoading) {
-                        Spacer(modifier = Modifier.height(12.dp))
-                        LinearProgressIndicator(
-                            modifier = Modifier.fillMaxWidth(),
-                            color = Color.Green,
-                            trackColor = Color.DarkGray
-                        )
-                    }
-                }
-            }
-        }
-
+        // Action Button
         if (uiState.imageGenIsLoading) {
             Button(
                 onClick = { },
@@ -4441,11 +4288,28 @@ fun EddieImageGeneratorView(
                 modifier = Modifier.fillMaxWidth().height(52.dp),
                 shape = RoundedCornerShape(12.dp)
             ) {
-                Text(
-                    text = "Painting Masterpiece... ⏳",
-                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
-                )
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(20.dp),
+                        strokeWidth = 2.dp,
+                        color = MaterialTheme.colorScheme.onPrimary
+                    )
+                    Text(
+                        text = "Painting Masterpiece... 🎨",
+                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
+                    )
+                }
             }
+            LinearProgressIndicator(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 8.dp),
+                color = MaterialTheme.colorScheme.primary,
+                trackColor = MaterialTheme.colorScheme.surfaceVariant
+            )
         } else {
             Button(
                 onClick = { 
@@ -4503,76 +4367,95 @@ fun EddieImageGeneratorView(
                 }
             }
         } else {
-            LazyRow(
+            Column(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                contentPadding = PaddingValues(vertical = 4.dp)
+                verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                items(userImages) { imageItem ->
+                userImages.forEach { imageItem ->
                     Card(
                         modifier = Modifier
-                            .width(180.dp)
+                            .fillMaxWidth()
                             .clickable { selectedImageForZoom = imageItem },
-                        shape = RoundedCornerShape(12.dp)
+                        shape = RoundedCornerShape(14.dp),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.25f)),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
                     ) {
-                        Column {
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(130.dp)
-                                    .background(Color.LightGray)
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(12.dp),
+                            verticalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically
                             ) {
-                                AsyncImage(
-                                    model = imageItem.imageUrl,
-                                    contentDescription = imageItem.prompt,
-                                    modifier = Modifier.fillMaxSize(),
-                                    contentScale = ContentScale.Crop
-                                )
                                 Surface(
-                                    color = MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.85f),
-                                    modifier = Modifier.padding(6.dp).align(Alignment.TopEnd),
-                                    shape = RoundedCornerShape(4.dp)
+                                    shape = CircleShape,
+                                    color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f),
+                                    modifier = Modifier.size(36.dp)
                                 ) {
+                                    Box(contentAlignment = Alignment.Center) {
+                                        Icon(
+                                            imageVector = Icons.Default.Star,
+                                            contentDescription = null,
+                                            tint = MaterialTheme.colorScheme.primary,
+                                            modifier = Modifier.size(20.dp)
+                                        )
+                                    }
+                                }
+
+                                Spacer(modifier = Modifier.width(10.dp))
+
+                                Column(
+                                    modifier = Modifier.weight(1f),
+                                    verticalArrangement = Arrangement.spacedBy(2.dp)
+                                ) {
+                                    // 1. Title
                                     Text(
-                                        text = imageItem.style,
-                                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp, fontWeight = FontWeight.SemiBold),
+                                        text = imageItem.prompt,
+                                        style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold),
+                                        maxLines = 2,
+                                        overflow = TextOverflow.Ellipsis,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+
+                                    // 2. Model Name
+                                    val modelDisplayName = if (imageItem.model.isNotBlank()) imageItem.model else "Imagen 3"
+                                    Text(
+                                        text = modelDisplayName,
+                                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp, fontWeight = FontWeight.SemiBold),
                                         color = MaterialTheme.colorScheme.primary,
-                                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
                                     )
-                                }
-                                Surface(
-                                    color = MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.85f),
-                                    modifier = Modifier.padding(6.dp).align(Alignment.BottomEnd),
-                                    shape = RoundedCornerShape(4.dp)
-                                ) {
+
+                                    // 3. Art Name / Style
+                                    val artDisplayName = if (imageItem.style.isNotBlank()) imageItem.style else "Standard Style"
                                     Text(
-                                        text = imageItem.model,
-                                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp, fontWeight = FontWeight.SemiBold),
-                                        color = MaterialTheme.colorScheme.secondary,
-                                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
-                                    )
-                                }
-                            }
-                            Column(modifier = Modifier.padding(8.dp)) {
-                                Text(
-                                    text = imageItem.prompt,
-                                    style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.SemiBold),
-                                    maxLines = 2,
-                                    overflow = TextOverflow.Ellipsis,
-                                    color = MaterialTheme.colorScheme.onSurface,
-                                    modifier = Modifier.height(32.dp)
-                                )
-                                Spacer(modifier = Modifier.height(4.dp))
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Text(
-                                        text = "Ratio: " + imageItem.aspectRatio,
+                                        text = if (imageItem.aspectRatio.isNotBlank()) "$artDisplayName (${imageItem.aspectRatio})" else artDisplayName,
                                         style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
                                     )
+                                }
+
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(2.dp)
+                                ) {
+                                    IconButton(
+                                        onClick = { editingImageItem = imageItem },
+                                        modifier = Modifier.size(28.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Edit,
+                                            contentDescription = "Edit Image",
+                                            tint = MaterialTheme.colorScheme.primary,
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                    }
                                     DownloadIconButton(
                                         onClick = {
                                             Toast.makeText(context, "Downloading artwork...", Toast.LENGTH_SHORT).show()
@@ -4586,6 +4469,17 @@ fun EddieImageGeneratorView(
                                         },
                                         size = 24.dp
                                     )
+                                    IconButton(
+                                        onClick = { onDeleteImage(imageItem.id) },
+                                        modifier = Modifier.size(28.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Delete,
+                                            contentDescription = "Delete Image",
+                                            tint = MaterialTheme.colorScheme.error.copy(alpha = 0.8f),
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -4594,7 +4488,6 @@ fun EddieImageGeneratorView(
             }
         }
     }
-}
 
     selectedImageForZoom?.let { imageItem ->
         AlertDialog(
@@ -4754,6 +4647,7 @@ fun EddieImageGeneratorView(
             onSaveEditedImage = onSaveEditedImage
         )
     }
+}
 }
 
 @Composable
@@ -5059,7 +4953,7 @@ fun SocialDistributionDialog(
                     }
                 }
 
-                // 4. Gemini Copywriter Button & Output
+                // 4. AI SEO Copywriter Button & Output
                 HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.1f))
                 
                 Row(
@@ -6297,17 +6191,6 @@ fun EddieVideoGeneratorView(
     var pixverseMultiClip by remember { mutableStateOf(false) }
 
     val videoScrollState = rememberScrollState()
-    val isKeyboardVisible = WindowInsets.isImeVisible
-    LaunchedEffect(isKeyboardVisible) {
-        if (isKeyboardVisible) {
-            videoScrollState.animateScrollTo(videoScrollState.maxValue)
-        }
-    }
-    LaunchedEffect(prompt) {
-        if (prompt.isNotEmpty()) {
-            videoScrollState.animateScrollTo(videoScrollState.maxValue)
-        }
-    }
     var pixverseThinkingType by remember { mutableStateOf("auto") }
     var lumaLoop by remember { mutableStateOf(false) }
     var lumaHdr by remember { mutableStateOf(false) }
@@ -6539,14 +6422,6 @@ fun EddieVideoGeneratorView(
     }
 
     val isGeminiVeo3_1 = false
-
-    var showProgressPanel by remember { mutableStateOf(false) }
-
-    LaunchedEffect(uiState.videoGenIsLoading) {
-        if (uiState.videoGenIsLoading) {
-            showProgressPanel = true
-        }
-    }
 
     var uploadedImages by remember { mutableStateOf<List<com.example.data.db.GeneratedImageEntity>>(emptyList()) }
 
@@ -9408,243 +9283,205 @@ fun EddieVideoGeneratorView(
             }
         }
 
-
-
-        if (showProgressPanel) {
-            Surface(
-                color = Color(0xFF1E1E1E),
-                shape = RoundedCornerShape(12.dp),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Text(
-                        text = "Eddie Video Studio - Processing Render API...",
-                        color = Color.Green,
-                        style = TextStyle(fontFamily = FontFamily.Monospace, fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                    )
-                    Spacer(modifier = Modifier.height(12.dp))
-
-                    if (uiState.videoGenIsLoading) {
-                        VideoProgressVisualizer()
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text(
-                            text = "Generating video...",
-                            color = Color.White,
-                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                            modifier = Modifier.align(Alignment.CenterHorizontally)
-                        )
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Text(
-                            text = "This may take 1-5 minutes.",
-                            color = Color.LightGray,
-                            style = MaterialTheme.typography.bodyMedium,
-                            modifier = Modifier.align(Alignment.CenterHorizontally)
-                        )
-                        Spacer(modifier = Modifier.height(12.dp))
-                    }
-
-                    Text(
-                        text = uiState.videoGenLog,
-                        color = Color.White,
-                        style = TextStyle(fontFamily = FontFamily.Monospace, fontSize = 12.sp, lineHeight = 16.sp)
-                    )
-                    Spacer(modifier = Modifier.height(12.dp))
-                    if (uiState.videoGenIsLoading) {
-                        LinearProgressIndicator(
-                            modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-                            color = Color.Green,
-                            trackColor = Color.DarkGray
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Button(
-                            onClick = { showProgressPanel = false },
-                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary),
-                            modifier = Modifier.fillMaxWidth().height(48.dp),
-                            shape = RoundedCornerShape(8.dp)
-                        ) {
-                            Text(
-                                text = "Minimize to Background ⬇️",
-                                style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold),
-                                color = MaterialTheme.colorScheme.onSecondary
-                            )
-                        }
-                    } else {
-                        Button(
-                            onClick = { showProgressPanel = false },
-                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
-                            modifier = Modifier.fillMaxWidth().height(48.dp),
-                            shape = RoundedCornerShape(8.dp)
-                        ) {
-                            Text(
-                                text = "✕ Dismiss Log Progress",
-                                style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold),
-                                color = MaterialTheme.colorScheme.onPrimary
-                            )
-                        }
-                    }
-                }
-            }
+        val isFormValid = if ((isKlingV3Standard || isKlingV3Pro || isKlingV3TurboPro || isKlingV3TurboStandard || isKlingO3_4k || isKlingO3Standard || isKlingO3Pro || isKlingV3_4k) && useStoryboard) {
+            storyboardShots.all { it.first.value.isNotBlank() } && storyboardShots.sumOf { it.second.value.toIntOrNull() ?: 5 } <= 15
         } else {
-            if (uiState.videoGenIsLoading) {
-                Surface(
-                    color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.8f),
-                    shape = RoundedCornerShape(12.dp),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable { showProgressPanel = true }
-                        .padding(bottom = 8.dp)
-                ) {
-                    Row(
-                        modifier = Modifier.padding(14.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(22.dp),
-                            strokeWidth = 2.5.dp,
-                            color = MaterialTheme.colorScheme.secondary
-                        )
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = "Active Video Generation Running in Background...",
-                                style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
-                                color = MaterialTheme.colorScheme.onSecondaryContainer
-                            )
-                            Text(
-                                text = "Generating video in the background. Tap here to view log progress / status.",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.8f)
-                            )
-                        }
-                    }
-                }
-            } else {
-                val isFormValid = if ((isKlingV3Standard || isKlingV3Pro || isKlingV3TurboPro || isKlingV3TurboStandard || isKlingO3_4k || isKlingO3Standard || isKlingO3Pro || isKlingV3_4k) && useStoryboard) {
-                    storyboardShots.all { it.first.value.isNotBlank() } && storyboardShots.sumOf { it.second.value.toIntOrNull() ?: 5 } <= 15
+            prompt.isNotBlank()
+        }
+
+        Button(
+            onClick = { 
+                val ratioParam = if (uiState.selectedVideoProvider == "OpenAI") selectedOpenAiSize else selectedAspectRatio
+                val resParam = if ((uiState.selectedVideoProvider == "OpenAI" && !isOpenAiSora2) || resolutions.isEmpty()) "Default" else selectedResolution
+                val selectedImgUrl = (uiState.generatedImages + uploadedImages).find { it.id == selectedImageId }?.imageUrl
+                
+                val finalDuration = if ((isKlingV3Standard || isKlingV3Pro || isKlingV3TurboPro || isKlingV3TurboStandard || isKlingO3_4k || isKlingO3Standard || isKlingO3Pro || isKlingV3_4k) && useStoryboard) {
+                    val totalDur = storyboardShots.sumOf { it.second.value.toIntOrNull() ?: 5 }
+                    "${totalDur}s"
                 } else {
-                    prompt.isNotBlank()
+                    selectedDuration
                 }
 
-                Button(
-                    onClick = { 
-                        val ratioParam = if (uiState.selectedVideoProvider == "OpenAI") selectedOpenAiSize else selectedAspectRatio
-                        val resParam = if ((uiState.selectedVideoProvider == "OpenAI" && !isOpenAiSora2) || resolutions.isEmpty()) "Default" else selectedResolution
-                        val selectedImgUrl = (uiState.generatedImages + uploadedImages).find { it.id == selectedImageId }?.imageUrl
-                        
-                        val finalDuration = if ((isKlingV3Standard || isKlingV3Pro || isKlingV3TurboPro || isKlingV3TurboStandard || isKlingO3_4k || isKlingO3Standard || isKlingO3Pro || isKlingV3_4k) && useStoryboard) {
-                            val totalDur = storyboardShots.sumOf { it.second.value.toIntOrNull() ?: 5 }
-                            "${totalDur}s"
-                        } else {
-                            selectedDuration
+                val multiPromptJson = if ((isKlingV3Standard || isKlingV3Pro || isKlingV3TurboPro || isKlingV3TurboStandard || isKlingO3_4k || isKlingO3Standard || isKlingO3Pro || isKlingV3_4k) && useStoryboard) {
+                    val array = org.json.JSONArray()
+                    storyboardShots.forEach { shot ->
+                        val obj = org.json.JSONObject().apply {
+                            put("prompt", shot.first.value)
+                            put("duration", shot.second.value.toIntOrNull() ?: 5)
                         }
+                        array.put(obj)
+                    }
+                    array.toString()
+                } else {
+                    null
+                }
 
-                        val multiPromptJson = if ((isKlingV3Standard || isKlingV3Pro || isKlingV3TurboPro || isKlingV3TurboStandard || isKlingO3_4k || isKlingO3Standard || isKlingO3Pro || isKlingV3_4k) && useStoryboard) {
-                            val array = org.json.JSONArray()
-                            storyboardShots.forEach { shot ->
-                                val obj = org.json.JSONObject().apply {
-                                    put("prompt", shot.first.value)
-                                    put("duration", shot.second.value.toIntOrNull() ?: 5)
-                                }
-                                array.put(obj)
-                            }
-                            array.toString()
-                        } else {
-                            null
-                        }
+                val finalSeed = seedText.trim().toIntOrNull()
+                
+                val isWan27 = isAlibabaVideo && uiState.selectedVideoModel.lowercase().trim().contains("wan/v2.7")
+                val endImgParam = if ((isKlingV3Standard || isKlingV3Pro || isKlingV25TurboPro || isKlingO3Standard || isKlingO3Pro || isKlingO3_4k) && klingEndImageUrl.isNotBlank()) {
+                    klingEndImageUrl
+                } else if (isKlingV26Pro && klingV26EndImageUrl.isNotBlank()) {
+                    klingEndImageUrl
+                } else if (isWan27 && wanEndImageUrl.isNotBlank()) {
+                    wanEndImageUrl
+                } else if ((uiState.selectedVideoModel == "fal-ai/minimax/hailuo-02/standard/image-to-video" || uiState.selectedVideoModel == "fal-ai/minimax/hailuo-02/pro/image-to-video") && minimaxEndImageUrl.isNotBlank()) {
+                    minimaxEndImageUrl
+                } else {
+                    null
+                }
 
-                        val finalSeed = seedText.trim().toIntOrNull()
-                        
-                        val isWan27 = isAlibabaVideo && uiState.selectedVideoModel.lowercase().trim().contains("wan/v2.7")
-                        val endImgParam = if ((isKlingV3Standard || isKlingV3Pro || isKlingV25TurboPro || isKlingO3Standard || isKlingO3Pro || isKlingO3_4k) && klingEndImageUrl.isNotBlank()) {
-                            klingEndImageUrl
-                        } else if (isKlingV26Pro && klingV26EndImageUrl.isNotBlank()) {
-                            klingV26EndImageUrl
-                        } else if (isWan27 && wanEndImageUrl.isNotBlank()) {
-                            wanEndImageUrl
-                        } else if ((uiState.selectedVideoModel == "fal-ai/minimax/hailuo-02/standard/image-to-video" || uiState.selectedVideoModel == "fal-ai/minimax/hailuo-02/pro/image-to-video") && minimaxEndImageUrl.isNotBlank()) {
-                            minimaxEndImageUrl
-                        } else {
-                            null
-                        }
+                val elementsJsonParam = if ((isKlingV3Standard || isKlingV3Pro) && klingElements.isNotEmpty()) {
+                    val array = org.json.JSONArray()
+                    klingElements.forEach { array.put(it.toJsonObject()) }
+                    array.toString()
+                } else {
+                    null
+                }
+                val voiceControlParam = (isKlingV3Standard || isKlingV3Pro || isKlingV26Pro) && (selectedAudioOption == "On") && klingVoiceControl
 
-                        val elementsJsonParam = if ((isKlingV3Standard || isKlingV3Pro) && klingElements.isNotEmpty()) {
-                            val array = org.json.JSONArray()
-                            klingElements.forEach { array.put(it.toJsonObject()) }
-                            array.toString()
-                        } else {
-                            null
-                        }
-                        val voiceControlParam = (isKlingV3Standard || isKlingV3Pro || isKlingV26Pro) && (selectedAudioOption == "On") && klingVoiceControl
+                val v26VoiceIdsParam = if (isKlingV26Pro && klingV26VoiceIds.isNotBlank()) {
+                    klingV26VoiceIds.split(",").map { it.trim() }.filter { it.isNotEmpty() }
+                } else {
+                    null
+                }
 
-                        val v26VoiceIdsParam = if (isKlingV26Pro && klingV26VoiceIds.isNotBlank()) {
-                            klingV26VoiceIds.split(",").map { it.trim() }.filter { it.isNotEmpty() }
-                        } else {
-                            null
-                        }
+                val v26StartImgParam = if (isKlingV26Pro && klingV26StartImageUrl.isNotBlank()) {
+                    klingV26StartImageUrl
+                } else {
+                    null
+                }
 
-                        val v26StartImgParam = if (isKlingV26Pro && klingV26StartImageUrl.isNotBlank()) {
-                            klingV26StartImageUrl
-                        } else {
-                            null
-                        }
-
-                        onGenerateVideo(
-                            prompt,
-                            selectedStyle,
-                            ratioParam,
-                            resParam,
-                            finalDuration,
-                            selectedAudioOption,
-                            selectedPersonGeneration,
-                            negativePromptText,
-                            sampleCountVideos,
-                            selectedImgUrl,
-                            cfgScale,
-                            if (isKlingV3Standard || isKlingV3Pro || isKlingO3_4k || isKlingO3Standard || isKlingO3Pro || isKlingV3_4k) selectedShotType else "customize",
-                            multiPromptJson,
-                            finalSeed,
-                            if (uiState.selectedVideoModel == "fal-ai/minimax/hailuo-02/standard/image-to-video" || uiState.selectedVideoModel == "fal-ai/minimax/hailuo-02/pro/image-to-video" || uiState.selectedVideoModel == "fal-ai/minimax/hailuo-2.3/standard/image-to-video" || uiState.selectedVideoModel == "fal-ai/minimax/hailuo-2.3/pro/image-to-video" || uiState.selectedVideoModel == "fal-ai/minimax/hailuo-02/standard/text-to-video" || uiState.selectedVideoModel == "fal-ai/minimax/hailuo-02/pro/text-to-video" || uiState.selectedVideoModel == "fal-ai/minimax/hailuo-2.3/standard/text-to-video" || uiState.selectedVideoModel == "fal-ai/minimax/hailuo-2.3/pro/text-to-video") minimaxPromptOptimizer else enhancePrompt,
-                            autoFix,
-                            safetyTolerance.toIntOrNull() ?: 4,
-                            endImgParam,
-                            elementsJsonParam,
-                            voiceControlParam,
-                            v26VoiceIdsParam,
-                            v26StartImgParam,
-                            selectedBitrateMode,
-                            endUserIdText,
-                            pixverseMultiClip,
-                            pixverseThinkingType,
-                            lumaLoop,
-                            lumaHdr,
-                            lumaExrExport,
-                            alibabaAudioUrl,
-                            wanMultiShots,
-                            if (isWan27) wanVideoUrl else null,
-                            hunyuanInferenceSteps,
-                            hunyuanFrames
-                        )
-                        showProgressPanel = true
-                    },
-                    enabled = isFormValid,
-                    modifier = Modifier.fillMaxWidth().height(52.dp),
-                    shape = RoundedCornerShape(12.dp)
+                onGenerateVideo(
+                    prompt,
+                    selectedStyle,
+                    ratioParam,
+                    resParam,
+                    finalDuration,
+                    selectedAudioOption,
+                    selectedPersonGeneration,
+                    negativePromptText,
+                    sampleCountVideos,
+                    selectedImgUrl,
+                    cfgScale,
+                    if (isKlingV3Standard || isKlingV3Pro || isKlingO3_4k || isKlingO3Standard || isKlingO3Pro || isKlingV3_4k) selectedShotType else "customize",
+                    multiPromptJson,
+                    finalSeed,
+                    if (uiState.selectedVideoModel == "fal-ai/minimax/hailuo-02/standard/image-to-video" || uiState.selectedVideoModel == "fal-ai/minimax/hailuo-02/pro/image-to-video" || uiState.selectedVideoModel == "fal-ai/minimax/hailuo-2.3/standard/image-to-video" || uiState.selectedVideoModel == "fal-ai/minimax/hailuo-2.3/pro/image-to-video" || uiState.selectedVideoModel == "fal-ai/minimax/hailuo-02/standard/text-to-video" || uiState.selectedVideoModel == "fal-ai/minimax/hailuo-02/pro/text-to-video" || uiState.selectedVideoModel == "fal-ai/minimax/hailuo-2.3/standard/text-to-video" || uiState.selectedVideoModel == "fal-ai/minimax/hailuo-2.3/pro/text-to-video") minimaxPromptOptimizer else enhancePrompt,
+                    autoFix,
+                    safetyTolerance.toIntOrNull() ?: 4,
+                    endImgParam,
+                    elementsJsonParam,
+                    voiceControlParam,
+                    v26VoiceIdsParam,
+                    v26StartImgParam,
+                    selectedBitrateMode,
+                    endUserIdText,
+                    pixverseMultiClip,
+                    pixverseThinkingType,
+                    lumaLoop,
+                    lumaHdr,
+                    lumaExrExport,
+                    alibabaAudioUrl,
+                    wanMultiShots,
+                    if (isWan27) wanVideoUrl else null,
+                    hunyuanInferenceSteps,
+                    hunyuanFrames
+                )
+            },
+            enabled = isFormValid && !uiState.videoGenIsLoading,
+            modifier = Modifier.fillMaxWidth().height(52.dp),
+            shape = RoundedCornerShape(12.dp)
+        ) {
+            if (uiState.videoGenIsLoading) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(20.dp),
+                        strokeWidth = 2.dp,
+                        color = MaterialTheme.colorScheme.onPrimary
+                    )
                     Text(
-                        text = "Start AI Video Render 🚀",
+                        text = "Rendering Video...",
                         style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
                     )
                 }
+            } else {
+                Text(
+                    text = "Start AI Video Render 🚀",
+                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
+                )
+            }
+        }
+
+        if (uiState.videoGenIsLoading) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                LinearProgressIndicator(
+                    modifier = Modifier.fillMaxWidth(),
+                    color = MaterialTheme.colorScheme.primary,
+                    trackColor = MaterialTheme.colorScheme.surfaceVariant
+                )
+                Text(
+                    text = "Generating video in the background. It will automatically appear in your collection below once ready.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             }
         }
 
         HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f), modifier = Modifier.padding(vertical = 8.dp))
 
-        Text(
-            text = "Your AI Video Collection",
-            style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
-            color = MaterialTheme.colorScheme.onSurface
-        )
+        val videosPerPage = 4
+        var videoCurrentPage by remember { mutableStateOf(1) }
+        val totalVideoPages = maxOf(1, (uiState.generatedVideos.size + videosPerPage - 1) / videosPerPage)
+
+        LaunchedEffect(uiState.generatedVideos.size) {
+            if (videoCurrentPage > totalVideoPages) {
+                videoCurrentPage = totalVideoPages
+            }
+        }
+
+        val paginatedVideos = remember(uiState.generatedVideos, videoCurrentPage) {
+            val startIndex = (videoCurrentPage - 1) * videosPerPage
+            val endIndex = minOf(startIndex + videosPerPage, uiState.generatedVideos.size)
+            if (startIndex < uiState.generatedVideos.size && startIndex >= 0) {
+                uiState.generatedVideos.subList(startIndex, endIndex)
+            } else {
+                emptyList()
+            }
+        }
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column {
+                Text(
+                    text = "Your AI Video Collection",
+                    style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                if (uiState.generatedVideos.isNotEmpty()) {
+                    val startNum = (videoCurrentPage - 1) * videosPerPage + 1
+                    val endNum = minOf(videoCurrentPage * videosPerPage, uiState.generatedVideos.size)
+                    Text(
+                        text = "Showing $startNum–$endNum of ${uiState.generatedVideos.size} videos • Page $videoCurrentPage of $totalVideoPages",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(12.dp))
 
         if (uiState.generatedVideos.isEmpty()) {
             Box(
@@ -9675,69 +9512,33 @@ fun EddieVideoGeneratorView(
                 }
             }
         } else {
-            androidx.compose.foundation.lazy.LazyRow(
+            Column(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(16.dp),
-                contentPadding = PaddingValues(vertical = 4.dp)
+                verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                items(uiState.generatedVideos) { video ->
+                paginatedVideos.forEach { video ->
                     Card(
                         modifier = Modifier
-                            .width(260.dp)
+                            .fillMaxWidth()
                             .clickable { selectedVideoForPlay = video },
-                        shape = RoundedCornerShape(16.dp),
-                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
+                        shape = RoundedCornerShape(14.dp),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.25f)),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
                     ) {
-                        Column {
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(135.dp)
-                                    .background(
-                                        brush = androidx.compose.ui.graphics.Brush.linearGradient(
-                                            colors = listOf(
-                                                MaterialTheme.colorScheme.primaryContainer,
-                                                MaterialTheme.colorScheme.secondaryContainer
-                                            )
-                                        )
-                                    ),
-                                contentAlignment = Alignment.Center
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(12.dp),
+                            verticalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Surface(
-                                    shape = CircleShape,
-                                    color = Color.Black.copy(alpha = 0.5f),
-                                    modifier = Modifier.size(50.dp)
-                                ) {
-                                    Box(contentAlignment = Alignment.Center) {
-                                        Icon(
-                                            imageVector = Icons.Default.PlayArrow,
-                                            contentDescription = "Play",
-                                            tint = Color.White,
-                                            modifier = Modifier.size(28.dp)
-                                        )
-                                    }
-                                }
-
-                                Surface(
-                                    modifier = Modifier
-                                        .align(Alignment.BottomEnd)
-                                        .padding(8.dp),
-                                    shape = RoundedCornerShape(4.dp),
-                                    color = Color.Black.copy(alpha = 0.7f)
-                                ) {
-                                    Text(
-                                        text = "${video.aspectRatio} • ${video.resolution} • ${video.duration}",
-                                        color = Color.White,
-                                        style = MaterialTheme.typography.labelSmall.copy(fontFamily = FontFamily.Monospace),
-                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                                    )
-                                }
-
-                                // Model name badge in top right of the generated video card
                                 val modelDisplayName = if (video.model.isNotBlank()) {
                                     val m = video.model.lowercase()
                                     when {
-                                        m.contains("grok-imagine-video") -> "Grok Imagine"
+                                        m.contains("grok-imagine-video") -> "Grok"
                                         m.contains("pixverse/v6/text-to-video") || m.contains("pixverse/v6/image-to-video") -> "Pixverse v6"
                                         m.contains("pixverse/v5.6/text-to-video") || m.contains("pixverse/v5.6/image-to-video") -> "Pixverse v5.6"
                                         m.contains("pixverse/v5.5/text-to-video") -> "Pixverse v5.5"
@@ -9745,51 +9546,87 @@ fun EddieVideoGeneratorView(
                                         m.contains("pixverse") -> "Pixverse"
                                         else -> video.model
                                     }
-                                } else "Unknown"
+                                } else "Video"
 
                                 Surface(
-                                    modifier = Modifier
-                                        .align(Alignment.TopEnd)
-                                        .padding(8.dp),
-                                    shape = RoundedCornerShape(6.dp),
-                                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.85f)
+                                    shape = CircleShape,
+                                    color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f),
+                                    modifier = Modifier.size(38.dp)
                                 ) {
+                                    Box(contentAlignment = Alignment.Center) {
+                                        Icon(
+                                            imageVector = Icons.Default.PlayArrow,
+                                            contentDescription = "Play Video",
+                                            tint = MaterialTheme.colorScheme.primary,
+                                            modifier = Modifier.size(22.dp)
+                                        )
+                                    }
+                                }
+
+                                Spacer(modifier = Modifier.width(10.dp))
+
+                                Column(
+                                    modifier = Modifier.weight(1f),
+                                    verticalArrangement = Arrangement.spacedBy(2.dp)
+                                ) {
+                                    // 1. Title
+                                    Text(
+                                        text = video.prompt,
+                                        style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold),
+                                        color = MaterialTheme.colorScheme.onSurface,
+                                        maxLines = 2,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+
+                                    // 2. Model Name
                                     Text(
                                         text = modelDisplayName,
-                                        color = MaterialTheme.colorScheme.onPrimary,
-                                        style = MaterialTheme.typography.labelSmall.copy(
-                                            fontWeight = FontWeight.Bold,
-                                            fontSize = 9.sp,
-                                            letterSpacing = 0.5.sp
-                                        ),
-                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp, fontWeight = FontWeight.SemiBold),
+                                        color = MaterialTheme.colorScheme.primary,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+
+                                    // 3. Art Name / Style
+                                    val artDisplayName = if (video.style.isNotBlank()) video.style else "Cinematic Style"
+                                    Text(
+                                        text = "$artDisplayName (${video.aspectRatio} • ${video.resolution})",
+                                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
                                     )
                                 }
-                            }
 
-                            Column(modifier = Modifier.padding(12.dp)) {
-                                Text(
-                                    text = video.prompt,
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.onSurface,
-                                    maxLines = 2,
-                                    overflow = TextOverflow.Ellipsis,
-                                    modifier = Modifier.height(40.dp)
-                                )
-                                Spacer(modifier = Modifier.height(4.dp))
                                 Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(2.dp)
                                 ) {
-                                    Text(
-                                        text = "Style: ${video.style}",
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = MaterialTheme.colorScheme.primary
-                                    )
-                                    TextButton(
+                                    IconButton(
+                                        onClick = { selectedVideoForPlay = video },
+                                        modifier = Modifier.size(28.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.PlayArrow,
+                                            contentDescription = "Play Video",
+                                            tint = MaterialTheme.colorScheme.primary,
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                    }
+                                    IconButton(
+                                        onClick = { editingVideoItem = video },
+                                        modifier = Modifier.size(28.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Edit,
+                                            contentDescription = "Edit Video",
+                                            tint = MaterialTheme.colorScheme.primary,
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                    }
+                                    IconButton(
                                         onClick = { onDeleteVideo(video.id) },
-                                        contentPadding = PaddingValues(horizontal = 8.dp)
+                                        modifier = Modifier.size(28.dp)
                                     ) {
                                         Icon(
                                             imageVector = Icons.Default.Delete,
@@ -9797,8 +9634,6 @@ fun EddieVideoGeneratorView(
                                             tint = MaterialTheme.colorScheme.error,
                                             modifier = Modifier.size(16.dp)
                                         )
-                                        Spacer(modifier = Modifier.width(4.dp))
-                                        Text("Delete", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.labelSmall)
                                     }
                                 }
                             }
@@ -9806,10 +9641,78 @@ fun EddieVideoGeneratorView(
                     }
                 }
             }
-        }
+
+                // Pagination Navigation Controls
+                if (totalVideoPages > 1) {
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 12.dp, vertical = 8.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            OutlinedButton(
+                                onClick = { if (videoCurrentPage > 1) videoCurrentPage-- },
+                                enabled = videoCurrentPage > 1,
+                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+                                shape = RoundedCornerShape(8.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                    contentDescription = "Previous Page",
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("Prev", style = MaterialTheme.typography.labelMedium)
+                            }
+
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                (1..totalVideoPages).forEach { p ->
+                                    FilterChip(
+                                        selected = p == videoCurrentPage,
+                                        onClick = { videoCurrentPage = p },
+                                        label = {
+                                            Text(
+                                                text = "$p",
+                                                style = MaterialTheme.typography.labelMedium.copy(
+                                                    fontWeight = if (p == videoCurrentPage) FontWeight.Bold else FontWeight.Normal
+                                                )
+                                            )
+                                        },
+                                        modifier = Modifier.height(32.dp)
+                                    )
+                                }
+                            }
+
+                            OutlinedButton(
+                                onClick = { if (videoCurrentPage < totalVideoPages) videoCurrentPage++ },
+                                enabled = videoCurrentPage < totalVideoPages,
+                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+                                shape = RoundedCornerShape(8.dp)
+                            ) {
+                                Text("Next", style = MaterialTheme.typography.labelMedium)
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Icon(
+                                    imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                                    contentDescription = "Next Page",
+                                    modifier = Modifier.size(16.dp)
+                                )
+                            }
+                        }
+                    }
+                }
+            }
 
         Spacer(modifier = Modifier.height(30.dp))
-    }
     }
 
     selectedVideoForPlay?.let { video ->
@@ -9834,6 +9737,7 @@ fun EddieVideoGeneratorView(
             onSaveEditedVideo = onSaveEditedVideo
         )
     }
+}
 }
 
 @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
@@ -9882,17 +9786,6 @@ fun EddieMusicGeneratorView(
     var editingMusicItem by remember { mutableStateOf<com.example.data.db.GeneratedMusicEntity?>(null) }
 
     val musicScrollState = rememberScrollState()
-    val isKeyboardVisible = WindowInsets.isImeVisible
-    LaunchedEffect(isKeyboardVisible) {
-        if (isKeyboardVisible) {
-            musicScrollState.animateScrollTo(musicScrollState.maxValue)
-        }
-    }
-    LaunchedEffect(prompt) {
-        if (prompt.isNotEmpty()) {
-            musicScrollState.animateScrollTo(musicScrollState.maxValue)
-        }
-    }
 
     // Disposable effect to release media player when composable is disposed or player instance changes
     DisposableEffect(mediaPlayer) {
@@ -10178,7 +10071,7 @@ fun EddieMusicGeneratorView(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
-                    val providers = listOf("Gemini", "Suno AI")
+                    val providers = listOf("ElevenLabs")
                     providers.forEach { provider ->
                         val isSelected = uiState.selectedMusicProvider == provider
                         FilterChip(
@@ -10186,10 +10079,7 @@ fun EddieMusicGeneratorView(
                             onClick = { onProviderChange(provider) },
                             label = { Text(provider) },
                             leadingIcon = {
-                                val icon = when (provider) {
-                                    "Gemini" -> Icons.Default.Person
-                                    else -> Icons.Default.Menu
-                                }
+                                val icon = Icons.Default.Menu
                                 Icon(
                                     imageVector = icon,
                                     contentDescription = null,
@@ -10219,14 +10109,11 @@ fun EddieMusicGeneratorView(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
-                    val models = when (uiState.selectedMusicProvider) {
-                        "Gemini" -> listOf("Lyria 3 pro", "Lyria 3 clip")
-                        else -> listOf("Suno v3.5", "Suno v4 pro") // Suno AI
-                    }
+                    val models = listOf("Eleven Music v1", "Eleven Music v1 Pro") // ElevenLabs
 
                     models.forEach { model ->
                         val isSelected = uiState.selectedMusicModel == model
-                        val isPro = model in listOf("Lyria 3 pro", "Suno v4 pro")
+                        val isPro = model in listOf("Eleven Music v1 Pro")
                         val badgeColor = if (uiState.isSubscribed) MaterialTheme.colorScheme.primary else Color(0xFFFFB100)
                         val badgeTextColor = if (uiState.isSubscribed) MaterialTheme.colorScheme.onPrimary else Color(0xFF111111)
 
@@ -10547,6 +10434,7 @@ fun EddieMusicGeneratorView(
             }
         } else {
             Column(
+                modifier = Modifier.fillMaxWidth(),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 uiState.generatedMusic.forEach { music ->
@@ -10554,140 +10442,135 @@ fun EddieMusicGeneratorView(
 
                     Card(
                         modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(16.dp),
-                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f)),
+                        shape = RoundedCornerShape(14.dp),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.25f)),
                         colors = CardDefaults.cardColors(
-                            containerColor = if (isPlayingThis) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f) else MaterialTheme.colorScheme.surface
+                            containerColor = if (isPlayingThis) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f) else MaterialTheme.colorScheme.surface
                         )
                     ) {
-                        Column {
+                        Column(modifier = Modifier.padding(12.dp)) {
                             Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(16.dp),
+                                modifier = Modifier.fillMaxWidth(),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                // 1. Play Button
+                                // Play Button
                                 IconButton(
                                     onClick = { togglePlayMusic(music.id, music.musicUrl) },
                                     modifier = Modifier
-                                        .size(48.dp)
+                                        .size(42.dp)
                                         .background(
-                                            color = if (isPlayingThis && isAudioPlaying) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.primary.copy(alpha = 0.1f),
+                                            color = if (isPlayingThis && isAudioPlaying) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
                                             shape = CircleShape
                                         )
                                 ) {
                                     Icon(
                                         imageVector = if (isPlayingThis && isAudioPlaying) Icons.Default.Close else Icons.Default.PlayArrow,
                                         contentDescription = if (isPlayingThis && isAudioPlaying) "Pause" else "Play",
-                                        tint = if (isPlayingThis && isAudioPlaying) Color.White else MaterialTheme.colorScheme.primary
+                                        tint = if (isPlayingThis && isAudioPlaying) Color.White else MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.size(22.dp)
                                     )
                                 }
 
-                                Spacer(modifier = Modifier.width(16.dp))
+                                Spacer(modifier = Modifier.width(12.dp))
 
-                                // 2. Track Metadata
+                                // Track Prompt Title & Subtitle Info (Stacked: Title, Model Name, Art Name)
                                 Column(
-                                    modifier = Modifier.weight(1f)
+                                    modifier = Modifier.weight(1f),
+                                    verticalArrangement = Arrangement.spacedBy(2.dp)
                                 ) {
+                                    // 1. Title
                                     Text(
                                         text = music.prompt,
-                                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                                        style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold),
                                         color = MaterialTheme.colorScheme.onSurface,
+                                        maxLines = 2,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+
+                                    // 2. Model Name
+                                    Text(
+                                        text = "Suno AI V3.5",
+                                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp, fontWeight = FontWeight.SemiBold),
+                                        color = MaterialTheme.colorScheme.primary,
                                         maxLines = 1,
                                         overflow = TextOverflow.Ellipsis
                                     )
-                                    Spacer(modifier = Modifier.height(4.dp))
-                                    Row(
-                                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Surface(
-                                            shape = RoundedCornerShape(4.dp),
-                                            color = MaterialTheme.colorScheme.secondaryContainer
-                                        ) {
-                                            Text(
-                                                text = music.genre,
-                                                style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
-                                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
-                                                color = MaterialTheme.colorScheme.onSecondaryContainer
-                                            )
-                                        }
-                                        Text(
-                                            text = "⏱️ ${music.duration} • ⚡ ${music.tempo}",
-                                            style = MaterialTheme.typography.labelSmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                                        )
-                                    }
+
+                                    // 3. Art Name / Genre
+                                    val artDisplayName = if (music.genre.isNotBlank()) music.genre else "Pop Style"
+                                    Text(
+                                        text = "$artDisplayName (${music.duration} • ${music.tempo})",
+                                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
                                 }
 
-                                // 3. Action Buttons (Edit & Delete)
+                                // Edit & Delete Icons
                                 Row(
-                                    verticalAlignment = Alignment.CenterVertically
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(2.dp)
                                 ) {
                                     IconButton(
-                                        onClick = { editingMusicItem = music }
+                                        onClick = { editingMusicItem = music },
+                                        modifier = Modifier.size(32.dp)
                                     ) {
                                         Icon(
                                             imageVector = Icons.Default.Edit,
                                             contentDescription = "Edit Music",
-                                            tint = MaterialTheme.colorScheme.primary
+                                            tint = MaterialTheme.colorScheme.primary,
+                                            modifier = Modifier.size(18.dp)
                                         )
                                     }
                                     IconButton(
-                                        onClick = { onDeleteMusic(music.id) }
+                                        onClick = { onDeleteMusic(music.id) },
+                                        modifier = Modifier.size(32.dp)
                                     ) {
                                         Icon(
                                             imageVector = Icons.Default.Delete,
                                             contentDescription = "Delete",
-                                            tint = MaterialTheme.colorScheme.error.copy(alpha = 0.8f)
+                                            tint = MaterialTheme.colorScheme.error.copy(alpha = 0.8f),
+                                            modifier = Modifier.size(18.dp)
                                         )
                                     }
                                 }
                             }
 
-                            // 4. Custom Equalizer / Play Seekbar slider when active!
+                            // Equalizer / Seekbar when playing
                             if (isPlayingThis) {
-                                Column(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(horizontal = 16.dp, vertical = 8.dp)
-                                        .padding(bottom = 12.dp)
-                                ) {
+                                Spacer(modifier = Modifier.height(10.dp))
+                                Column(modifier = Modifier.fillMaxWidth()) {
                                     LinearProgressIndicator(
                                         progress = { playPercent },
                                         modifier = Modifier
                                             .fillMaxWidth()
-                                            .height(4.dp),
+                                            .height(3.dp),
                                         color = MaterialTheme.colorScheme.primary,
                                         trackColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.2f),
                                     )
-                                    Spacer(modifier = Modifier.height(6.dp))
+                                    Spacer(modifier = Modifier.height(4.dp))
                                     Row(
                                         modifier = Modifier.fillMaxWidth(),
                                         horizontalArrangement = Arrangement.SpaceBetween,
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
                                         Text(
-                                            text = if (isAudioPlaying) "Memutar Harmoni Sintetis..." else "Trek Terjeda",
-                                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Medium),
+                                            text = if (isAudioPlaying) "Playing..." else "Paused",
+                                            style = MaterialTheme.typography.labelSmall.copy(fontSize = 8.sp, fontWeight = FontWeight.Medium),
                                             color = MaterialTheme.colorScheme.primary
                                         )
-                                        // Equalizer dots or wave animation
-                                        Row(
-                                            horizontalArrangement = Arrangement.spacedBy(3.dp)
-                                        ) {
-                                            repeat(4) { index ->
+                                        Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+                                            repeat(4) {
                                                 val heightMultiplier = if (isAudioPlaying) {
-                                                    val randomVal = java.util.Random().nextFloat()
-                                                    0.4f + randomVal * 0.6f
+                                                    0.4f + java.util.Random().nextFloat() * 0.6f
                                                 } else 0.2f
                                                 Box(
                                                     modifier = Modifier
-                                                        .size(width = 3.dp, height = (16 * heightMultiplier).dp)
+                                                        .size(width = 2.dp, height = (12 * heightMultiplier).dp)
                                                         .background(
                                                             color = MaterialTheme.colorScheme.primary,
-                                                            shape = RoundedCornerShape(2.dp)
+                                                            shape = RoundedCornerShape(1.dp)
                                                         )
                                                 )
                                             }
@@ -10703,7 +10586,6 @@ fun EddieMusicGeneratorView(
 
         Spacer(modifier = Modifier.height(40.dp))
     }
-    }
 
     editingMusicItem?.let { item ->
         EddieMusicEditorDialog(
@@ -10712,6 +10594,7 @@ fun EddieMusicGeneratorView(
             onSaveEditedMusic = onSaveEditedMusic
         )
     }
+}
 }
 
 data class DrawingStroke(

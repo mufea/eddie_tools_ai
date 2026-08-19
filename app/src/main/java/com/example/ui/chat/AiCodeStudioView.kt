@@ -184,7 +184,7 @@ fun EddieAiCodeStudioView(
                     Spacer(modifier = Modifier.height(6.dp))
                     Text(
                         text = if (uiState.isSubscribed) {
-                            "Unlimited Access Active! You have infinite quota to call the Gemini 3.5 & 3.1 Pro models for generating any language including Rust, Go, C++, and complex multi-language converters."
+                            "Unlimited Access Active! You have infinite quota to call OpenAI GPT-4o models for generating any language including Rust, Go, C++, and complex multi-language converters."
                         } else {
                             "AI Code Subscription Scheme: Free Account is limited to 3 queries / day for Kotlin, Python, and Java. Unlock Go, Rust, C++, Refactoring, & functional Language Converters with Eddie Premium subscription!"
                         },
@@ -511,7 +511,7 @@ fun EddieAiCodeStudioView(
                             )
                             Spacer(modifier = Modifier.height(4.dp))
                             Text(
-                                text = "Model: ${uiState.selectedModel.displayName}",
+                                text = "Model: OpenAI GPT-4o mini",
                                 style = MaterialTheme.typography.labelSmall,
                                 color = Color(0xFFFFB100),
                                 fontWeight = FontWeight.Bold

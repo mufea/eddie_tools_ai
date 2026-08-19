@@ -2,7 +2,9 @@ package com.example.ui.chat
 
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.graphics.ImageDecoder
 import android.net.Uri
+import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.result.launch
@@ -38,7 +40,9 @@ fun EddieVisionAnalyzerView(
     onImageSelected: (Uri?, Bitmap?) -> Unit,
     onAnalyzeClick: (String, String) -> Unit,
     onCopyText: (String) -> Unit,
-    onShareText: (String) -> Unit
+    onShareText: (String) -> Unit,
+    onProviderChange: (String) -> Unit = {},
+    onModelChange: (String) -> Unit = {}
 ) {
     val context = LocalContext.current
     var selectedTaskMode by remember { mutableStateOf("describe") } // "describe", "translate", "code"
@@ -108,28 +112,75 @@ fun EddieVisionAnalyzerView(
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.1f)),
                     border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
                 ) {
-                    Row(
+                    Column(
                         modifier = Modifier.padding(12.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        Icon(
-                            imageVector = Icons.Default.Info,
-                            contentDescription = "Vision",
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(24.dp)
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Info,
+                                contentDescription = "Vision",
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(24.dp)
+                            )
+                            Column {
+                                Text(
+                                    text = "AI Vision & Image Analyzer",
+                                    style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                                Text(
+                                    text = "Multimodal visual intelligence powered by OpenAI. Upload UI designs, object photos, or translate text.",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+
+                        Divider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.1f), modifier = Modifier.padding(vertical = 2.dp))
+
+                        // AI Provider & Model Selection
+                        Text(
+                            text = "Vision Engine Provider:",
+                            style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                            color = MaterialTheme.colorScheme.onSurface
                         )
-                        Column {
-                            Text(
-                                text = "AI Vision & Image Analyzer",
-                                style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
-                            Text(
-                                text = "Powered by Gemini multimodal assistant. Upload UI designs, object photos, or translate text.",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
+
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            listOf("OpenAI").forEach { provider ->
+                                val isSelected = uiState.selectedVisionProvider == provider
+                                FilterChip(
+                                    selected = isSelected,
+                                    onClick = { onProviderChange(provider) },
+                                    label = { Text("🧠 OpenAI (GPT-4o)", fontSize = 12.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal) }
+                                )
+                            }
+                        }
+
+                        val availableModels = when (uiState.selectedVisionProvider) {
+                            "OpenAI" -> listOf("gpt-4o-mini", "gpt-4o", "gpt-4.5-preview")
+                            else -> listOf("gpt-4o-mini", "gpt-4o")
+                        }
+
+                        Row(
+                            modifier = Modifier.horizontalScroll(rememberScrollState()),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            availableModels.forEach { model ->
+                                val isSelected = uiState.selectedVisionModel == model
+                                FilterChip(
+                                    selected = isSelected,
+                                    onClick = { onModelChange(model) },
+                                    label = { Text(model, fontSize = 11.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal) }
+                                )
+                            }
                         }
                     }
                 }
@@ -236,42 +287,11 @@ fun EddieVisionAnalyzerView(
                 }
             }
 
-            // Prompt Modifier TextInput
-            OutlinedTextField(
-                value = customInstructionPrompt,
-                onValueChange = { customInstructionPrompt = it },
-                label = { Text("AI Instructions / Additional Details (Optional)") },
-                placeholder = { Text("e.g. 'Turn this Compose code into dark theme' or 'List red colored objects only'") },
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(12.dp),
-                colors = OutlinedTextFieldDefaults.colors(
-                    unfocusedBorderColor = MaterialTheme.colorScheme.outline
-                )
-            )
-
-            // Analyze action Button
-            Button(
-                onClick = { onAnalyzeClick(selectedTaskMode, customInstructionPrompt) },
-                enabled = uiState.visionSelectedBitmap != null && !uiState.visionIsLoading,
-                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
-                shape = RoundedCornerShape(12.dp),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                if (uiState.visionIsLoading) {
-                    CircularProgressIndicator(modifier = Modifier.size(20.dp), color = MaterialTheme.colorScheme.onPrimary, strokeWidth = 2.dp)
-                    Spacer(modifier = Modifier.width(10.dp))
-                    Text("Analyzing Image...")
-                } else {
-                    Text("✨ Analyze Image Now", fontWeight = FontWeight.Bold)
-                }
-            }
-
             // Analysis Result terminal
             if (uiState.visionResult.isNotBlank() || uiState.visionIsLoading) {
                 Card(
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 10.dp),
+                        .fillMaxWidth(),
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                     border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
                 ) {
@@ -333,6 +353,36 @@ fun EddieVisionAnalyzerView(
                     }
                 }
             }
+
+            // Prompt Modifier TextInput
+            OutlinedTextField(
+                value = customInstructionPrompt,
+                onValueChange = { customInstructionPrompt = it },
+                label = { Text("AI Instructions / Additional Details (Optional)") },
+                placeholder = { Text("e.g. 'Turn this Compose code into dark theme' or 'List red colored objects only'") },
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp),
+                colors = OutlinedTextFieldDefaults.colors(
+                    unfocusedBorderColor = MaterialTheme.colorScheme.outline
+                )
+            )
+
+            // Analyze action Button
+            Button(
+                onClick = { onAnalyzeClick(selectedTaskMode, customInstructionPrompt) },
+                enabled = uiState.visionSelectedBitmap != null && !uiState.visionIsLoading,
+                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
+                shape = RoundedCornerShape(12.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                if (uiState.visionIsLoading) {
+                    CircularProgressIndicator(modifier = Modifier.size(20.dp), color = MaterialTheme.colorScheme.onPrimary, strokeWidth = 2.dp)
+                    Spacer(modifier = Modifier.width(10.dp))
+                    Text("Analyzing Image...")
+                } else {
+                    Text("✨ Analyze Image Now", fontWeight = FontWeight.Bold)
+                }
+            }
         }
     }
 }
@@ -357,8 +407,22 @@ fun resizeBitmapToMax(bitmap: Bitmap, maxDimension: Int): Bitmap {
 
 fun decodeSampledBitmapFromUri(context: android.content.Context, uri: Uri, reqWidth: Int, reqHeight: Int): Bitmap? {
     try {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            val source = ImageDecoder.createSource(context.contentResolver, uri)
+            return ImageDecoder.decodeBitmap(source) { decoder, info, _ ->
+                decoder.allocator = ImageDecoder.ALLOCATOR_SOFTWARE
+                val srcWidth = info.size.width
+                val srcHeight = info.size.height
+                if (srcWidth > reqWidth || srcHeight > reqHeight) {
+                    val ratio = Math.min(reqWidth.toFloat() / srcWidth, reqHeight.toFloat() / srcHeight)
+                    decoder.setTargetSize((srcWidth * ratio).toInt().coerceAtLeast(1), (srcHeight * ratio).toInt().coerceAtLeast(1))
+                }
+            }
+        }
+
         val options = BitmapFactory.Options().apply {
             inJustDecodeBounds = true
+            inPreferredConfig = Bitmap.Config.ARGB_8888
         }
         context.contentResolver.openInputStream(uri)?.use { inputStream ->
             BitmapFactory.decodeStream(inputStream, null, options)
@@ -366,6 +430,7 @@ fun decodeSampledBitmapFromUri(context: android.content.Context, uri: Uri, reqWi
 
         options.inSampleSize = calculateInSampleSize(options, reqWidth, reqHeight)
         options.inJustDecodeBounds = false
+        options.inPreferredConfig = Bitmap.Config.ARGB_8888
 
         return context.contentResolver.openInputStream(uri)?.use { inputStream ->
             BitmapFactory.decodeStream(inputStream, null, options)

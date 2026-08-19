@@ -310,32 +310,77 @@ class ChatRepository {
     suspend fun sendSimpleRequest(
         prompt: String,
         systemText: String,
+        provider: String = "OpenAI",
+        model: String = "gpt-4o-mini",
         providerKeys: Map<String, String> = emptyMap(),
         providerUrls: Map<String, String> = emptyMap()
     ): String {
         return withContext(Dispatchers.IO) {
-            val activeKey = providerKeys["Gemini"]?.trim() ?: ""
-            val keyToUse = if (activeKey.isNotBlank()) activeKey else defaultApiKey
-            val activeSystemInstruction = Content(
-                parts = listOf(Part(systemText))
-            )
-            val request = GenerateContentRequest(
-                contents = listOf(Content(parts = listOf(Part(text = prompt)), role = "user")),
-                systemInstruction = activeSystemInstruction
-            )
-            try {
-                val baseUrl = providerUrls["Gemini"]?.trim()?.ifBlank { null } ?: "https://generativelanguage.googleapis.com/"
-                val resolvedUrl = "${baseUrl}v1beta/models/gemini-3-flash-preview:generateContent"
-                val response = GeminiClient.service.generateContent(resolvedUrl, keyToUse, request)
-                response.candidates.firstOrNull()?.content?.parts?.firstOrNull()?.text ?: "No response from Gemini."
-            } catch (e: retrofit2.HttpException) {
-                if (e.code() == 429) {
-                    "⚠️ [Error 429] Batas pemakaian terlampaui untuk analisis gambar Gemini. Silakan tunggu 1-2 menit atau periksa Kunci API Anda."
-                } else {
-                    "Error Gemini API (HTTP ${e.code()}): ${e.message()}"
+            val activeKey = providerKeys[provider]?.trim() ?: ""
+            when (provider) {
+                "OpenAI" -> {
+                    val fallbackKey = getFallbackKey(activeKey, BuildConfig.OPENAI_API_KEY, "PLACEHOLDER_OPENAI_API_KEY")
+                    if (fallbackKey == null) {
+                        "API Key OpenAI is missing. Please set your OpenAI API Key in Settings or enter a valid key."
+                    } else {
+                        val customUrl = providerUrls["OpenAI"]?.trim()?.ifBlank { null }
+                            ?: "https://api.openai.com/v1/chat/completions"
+                        callOpenAiCompatible(
+                            history = emptyList(),
+                            newPrompt = prompt,
+                            model = if (model.isBlank()) "gpt-4o-mini" else model,
+                            systemText = systemText,
+                            apiKey = fallbackKey,
+                            baseUrl = customUrl
+                        )
+                    }
                 }
-            } catch (e: Exception) {
-                "Error: ${e.localizedMessage}"
+                "Gemini" -> {
+                    val fallbackKey = getFallbackKey(activeKey, BuildConfig.GEMINI_API_KEY, "PLACEHOLDER_GEMINI_API_KEY")
+                    if (fallbackKey == null) {
+                        "API Key Gemini is missing. Please set your Gemini API Key in Settings or enter a valid key."
+                    } else {
+                        val activeSystemInstruction = Content(
+                            parts = listOf(Part(systemText))
+                        )
+                        val request = GenerateContentRequest(
+                            contents = listOf(Content(parts = listOf(Part(text = prompt)), role = "user")),
+                            systemInstruction = activeSystemInstruction
+                        )
+                        try {
+                            val baseUrl = providerUrls["Gemini"]?.trim()?.ifBlank { null } ?: "https://generativelanguage.googleapis.com/"
+                            val resolvedModel = if (model.isBlank()) "gemini-2.5-flash" else model
+                            val resolvedUrl = "${baseUrl}v1beta/models/$resolvedModel:generateContent"
+                            val response = GeminiClient.service.generateContent(resolvedUrl, fallbackKey, request)
+                            response.candidates.firstOrNull()?.content?.parts?.firstOrNull()?.text ?: "No response from Gemini."
+                        } catch (e: retrofit2.HttpException) {
+                            if (e.code() == 429) {
+                                "⚠️ [Error 429] Batas pemakaian terlampaui. Silakan tunggu 1-2 menit atau periksa Kunci API Anda."
+                            } else {
+                                "Error Gemini API (HTTP ${e.code()}): ${e.message()}"
+                            }
+                        } catch (e: Exception) {
+                            "Error: ${e.localizedMessage}"
+                        }
+                    }
+                }
+                else -> {
+                    val fallbackKey = getFallbackKey(activeKey, BuildConfig.OPENAI_API_KEY, "PLACEHOLDER_OPENAI_API_KEY")
+                    if (fallbackKey == null) {
+                        "API Key OpenAI is missing. Please set your OpenAI API Key in Settings."
+                    } else {
+                        val customUrl = providerUrls[provider]?.trim()?.ifBlank { null }
+                            ?: "https://api.openai.com/v1/chat/completions"
+                        callOpenAiCompatible(
+                            history = emptyList(),
+                            newPrompt = prompt,
+                            model = if (model.isBlank()) "gpt-4o-mini" else model,
+                            systemText = systemText,
+                            apiKey = fallbackKey,
+                            baseUrl = customUrl
+                        )
+                    }
+                }
             }
         }
     }
@@ -343,40 +388,106 @@ class ChatRepository {
     suspend fun sendVisionRequest(
         bitmap: android.graphics.Bitmap,
         prompt: String,
+        provider: String = "OpenAI",
+        model: String = "gpt-4o-mini",
         providerKeys: Map<String, String> = emptyMap(),
         providerUrls: Map<String, String> = emptyMap()
     ): String {
         return withContext(Dispatchers.IO) {
-            val activeKey = providerKeys["Gemini"]?.trim() ?: ""
-            val keyToUse = if (activeKey.isNotBlank()) activeKey else defaultApiKey
-            
             // Convert Bitmap to Base64
             val outputStream = java.io.ByteArrayOutputStream()
             bitmap.compress(android.graphics.Bitmap.CompressFormat.JPEG, 80, outputStream)
             val base64Data = android.util.Base64.encodeToString(outputStream.toByteArray(), android.util.Base64.NO_WRAP)
-            
-            val request = GenerateContentRequest(
-                contents = listOf(Content(
-                    parts = listOf(
-                        Part(text = prompt),
-                        Part(inlineData = InlineData(mimeType = "image/jpeg", data = base64Data))
-                    ),
-                    role = "user"
-                ))
-            )
-            try {
-                val baseUrl = providerUrls["Gemini"]?.trim()?.ifBlank { null } ?: "https://generativelanguage.googleapis.com/"
-                val resolvedUrl = "${baseUrl}v1beta/models/gemini-3-flash-preview:generateContent"
-                val response = GeminiClient.service.generateContent(resolvedUrl, keyToUse, request)
-                response.candidates.firstOrNull()?.content?.parts?.firstOrNull()?.text ?: "No response from Gemini."
-            } catch (e: retrofit2.HttpException) {
-                if (e.code() == 429) {
-                    "⚠️ [Error 429] Batas pemakaian terlampaui untuk analisis gambar (Vision). Silakan tunggu 1-2 menit atau periksa Kunci API Anda."
-                } else {
-                    "Error Gemini API (HTTP ${e.code()}): ${e.message()}"
+
+            if (provider == "OpenAI" || provider != "Gemini") {
+                val activeKey = providerKeys["OpenAI"]?.trim() ?: ""
+                val keyToUse = getFallbackKey(activeKey, BuildConfig.OPENAI_API_KEY, "PLACEHOLDER_OPENAI_API_KEY")
+                if (keyToUse == null) {
+                    return@withContext "API Key OpenAI is missing. Please set your OpenAI API Key in Settings."
                 }
-            } catch (e: Exception) {
-                "Error: ${e.localizedMessage}"
+                val baseUrl = providerUrls["OpenAI"]?.trim()?.ifBlank { null } ?: "https://api.openai.com/v1/chat/completions"
+                val resolvedModel = if (model.isBlank()) "gpt-4o-mini" else model
+
+                try {
+                    val jsonBody = JSONObject().apply {
+                        put("model", resolvedModel)
+                        val messagesArray = JSONArray().apply {
+                            put(JSONObject().apply {
+                                put("role", "system")
+                                put("content", "You are an expert AI Vision & Image Analyzer. Analyze images thoroughly and answer accurately.")
+                            })
+                            put(JSONObject().apply {
+                                put("role", "user")
+                                val contentArray = JSONArray().apply {
+                                    put(JSONObject().apply {
+                                        put("type", "text")
+                                        put("text", prompt)
+                                    })
+                                    put(JSONObject().apply {
+                                        put("type", "image_url")
+                                        put("image_url", JSONObject().apply {
+                                            put("url", "data:image/jpeg;base64,$base64Data")
+                                        })
+                                    })
+                                }
+                                put("content", contentArray)
+                            })
+                        }
+                        put("messages", messagesArray)
+                    }
+
+                    val requestBody = jsonBody.toString().toRequestBody("application/json".toMediaTypeOrNull())
+                    val request = Request.Builder()
+                        .url(baseUrl)
+                        .header("Authorization", "Bearer $keyToUse")
+                        .header("Content-Type", "application/json")
+                        .post(requestBody)
+                        .build()
+
+                    client.newCall(request).execute().use { response ->
+                        if (!response.isSuccessful) {
+                            return@withContext "HTTP Error ${response.code}: ${response.body?.string() ?: "Failed to connect to OpenAI API."}"
+                        }
+                        val resStr = response.body?.string() ?: return@withContext "Empty response from OpenAI."
+                        val responseJson = JSONObject(resStr)
+                        responseJson.getJSONArray("choices")
+                            .getJSONObject(0)
+                            .getJSONObject("message")
+                            .getString("content")
+                    }
+                } catch (e: Exception) {
+                    "Error OpenAI Vision API: ${e.localizedMessage}"
+                }
+            } else {
+                val activeKey = providerKeys["Gemini"]?.trim() ?: ""
+                val keyToUse = getFallbackKey(activeKey, BuildConfig.GEMINI_API_KEY, "PLACEHOLDER_GEMINI_API_KEY")
+                if (keyToUse == null) {
+                    return@withContext "API Key Gemini is missing. Please set your Gemini API Key in Settings."
+                }
+                val request = GenerateContentRequest(
+                    contents = listOf(Content(
+                        parts = listOf(
+                            Part(text = prompt),
+                            Part(inlineData = InlineData(mimeType = "image/jpeg", data = base64Data))
+                        ),
+                        role = "user"
+                    ))
+                )
+                try {
+                    val baseUrl = providerUrls["Gemini"]?.trim()?.ifBlank { null } ?: "https://generativelanguage.googleapis.com/"
+                    val resolvedModel = if (model.isBlank()) "gemini-2.5-flash" else model
+                    val resolvedUrl = "${baseUrl}v1beta/models/$resolvedModel:generateContent"
+                    val response = GeminiClient.service.generateContent(resolvedUrl, keyToUse, request)
+                    response.candidates.firstOrNull()?.content?.parts?.firstOrNull()?.text ?: "No response from Gemini."
+                } catch (e: retrofit2.HttpException) {
+                    if (e.code() == 429) {
+                        "⚠️ [Error 429] Batas pemakaian terlampaui untuk analisis gambar (Vision). Silakan tunggu 1-2 menit atau periksa Kunci API Anda."
+                    } else {
+                        "Error Gemini API (HTTP ${e.code()}): ${e.message()}"
+                    }
+                } catch (e: Exception) {
+                    "Error: ${e.localizedMessage}"
+                }
             }
         }
     }
