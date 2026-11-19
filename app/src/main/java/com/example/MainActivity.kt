@@ -12,6 +12,7 @@ import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.ui.chat.ChatScreen
 import com.example.ui.chat.ChatViewModel
+import com.example.ui.theme.AppSkinTheme
 import com.example.ui.theme.MyApplicationTheme
 
 class MainActivity : ComponentActivity() {
@@ -22,8 +23,9 @@ class MainActivity : ComponentActivity() {
     setContent {
       val viewModel: ChatViewModel = androidx.lifecycle.viewmodel.compose.viewModel()
       val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+      val currentSkin = AppSkinTheme.fromId(uiState.appSkinThemeId)
       
-      MyApplicationTheme(darkTheme = uiState.isDarkTheme) {
+      MyApplicationTheme(skinTheme = currentSkin) {
         Surface(
             modifier = Modifier.fillMaxSize(),
             color = MaterialTheme.colorScheme.background

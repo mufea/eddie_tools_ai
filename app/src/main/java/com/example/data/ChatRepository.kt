@@ -25,8 +25,7 @@ data class ChatMessage(
 )
 
 class ChatRepository {
-    private val defaultApiKey = BuildConfig.GEMINI_API_KEY
-    private val defaultSystemInstruction = "You are Eddie, a helpful and expert AI Assistant. Please use Indonesian if requested, or Markdown formatting for easy reading."
+    private val defaultSystemInstruction = "You are Prof Eddie, a helpful and expert AI Assistant. Please use Indonesian if requested, or Markdown formatting for easy reading."
     
     // Lazy HTTP client to preserve resources
     private val client by lazy {
@@ -47,6 +46,162 @@ class ChatRepository {
         return null
     }
 
+    suspend fun testProxyConnectivity(baseUrl: String = "https://geminiaitools.com/"): Pair<Boolean, String> {
+        return withContext(Dispatchers.IO) {
+            try {
+                val clean = baseUrl.trim()
+                val rootUrl = if (clean.endsWith("/api/chat")) clean.removeSuffix("/api/chat")
+                else if (clean.endsWith("/v1/chat/completions")) clean.removeSuffix("/v1/chat/completions")
+                else clean.trimEnd('/')
+
+                // 1. First test root health check
+                try {
+                    val rootRequest = Request.Builder().url(rootUrl).get().build()
+                    client.newCall(rootRequest).execute().use { rootResp ->
+                        if (rootResp.isSuccessful) {
+                            val body = rootResp.body?.string() ?: ""
+                            return@withContext Pair(true, "Proxy server is ONLINE! (HTTP ${rootResp.code}) $body")
+                        }
+                    }
+                } catch (_: Exception) {}
+
+                // 2. Test chat endpoint
+                val targetUrl = if (clean.endsWith("/api/chat") || clean.endsWith("/v1/chat/completions")) clean else "$rootUrl/api/chat"
+
+                val jsonBody = JSONObject().apply {
+                    put("contents", JSONArray().put(JSONObject().apply {
+                        put("role", "user")
+                        put("parts", JSONArray().put(JSONObject().put("text", "ping")))
+                    }))
+                    put("messages", JSONArray().put(JSONObject().apply {
+                        put("role", "user")
+                        put("content", "ping")
+                    }))
+                    put("prompt", "ping")
+                }
+                val request = Request.Builder()
+                    .url(targetUrl)
+                    .header("Content-Type", "application/json")
+                    .header("Authorization", "Bearer proxy_active")
+                    .post(jsonBody.toString().toRequestBody("application/json".toMediaTypeOrNull()))
+                    .build()
+
+                client.newCall(request).execute().use { response ->
+                    val body = response.body?.string() ?: ""
+                    if (response.isSuccessful && !body.contains("API key not valid", ignoreCase = true)) {
+                        Pair(true, "Proxy server is ONLINE and functional! (HTTP ${response.code})")
+                    } else if (body.contains("API key not valid", ignoreCase = true) || body.contains("API_KEY_INVALID", ignoreCase = true)) {
+                        Pair(true, "Proxy Reachable (HTTP ${response.code}), but upstream API key on proxy server has expired. Enter your API key in settings to bypass this.")
+                    } else {
+                        Pair(true, "Proxy Reachable (HTTP ${response.code}): ${body.take(100)}")
+                    }
+                }
+            } catch (e: Exception) {
+                Pair(false, "Failed to connect to proxy: ${e.localizedMessage}")
+            }
+        }
+    }
+
+    suspend fun fetchDynamicModelConfigsFromProxy(
+        baseUrl: String = "https://geminiaitools.com/",
+        params: List<String>
+    ): Result<Map<String, Map<String, String>>> {
+        return withContext(Dispatchers.IO) {
+            try {
+                val clean = baseUrl.trim()
+                val rootUrl = if (clean.endsWith("/api/chat")) clean.removeSuffix("/api/chat")
+                else if (clean.endsWith("/v1/chat/completions")) clean.removeSuffix("/v1/chat/completions")
+                else clean.trimEnd('/')
+
+                val resultMap = mutableMapOf<String, Map<String, String>>()
+
+                for (param in params) {
+                    val targetUrl = "$rootUrl/api/keys?model=$param"
+                    val request = Request.Builder()
+                        .url(targetUrl)
+                        .header("User-Agent", "ChatAssistant-App/1.0")
+                        .get()
+                        .build()
+
+                    client.newCall(request).execute().use { response ->
+                        if (response.isSuccessful) {
+                            val bodyStr = response.body?.string() ?: ""
+                            val json = JSONObject(bodyStr)
+                            val targetModel = json.optString("targetModel", "").trim()
+                            val modelId = json.optString("modelId", "").trim()
+                            val apiKey = (json.optString("apiKey", "").takeIf { it.isNotBlank() } ?: json.optString("key", "")).trim()
+
+                            resultMap[param] = mapOf(
+                                "targetModel" to targetModel,
+                                "modelId" to modelId,
+                                "apiKey" to apiKey
+                            )
+                        }
+                    }
+                }
+
+                if (resultMap.isEmpty()) {
+                    Result.failure(Exception("Gagal mengambil konfigurasi model dari proxy."))
+                } else {
+                    Result.success(resultMap)
+                }
+            } catch (e: Exception) {
+                Result.failure(e)
+            }
+        }
+    }
+
+    suspend fun fetchApiKeysFromProxy(baseUrl: String = "https://geminiaitools.com/"): Result<Map<String, String>> {
+        return withContext(Dispatchers.IO) {
+            try {
+                val clean = baseUrl.trim()
+                val rootUrl = if (clean.endsWith("/api/chat")) clean.removeSuffix("/api/chat")
+                else if (clean.endsWith("/v1/chat/completions")) clean.removeSuffix("/v1/chat/completions")
+                else clean.trimEnd('/')
+
+                val targetUrl = "$rootUrl/api/keys"
+                val request = Request.Builder()
+                    .url(targetUrl)
+                    .header("User-Agent", "ChatAssistant-App/1.0")
+                    .get()
+                    .build()
+
+                client.newCall(request).execute().use { response ->
+                    if (!response.isSuccessful) {
+                        return@withContext Result.failure(Exception("HTTP ${response.code}: ${response.message}"))
+                    }
+                    val bodyStr = response.body?.string() ?: ""
+                    val json = JSONObject(bodyStr)
+                    val map = mutableMapOf<String, String>()
+                    if (json.has("keys")) {
+                        val keysObj = json.getJSONObject("keys")
+                        val it = keysObj.keys()
+                        while (it.hasNext()) {
+                            val k = it.next()
+                            val v = keysObj.optString(k, "").trim()
+                            if (v.isNotBlank()) {
+                                map[k.lowercase()] = v
+                            }
+                        }
+                    }
+                    if (json.has("apiKey") && !map.containsKey("openai")) {
+                        val defaultKey = json.optString("apiKey", "").trim()
+                        if (defaultKey.isNotBlank()) {
+                            map["openai"] = defaultKey
+                        }
+                    }
+                    if (map.isEmpty()) {
+                        Result.failure(Exception("Tidak ada API key ditemukan di response proxy."))
+                    } else {
+                        Result.success(map)
+                    }
+                }
+            } catch (e: Exception) {
+                Result.failure(e)
+            }
+        }
+    }
+
     suspend fun sendMessage(
         history: List<ChatMessage>,
         newPrompt: String,
@@ -61,13 +216,11 @@ class ChatRepository {
             val activeKey = providerKeys[provider]?.trim() ?: ""
 
             val resolvedModel = when (model) {
-                "gpt-5-mini" -> "openai"
-                "gpt5.5" -> "openai"
-                "gemini-2.5-pro" -> "gemini-2.5-pro"
-                "gemini-3.1-pro-preview" -> "gemini-3.1-pro-preview"
-                "gemini-3-flash-preview" -> "gemini-3-flash-preview"
-                "grok-4-0709" -> "openai"
-                "deepseek-chat" -> "deepseek"
+                "gpt-5-mini" -> "gpt-5-mini"
+                "gpt5.5", "gpt-5.5" -> "gpt-5.5"
+                "deepseek-chat", "deepseek-flash", "deepseek-v4-flash" -> "deepseek-v4-flash"
+                "deepseek-v4-pro" -> "deepseek-v4-pro"
+                "claude-opus-4-7", "claude-opus-5" -> "claude-opus-5"
                 else -> model
             }
 
@@ -79,118 +232,142 @@ class ChatRepository {
                 msg.copy(text = cleanText)
             }
 
-            when (provider) {
-                "Gemini" -> {
-                    "Layanan Gemini telah dinonaktifkan di aplikasi ini."
-                }
-                "OpenAI" -> {
+            val defaultProxy = "https://geminiaitools.com/"
+
+            when (provider.lowercase().trim()) {
+                "openai" -> {
                     val fallbackKey = getFallbackKey(activeKey, BuildConfig.OPENAI_API_KEY, "PLACEHOLDER_OPENAI_API_KEY")
-                    if (fallbackKey == null) {
-                        "API Key OpenAI is missing. Please set your OpenAI API Key in Settings to start chatting."
-                    } else {
-                        val customUrl = providerUrls["OpenAI"]?.trim()?.ifBlank { null }
-                            ?: "https://api.openai.com/v1/chat/completions"
+                    val customUrl = (providerUrls["OpenAI"] ?: providerUrls["openai"])?.trim()?.ifBlank { null }
+                    val targetModel = when (resolvedModel) {
+                        "openai", "" -> "gpt-5-mini"
+                        "gpt5.5", "gpt" -> "gpt-5.5"
+                        else -> resolvedModel
+                    }
+                    if (fallbackKey != null) {
+                        val url = if (!customUrl.isNullOrBlank() && !customUrl.contains("eddie-proxy") && !customUrl.contains("geminiaitools")) {
+                            customUrl
+                        } else {
+                            "https://api.openai.com/v1/chat/completions"
+                        }
                         callOpenAiCompatible(
                             history = sanitizedHistory,
                             newPrompt = newPrompt,
-                            model = if (resolvedModel == "openai") "gpt-5-mini" else resolvedModel,
+                            model = targetModel,
                             systemText = systemText,
                             apiKey = fallbackKey,
-                            baseUrl = customUrl
+                            baseUrl = url
+                        )
+                    } else {
+                        // Route through proxy (geminiaitools.com)
+                        val proxyUrl = if (!customUrl.isNullOrBlank()) customUrl else defaultProxy
+                        callOpenAiCompatible(
+                            history = sanitizedHistory,
+                            newPrompt = newPrompt,
+                            model = targetModel,
+                            systemText = systemText,
+                            apiKey = "proxy_active",
+                            baseUrl = proxyUrl
                         )
                     }
                 }
-                "DeepSeek" -> {
+                "deepseek" -> {
                     val fallbackKey = getFallbackKey(activeKey, BuildConfig.DEEPSEEK_API_KEY, "PLACEHOLDER_DEEPSEEK_API_KEY")
-                    if (fallbackKey == null) {
-                        "API Key DeepSeek is missing. Please set your DeepSeek API Key in Settings to start chatting."
-                    } else {
-                        val customUrl = providerUrls["DeepSeek"]?.trim()?.ifBlank { null }
-                            ?: "https://api.deepseek.com/v1/chat/completions"
+                    val customUrl = (providerUrls["DeepSeek"] ?: providerUrls["Deepseek"] ?: providerUrls["deepseek"])?.trim()?.ifBlank { null }
+                    val targetModel = if (resolvedModel.isNotBlank() && resolvedModel != "deepseek") resolvedModel else "deepseek-chat"
+                    if (fallbackKey != null && !fallbackKey.contains("PLACEHOLDER") && fallbackKey.isNotBlank()) {
+                        val url = if (!customUrl.isNullOrBlank() && !customUrl.contains("eddie-proxy") && !customUrl.contains("geminiaitools")) {
+                            customUrl
+                        } else {
+                            "https://api.deepseek.com/v1/chat/completions"
+                        }
                         callOpenAiCompatible(
                             history = sanitizedHistory,
                             newPrompt = newPrompt,
-                            model = "deepseek-chat",
+                            model = targetModel,
                             systemText = systemText,
                             apiKey = fallbackKey,
-                            baseUrl = customUrl
+                            baseUrl = url
+                        )
+                    } else {
+                        // Route through proxy (geminiaitools.com)
+                        val proxyUrl = if (!customUrl.isNullOrBlank()) customUrl else defaultProxy
+                        callOpenAiCompatible(
+                            history = sanitizedHistory,
+                            newPrompt = newPrompt,
+                            model = targetModel,
+                            systemText = systemText,
+                            apiKey = "proxy_active",
+                            baseUrl = proxyUrl
                         )
                     }
                 }
-                "Claude" -> {
+                "claude", "anthropic" -> {
                     val fallbackKey = getFallbackKey(activeKey, BuildConfig.ANTHROPIC_API_KEY, "PLACEHOLDER_ANTHROPIC_API_KEY")
-                    if (fallbackKey == null || fallbackKey.contains("PLACEHOLDER") || fallbackKey.isBlank()) {
-                        "API Key Anthropic Claude is missing. Please set your Claude API Key in Settings to start chatting."
+                    val customUrl = (providerUrls["Claude"] ?: providerUrls["Anthropic"] ?: providerUrls["claude"] ?: providerUrls["anthropic"])?.trim()?.ifBlank { null }
+                    val targetModel = if (resolvedModel.isNotBlank() && resolvedModel != "claude" && resolvedModel != "anthropic") resolvedModel else "claude-sonnet-4-6"
+                    if (fallbackKey != null && !fallbackKey.contains("PLACEHOLDER") && fallbackKey.isNotBlank()) {
+                        val url = if (!customUrl.isNullOrBlank() && !customUrl.contains("eddie-proxy") && !customUrl.contains("geminiaitools")) {
+                            customUrl
+                        } else {
+                            "https://api.anthropic.com/v1/messages"
+                        }
+                        callClaude(sanitizedHistory, newPrompt, targetModel, systemText, fallbackKey, url)
                     } else {
-                        val customUrl = providerUrls["Claude"]?.trim()?.ifBlank { null }
-                            ?: "https://api.anthropic.com/v1/messages"
-                        callClaude(sanitizedHistory, newPrompt, resolvedModel, systemText, fallbackKey, customUrl)
-                    }
-                }
-                "XAI" -> {
-                    val fallbackKey = getFallbackKey(activeKey, BuildConfig.XAI_API_KEY, "PLACEHOLDER_XAI_API_KEY")
-                    if (fallbackKey == null || fallbackKey.contains("PLACEHOLDER") || fallbackKey.isBlank()) {
-                        "API Key xAI is missing. Please set your xAI API Key in Settings to start chatting."
-                    } else {
-                        val customUrl = providerUrls["XAI"]?.trim()?.ifBlank { null }
-                            ?: "https://api.x.ai/v1/chat/completions"
+                        // Route through proxy (geminiaitools.com)
+                        val proxyUrl = if (!customUrl.isNullOrBlank()) customUrl else defaultProxy
                         callOpenAiCompatible(
                             history = sanitizedHistory,
                             newPrompt = newPrompt,
-                            model = if (resolvedModel == "openai" || resolvedModel == "grok-4-0709" || resolvedModel == "grok-beta") "grok-beta" else resolvedModel,
+                            model = targetModel,
+                            systemText = systemText,
+                            apiKey = "proxy_active",
+                            baseUrl = proxyUrl
+                        )
+                    }
+                }
+                "xai" -> {
+                    val fallbackKey = getFallbackKey(activeKey, BuildConfig.XAI_API_KEY, "PLACEHOLDER_XAI_API_KEY")
+                    val customUrl = (providerUrls["XAI"] ?: providerUrls["Xai"] ?: providerUrls["xai"])?.trim()?.ifBlank { null }
+                    val targetModel = if (resolvedModel.isNotBlank() && resolvedModel != "openai" && resolvedModel != "grok-beta") resolvedModel else "grok-4.3"
+                    if (fallbackKey != null && !fallbackKey.contains("PLACEHOLDER") && fallbackKey.isNotBlank()) {
+                        val url = if (!customUrl.isNullOrBlank() && !customUrl.contains("eddie-proxy") && !customUrl.contains("geminiaitools")) {
+                            customUrl
+                        } else {
+                            "https://api.x.ai/v1/chat/completions"
+                        }
+                        callOpenAiCompatible(
+                            history = sanitizedHistory,
+                            newPrompt = newPrompt,
+                            model = targetModel,
                             systemText = systemText,
                             apiKey = fallbackKey,
-                            baseUrl = customUrl
+                            baseUrl = url
+                        )
+                    } else {
+                        // Route through proxy (geminiaitools.com)
+                        val proxyUrl = if (!customUrl.isNullOrBlank()) customUrl else defaultProxy
+                        callOpenAiCompatible(
+                            history = sanitizedHistory,
+                            newPrompt = newPrompt,
+                            model = targetModel,
+                            systemText = systemText,
+                            apiKey = "proxy_active",
+                            baseUrl = proxyUrl
                         )
                     }
                 }
                 else -> {
-                    "Provider '$provider' is not supported. Please choose a supported provider like Gemini or OpenAI."
+                    val proxyUrl = providerUrls[provider]?.trim()?.ifBlank { null } ?: defaultProxy
+                    callOpenAiCompatible(
+                        history = sanitizedHistory,
+                        newPrompt = newPrompt,
+                        model = if (resolvedModel.isNotBlank() && !resolvedModel.contains("gemini")) resolvedModel else "gpt-5-mini",
+                        systemText = systemText,
+                        apiKey = "proxy_active",
+                        baseUrl = proxyUrl
+                    )
                 }
             }
-        }
-    }
-
-    private suspend fun callGemini(
-        history: List<ChatMessage>,
-        newPrompt: String,
-        model: String,
-        systemText: String,
-        apiKey: String,
-        customBaseUrl: String? = null
-    ): String {
-        val activeSystemInstruction = Content(
-            parts = listOf(Part(systemText))
-        )
-
-        val apiContents = history.map {
-            Content(
-                parts = listOf(Part(text = it.text)),
-                role = if (it.role == Role.USER) "user" else "model"
-            )
-        }.toMutableList()
-        
-        // Add the new prompt
-        apiContents.add(Content(parts = listOf(Part(text = newPrompt)), role = "user"))
-
-        val request = GenerateContentRequest(
-            contents = apiContents,
-            systemInstruction = activeSystemInstruction
-        )
-
-        return try {
-            val baseUrl = customBaseUrl?.trim()?.ifBlank { null } ?: "https://generativelanguage.googleapis.com/"
-            val resolvedUrl = "${baseUrl}v1beta/models/${model}:generateContent"
-            val response = GeminiClient.service.generateContent(resolvedUrl, apiKey, request)
-            response.candidates.firstOrNull()?.content?.parts?.firstOrNull()?.text ?: "Tidak ada respons dari Gemini."
-        } catch (e: retrofit2.HttpException) {
-            if (e.code() == 429) {
-                "⚠️ **Batas Pemakaian Terlampaui (Error 429)**\n\nKuota pemakaian untuk model Gemini Anda telah habis atau dibatasi oleh sistem (Rate Limit Exceeded). Hal ini sering terjadi pada versi *Preview* / *Flash* pada Akun Gratis (Free Tier).\n\n**Cara Mengatasi:**\n1. Sila ganti ke model **Gemini 2.5 Flash** di menu model.\n2. Tunggu 1-2 menit sebelum mencoba kembali.\n3. Masukkan kunci API (API Key) mandiri yang memiliki kuota penuh di tab Pengaturan."
-            } else {
-                "Error Gemini API (HTTP ${e.code()}): ${e.message()}"
-            }
-        } catch (e: Exception) {
-            "Error: ${e.localizedMessage}"
         }
     }
 
@@ -205,6 +382,9 @@ class ChatRepository {
         return try {
             val jsonBody = JSONObject().apply {
                 put("model", model)
+                // Reasoning models (such as GPT-5.5, o1, o3-mini) strictly require temperature = 1.
+                // Explicitly specifying 1 prevents proxy defaults (such as 0.7) from causing HTTP 400.
+                put("temperature", 1)
                 
                 val messagesArray = JSONArray().apply {
                     put(JSONObject().apply {
@@ -228,10 +408,20 @@ class ChatRepository {
                 put("messages", messagesArray)
             }
 
+            val clean = baseUrl.trim()
+            val targetUrl = if (clean.endsWith("/v1/chat/completions") || clean.endsWith("/api/chat")) {
+                clean
+            } else if (clean.endsWith("/")) {
+                "${clean}v1/chat/completions"
+            } else {
+                "$clean/v1/chat/completions"
+            }
+
+            val authKey = if (apiKey.isNotBlank() && apiKey != "proxy_active" && !apiKey.contains("PLACEHOLDER")) apiKey else "proxy_active"
             val requestBody = jsonBody.toString().toRequestBody("application/json".toMediaTypeOrNull())
             val request = Request.Builder()
-                .url(baseUrl)
-                .header("Authorization", "Bearer $apiKey")
+                .url(targetUrl)
+                .header("Authorization", "Bearer $authKey")
                 .header("Content-Type", "application/json")
                 .post(requestBody)
                 .build()
@@ -242,10 +432,29 @@ class ChatRepository {
                 }
                 val resStr = response.body?.string() ?: return "Empty response from API server."
                 val responseJson = JSONObject(resStr)
-                responseJson.getJSONArray("choices")
-                    .getJSONObject(0)
-                    .getJSONObject("message")
-                    .getString("content")
+                if (responseJson.has("choices")) {
+                    val choices = responseJson.getJSONArray("choices")
+                    if (choices.length() > 0) {
+                        choices.getJSONObject(0).getJSONObject("message").getString("content")
+                    } else {
+                        "Empty choices returned from API server."
+                    }
+                } else if (responseJson.has("candidates")) {
+                    val candidates = responseJson.optJSONArray("candidates")
+                    val content = candidates?.optJSONObject(0)?.optJSONObject("content")
+                    val parts = content?.optJSONArray("parts")
+                    if (parts != null && parts.length() > 0) {
+                        parts.getJSONObject(0).optString("text", "No response text generated.")
+                    } else {
+                        "Empty response from API server."
+                    }
+                } else if (responseJson.has("error")) {
+                    val err = responseJson.optJSONObject("error")
+                    val errMsg = err?.optString("message") ?: responseJson.optString("error")
+                    "API Error: $errMsg"
+                } else {
+                    "Unexpected response: ${resStr.take(200)}"
+                }
             }
         } catch (e: Exception) {
             "Failed to make API request: ${e.localizedMessage}"
@@ -298,9 +507,38 @@ class ChatRepository {
                 }
                 val resStr = response.body?.string() ?: return "Empty Claude response."
                 val responseJson = JSONObject(resStr)
-                responseJson.getJSONArray("content")
-                    .getJSONObject(0)
-                    .getString("text")
+
+                if (responseJson.has("content")) {
+                    val contentArr = responseJson.getJSONArray("content")
+                    val textBuilder = StringBuilder()
+
+                    for (i in 0 until contentArr.length()) {
+                        val block = contentArr.getJSONObject(i)
+                        val type = block.optString("type", "")
+                        if (type == "text") {
+                            val text = block.optString("text", "")
+                            if (text.isNotBlank()) {
+                                if (textBuilder.isNotEmpty()) textBuilder.append("\n\n")
+                                textBuilder.append(text)
+                            }
+                        }
+                    }
+
+                    if (textBuilder.isNotEmpty()) {
+                        textBuilder.toString()
+                    } else if (contentArr.length() > 0) {
+                        // Fallback: check first block text or toString
+                        contentArr.getJSONObject(0).optString("text", "No text content returned.")
+                    } else {
+                        "Empty response content from Claude."
+                    }
+                } else if (responseJson.has("error")) {
+                    val err = responseJson.optJSONObject("error")
+                    val msg = err?.optString("message") ?: responseJson.optString("error")
+                    "Anthropic API Error: $msg"
+                } else {
+                    "Unexpected Claude response: ${resStr.take(200)}"
+                }
             }
         } catch (e: Exception) {
             "Failed to make Claude API request: ${e.localizedMessage}"
@@ -317,67 +555,68 @@ class ChatRepository {
     ): String {
         return withContext(Dispatchers.IO) {
             val activeKey = providerKeys[provider]?.trim() ?: ""
+            val defaultProxy = "https://geminiaitools.com/"
             when (provider) {
                 "OpenAI" -> {
                     val fallbackKey = getFallbackKey(activeKey, BuildConfig.OPENAI_API_KEY, "PLACEHOLDER_OPENAI_API_KEY")
-                    if (fallbackKey == null) {
-                        "API Key OpenAI is missing. Please set your OpenAI API Key in Settings or enter a valid key."
-                    } else {
-                        val customUrl = providerUrls["OpenAI"]?.trim()?.ifBlank { null }
-                            ?: "https://api.openai.com/v1/chat/completions"
+                    val customUrl = providerUrls["OpenAI"]?.trim()?.ifBlank { null }
+                    val targetModel = when (model) {
+                        "gpt5.5", "gpt-5.5" -> "gpt-5.5"
+                        "openai", "" -> "gpt-5-mini"
+                        else -> model
+                    }
+                    if (fallbackKey != null) {
+                        val url = if (!customUrl.isNullOrBlank() && !customUrl.contains("eddie-proxy") && !customUrl.contains("geminiaitools")) {
+                            customUrl
+                        } else {
+                            "https://api.openai.com/v1/chat/completions"
+                        }
                         callOpenAiCompatible(
                             history = emptyList(),
                             newPrompt = prompt,
-                            model = if (model.isBlank()) "gpt-4o-mini" else model,
+                            model = targetModel,
                             systemText = systemText,
                             apiKey = fallbackKey,
-                            baseUrl = customUrl
+                            baseUrl = url
                         )
-                    }
-                }
-                "Gemini" -> {
-                    val fallbackKey = getFallbackKey(activeKey, BuildConfig.GEMINI_API_KEY, "PLACEHOLDER_GEMINI_API_KEY")
-                    if (fallbackKey == null) {
-                        "API Key Gemini is missing. Please set your Gemini API Key in Settings or enter a valid key."
                     } else {
-                        val activeSystemInstruction = Content(
-                            parts = listOf(Part(systemText))
+                        val proxyUrl = if (!customUrl.isNullOrBlank()) customUrl else defaultProxy
+                        callOpenAiCompatible(
+                            history = emptyList(),
+                            newPrompt = prompt,
+                            model = targetModel,
+                            systemText = systemText,
+                            apiKey = "proxy_active",
+                            baseUrl = proxyUrl
                         )
-                        val request = GenerateContentRequest(
-                            contents = listOf(Content(parts = listOf(Part(text = prompt)), role = "user")),
-                            systemInstruction = activeSystemInstruction
-                        )
-                        try {
-                            val baseUrl = providerUrls["Gemini"]?.trim()?.ifBlank { null } ?: "https://generativelanguage.googleapis.com/"
-                            val resolvedModel = if (model.isBlank()) "gemini-2.5-flash" else model
-                            val resolvedUrl = "${baseUrl}v1beta/models/$resolvedModel:generateContent"
-                            val response = GeminiClient.service.generateContent(resolvedUrl, fallbackKey, request)
-                            response.candidates.firstOrNull()?.content?.parts?.firstOrNull()?.text ?: "No response from Gemini."
-                        } catch (e: retrofit2.HttpException) {
-                            if (e.code() == 429) {
-                                "⚠️ [Error 429] Batas pemakaian terlampaui. Silakan tunggu 1-2 menit atau periksa Kunci API Anda."
-                            } else {
-                                "Error Gemini API (HTTP ${e.code()}): ${e.message()}"
-                            }
-                        } catch (e: Exception) {
-                            "Error: ${e.localizedMessage}"
-                        }
                     }
                 }
                 else -> {
                     val fallbackKey = getFallbackKey(activeKey, BuildConfig.OPENAI_API_KEY, "PLACEHOLDER_OPENAI_API_KEY")
-                    if (fallbackKey == null) {
-                        "API Key OpenAI is missing. Please set your OpenAI API Key in Settings."
-                    } else {
-                        val customUrl = providerUrls[provider]?.trim()?.ifBlank { null }
-                            ?: "https://api.openai.com/v1/chat/completions"
+                    val customUrl = providerUrls[provider]?.trim()?.ifBlank { null }
+                    if (fallbackKey != null) {
+                        val url = if (!customUrl.isNullOrBlank() && !customUrl.contains("eddie-proxy") && !customUrl.contains("geminiaitools")) {
+                            customUrl
+                        } else {
+                            "https://api.openai.com/v1/chat/completions"
+                        }
                         callOpenAiCompatible(
                             history = emptyList(),
                             newPrompt = prompt,
-                            model = if (model.isBlank()) "gpt-4o-mini" else model,
+                            model = if (model.isBlank()) "gpt-5-mini" else model,
                             systemText = systemText,
                             apiKey = fallbackKey,
-                            baseUrl = customUrl
+                            baseUrl = url
+                        )
+                    } else {
+                        val proxyUrl = if (!customUrl.isNullOrBlank()) customUrl else defaultProxy
+                        callOpenAiCompatible(
+                            history = emptyList(),
+                            newPrompt = prompt,
+                            model = if (model.isBlank()) "gpt-5-mini" else model,
+                            systemText = systemText,
+                            apiKey = "proxy_active",
+                            baseUrl = proxyUrl
                         )
                     }
                 }
@@ -399,95 +638,63 @@ class ChatRepository {
             bitmap.compress(android.graphics.Bitmap.CompressFormat.JPEG, 80, outputStream)
             val base64Data = android.util.Base64.encodeToString(outputStream.toByteArray(), android.util.Base64.NO_WRAP)
 
-            if (provider == "OpenAI" || provider != "Gemini") {
-                val activeKey = providerKeys["OpenAI"]?.trim() ?: ""
-                val keyToUse = getFallbackKey(activeKey, BuildConfig.OPENAI_API_KEY, "PLACEHOLDER_OPENAI_API_KEY")
-                if (keyToUse == null) {
-                    return@withContext "API Key OpenAI is missing. Please set your OpenAI API Key in Settings."
-                }
-                val baseUrl = providerUrls["OpenAI"]?.trim()?.ifBlank { null } ?: "https://api.openai.com/v1/chat/completions"
-                val resolvedModel = if (model.isBlank()) "gpt-4o-mini" else model
+            val activeKey = providerKeys["OpenAI"]?.trim() ?: ""
+            val keyToUse = getFallbackKey(activeKey, BuildConfig.OPENAI_API_KEY, "PLACEHOLDER_OPENAI_API_KEY")
+            if (keyToUse == null) {
+                return@withContext "API Key OpenAI is missing. Please set your OpenAI API Key in Settings."
+            }
+            val baseUrl = providerUrls["OpenAI"]?.trim()?.ifBlank { null } ?: "https://api.openai.com/v1/chat/completions"
+            val resolvedModel = if (model.isBlank()) "gpt-4o-mini" else model
 
-                try {
-                    val jsonBody = JSONObject().apply {
-                        put("model", resolvedModel)
-                        val messagesArray = JSONArray().apply {
-                            put(JSONObject().apply {
-                                put("role", "system")
-                                put("content", "You are an expert AI Vision & Image Analyzer. Analyze images thoroughly and answer accurately.")
-                            })
-                            put(JSONObject().apply {
-                                put("role", "user")
-                                val contentArray = JSONArray().apply {
-                                    put(JSONObject().apply {
-                                        put("type", "text")
-                                        put("text", prompt)
+            try {
+                val jsonBody = JSONObject().apply {
+                    put("model", resolvedModel)
+                    val messagesArray = JSONArray().apply {
+                        put(JSONObject().apply {
+                            put("role", "system")
+                            put("content", "You are an expert AI Vision & Image Analyzer. Analyze images thoroughly and answer accurately.")
+                        })
+                        put(JSONObject().apply {
+                            put("role", "user")
+                            val contentArray = JSONArray().apply {
+                                put(JSONObject().apply {
+                                    put("type", "text")
+                                    put("text", prompt)
+                                })
+                                put(JSONObject().apply {
+                                    put("type", "image_url")
+                                    put("image_url", JSONObject().apply {
+                                        put("url", "data:image/jpeg;base64,$base64Data")
                                     })
-                                    put(JSONObject().apply {
-                                        put("type", "image_url")
-                                        put("image_url", JSONObject().apply {
-                                            put("url", "data:image/jpeg;base64,$base64Data")
-                                        })
-                                    })
-                                }
-                                put("content", contentArray)
-                            })
-                        }
-                        put("messages", messagesArray)
+                                })
+                            }
+                            put("content", contentArray)
+                        })
                     }
+                    put("messages", messagesArray)
+                }
 
-                    val requestBody = jsonBody.toString().toRequestBody("application/json".toMediaTypeOrNull())
-                    val request = Request.Builder()
-                        .url(baseUrl)
-                        .header("Authorization", "Bearer $keyToUse")
-                        .header("Content-Type", "application/json")
-                        .post(requestBody)
-                        .build()
+                val requestBody = jsonBody.toString().toRequestBody("application/json".toMediaTypeOrNull())
+                val request = Request.Builder()
+                    .url(baseUrl)
+                    .header("Authorization", "Bearer $keyToUse")
+                    .header("Content-Type", "application/json")
+                    .post(requestBody)
+                    .build()
 
-                    client.newCall(request).execute().use { response ->
-                        if (!response.isSuccessful) {
-                            return@withContext "HTTP Error ${response.code}: ${response.body?.string() ?: "Failed to connect to OpenAI API."}"
-                        }
-                        val resStr = response.body?.string() ?: return@withContext "Empty response from OpenAI."
-                        val responseJson = JSONObject(resStr)
-                        responseJson.getJSONArray("choices")
-                            .getJSONObject(0)
-                            .getJSONObject("message")
-                            .getString("content")
+                client.newCall(request).execute().use { response ->
+                    if (!response.isSuccessful) {
+                        return@withContext "HTTP Error ${response.code}: ${response.body?.string() ?: "Failed to connect to OpenAI API."}"
                     }
-                } catch (e: Exception) {
-                    "Error OpenAI Vision API: ${e.localizedMessage}"
+                    val resStr = response.body?.string() ?: return@withContext "Empty response from OpenAI."
+                    val responseJson = JSONObject(resStr)
+                    responseJson.getJSONArray("choices")
+                        .getJSONObject(0)
+                        .getJSONObject("message")
+                        .getString("content")
                 }
-            } else {
-                val activeKey = providerKeys["Gemini"]?.trim() ?: ""
-                val keyToUse = getFallbackKey(activeKey, BuildConfig.GEMINI_API_KEY, "PLACEHOLDER_GEMINI_API_KEY")
-                if (keyToUse == null) {
-                    return@withContext "API Key Gemini is missing. Please set your Gemini API Key in Settings."
-                }
-                val request = GenerateContentRequest(
-                    contents = listOf(Content(
-                        parts = listOf(
-                            Part(text = prompt),
-                            Part(inlineData = InlineData(mimeType = "image/jpeg", data = base64Data))
-                        ),
-                        role = "user"
-                    ))
-                )
-                try {
-                    val baseUrl = providerUrls["Gemini"]?.trim()?.ifBlank { null } ?: "https://generativelanguage.googleapis.com/"
-                    val resolvedModel = if (model.isBlank()) "gemini-2.5-flash" else model
-                    val resolvedUrl = "${baseUrl}v1beta/models/$resolvedModel:generateContent"
-                    val response = GeminiClient.service.generateContent(resolvedUrl, keyToUse, request)
-                    response.candidates.firstOrNull()?.content?.parts?.firstOrNull()?.text ?: "No response from Gemini."
-                } catch (e: retrofit2.HttpException) {
-                    if (e.code() == 429) {
-                        "⚠️ [Error 429] Batas pemakaian terlampaui untuk analisis gambar (Vision). Silakan tunggu 1-2 menit atau periksa Kunci API Anda."
-                    } else {
-                        "Error Gemini API (HTTP ${e.code()}): ${e.message()}"
-                    }
-                } catch (e: Exception) {
-                    "Error: ${e.localizedMessage}"
-                }
+            } catch (e: Exception) {
+                "Error OpenAI Vision API: ${e.localizedMessage}"
             }
         }
     }
@@ -1148,546 +1355,6 @@ class ChatRepository {
         }
     }
 
-    suspend fun generateGeminiImage(
-        prompt: String,
-        model: String = "gemini-2.5-flash",
-        aspectRatio: String = "1:1",
-        imageSize: String = "1K",
-        customApiKey: String? = null
-    ): String {
-        throw IllegalStateException("Fitur pembuatan gambar Gemini telah dinonaktifkan di aplikasi ini.")
-    }
-
-    private fun getGcpAccessToken(onLogMessage: (String) -> Unit): String? {
-        try {
-            val context = com.example.AppContextProvider.context
-            val assetManager = context.assets
-            val jsonStream = try {
-                assetManager.open("gcp-service-account.json")
-            } catch (e: Exception) {
-                return null
-            }
-            val jsonText = jsonStream.bufferedReader().use { it.readText() }
-            val saJson = JSONObject(jsonText)
-            
-            val clientEmail = saJson.getString("client_email")
-            val privateKeyString = saJson.getString("private_key")
-            val tokenUri = saJson.optString("token_uri", "https://oauth2.googleapis.com/token")
-
-            onLogMessage("> Found GOOGLE_APPLICATION_CREDENTIALS Service Account credentials for: $clientEmail\n> Generating securely-signed JWT assertion...\n")
-
-            // 1. Parse Private Key
-            val cleanPem = privateKeyString
-                .replace("-----BEGIN PRIVATE KEY-----", "")
-                .replace("-----END PRIVATE KEY-----", "")
-                .replace("\\n", "")
-                .replace("\\r", "")
-                .replace("\n", "")
-                .replace("\r", "")
-                .replace("\\s".toRegex(), "")
-            val decodedKey = android.util.Base64.decode(cleanPem, android.util.Base64.DEFAULT)
-            val keySpec = java.security.spec.PKCS8EncodedKeySpec(decodedKey)
-            val keyFactory = java.security.KeyFactory.getInstance("RSA")
-            val privateKey = keyFactory.generatePrivate(keySpec)
-
-            // 2. Build JWT Header & Payload
-            val jwtHeader = JSONObject().apply {
-                put("alg", "RS256")
-                put("typ", "JWT")
-            }
-            
-            val nowSecs = System.currentTimeMillis() / 1000
-            val jwtPayload = JSONObject().apply {
-                put("iss", clientEmail)
-                put("scope", "https://www.googleapis.com/auth/cloud-platform")
-                put("aud", tokenUri)
-                put("exp", nowSecs + 3000)
-                put("iat", nowSecs - 60) // Subtract 60 seconds buffer to safeguard against client/server clock skew
-            }
-
-            val headerBase64 = android.util.Base64.encodeToString(
-                jwtHeader.toString().toByteArray(Charsets.UTF_8),
-                android.util.Base64.NO_WRAP or android.util.Base64.URL_SAFE or android.util.Base64.NO_PADDING
-            )
-            val payloadBase64 = android.util.Base64.encodeToString(
-                jwtPayload.toString().toByteArray(Charsets.UTF_8),
-                android.util.Base64.NO_WRAP or android.util.Base64.URL_SAFE or android.util.Base64.NO_PADDING
-            )
-
-            val assertionInput = "$headerBase64.$payloadBase64"
-
-            // 3. Sign Assertion
-            val privateSignature = java.security.Signature.getInstance("SHA256withRSA")
-            privateSignature.initSign(privateKey)
-            privateSignature.update(assertionInput.toByteArray(Charsets.UTF_8))
-            val signatureBytes = privateSignature.sign()
-            val signatureBase64 = android.util.Base64.encodeToString(
-                signatureBytes,
-                android.util.Base64.NO_WRAP or android.util.Base64.URL_SAFE or android.util.Base64.NO_PADDING
-            )
-
-            val assertion = "$assertionInput.$signatureBase64"
-
-            // 4. Request Access Token from Google OAuth Provider
-            val reqBody = okhttp3.FormBody.Builder()
-                .add("grant_type", "urn:ietf:params:oauth:grant-type:jwt-bearer")
-                .add("assertion", assertion)
-                .build()
-
-            val authRequest = Request.Builder()
-                .url(tokenUri)
-                .post(reqBody)
-                .build()
-
-            client.newCall(authRequest).execute().use { response ->
-                if (!response.isSuccessful) {
-                    val body = response.body?.string() ?: ""
-                    onLogMessage("> OAuth certificate exchange failed: $body\n")
-                    return null
-                }
-                val resObj = JSONObject(response.body?.string() ?: "")
-                val token = resObj.optString("access_token", "")
-                if (token.isNotBlank()) {
-                    onLogMessage("> OAuth 2.0 Access Token generated successfully (Bearer authorized).\n")
-                    return token
-                }
-                return null
-            }
-        } catch (e: Exception) {
-            onLogMessage("> Warning: Could not complete OAuth credential signing: ${e.message}\n")
-            return null
-        }
-    }
-
-    suspend fun generateGeminiVideo(
-        prompt: String,
-        model: String,
-        aspectRatio: String = "16:9",
-        duration: String = "5s",
-        customApiKey: String? = null,
-        onLogMessage: (String) -> Unit = {}
-    ): String {
-        return withContext(Dispatchers.IO) {
-            throw IllegalStateException("Fitur pembuatan video Gemini telah dinonaktifkan di aplikasi ini.")
-            // Attempt to fetch GCP Access Token from GOOGLE_APPLICATION_CREDENTIALS Service Account
-            val accessToken = getGcpAccessToken(onLogMessage)
-            
-            val keyToUse = if (accessToken == null) {
-                val key = if (!customApiKey.isNullOrBlank()) customApiKey.trim() else BuildConfig.GEMINI_API_KEY
-                if (key.isBlank() || key.contains("PLACEHOLDER")) {
-                    throw IllegalStateException("No GCP Service Account credentials provided, and Gemini API key is not configured. Please add your GEMINI_API_KEY in the Secrets panel.")
-                }
-                key
-            } else {
-                ""
-            }
-
-            val actualModel = when {
-                model.contains("veo-2") || model == "veo2" || model == "veo 2" -> "veo-2.0-generate-001"
-                model.contains("veo-3.0-generate") || (model.contains("veo-3.0") && !model.contains("fast")) -> "veo-3.0-generate-001"
-                model.contains("veo-3.0-fast") -> "veo-3.0-fast-generate-001"
-                model.contains("veo-3.1-fast") -> "veo-3.1-fast-generate-001"
-                model.contains("veo-3.1-lite") -> "veo-3.1-lite-generate-001"
-                model.contains("veo-3.1") -> "veo-3.1-generate-preview"
-                else -> model.ifBlank { "veo-2.0-generate-001" }
-            }
-
-            val durationSecs = duration.replace(Regex("[^0-9]"), "").toIntOrNull() ?: 5
-
-            // Vertex AI: Uses instances and parameters array structure
-            val jsonBody = JSONObject().apply {
-                val instancesArray = JSONArray().apply {
-                    put(JSONObject().apply {
-                        put("prompt", prompt)
-                    })
-                }
-                put("instances", instancesArray)
-                put("parameters", JSONObject().apply {
-                    put("sampleCount", 1)
-                    put("aspectRatio", aspectRatio)
-                    put("resolution", "1080p")
-                    put("durationSeconds", durationSecs)
-                })
-            }
-
-            val isVeo31 = actualModel.startsWith("veo-3.1")
-            val resolvedUrl = if (isVeo31) {
-                val aiStudioModel = when {
-                    actualModel.contains("fast") -> "veo-3.1-fast-generate-preview"
-                    actualModel.contains("lite") -> "veo-3.1-lite-generate-preview"
-                    else -> "veo-3.1-generate-preview"
-                }
-                if (accessToken != null) {
-                    "https://generativelanguage.googleapis.com/v1beta/models/$aiStudioModel:predictLongRunning"
-                } else {
-                    "https://generativelanguage.googleapis.com/v1beta/models/$aiStudioModel:predictLongRunning?key=$keyToUse"
-                }
-            } else {
-                val region = "us-central1"
-                val projectId = "gen-lang-client-0374672668"
-                val baseUrl = "https://$region-aiplatform.googleapis.com/"
-                val vertexApiVersion = "v1beta1"
-                val actionMethod = "predictLongRunning"
-                if (accessToken != null) {
-                    "${baseUrl}${vertexApiVersion}/projects/$projectId/locations/$region/publishers/google/models/$actualModel:$actionMethod"
-                } else {
-                    "${baseUrl}${vertexApiVersion}/projects/$projectId/locations/$region/publishers/google/models/$actualModel:$actionMethod?key=$keyToUse"
-                }
-            }
-
-            if (accessToken != null) {
-                onLogMessage("> Sending POST request with Bearer token authorization to: $resolvedUrl\n")
-            } else {
-                val loggedResolvedUrl = if (keyToUse.isNotEmpty()) resolvedUrl.replace(keyToUse, "REDACTED_API_KEY") else resolvedUrl
-                val endpointName = if (isVeo31) "Google AI Studio Endpoint" else "Vertex AI Endpoint"
-                onLogMessage("> Sending POST request to $endpointName: $loggedResolvedUrl\n")
-            }
-
-            val requestBody = jsonBody.toString().toRequestBody("application/json".toMediaTypeOrNull())
-            val requestBuilder = Request.Builder()
-                .url(resolvedUrl)
-                .post(requestBody)
-            
-            if (accessToken != null) {
-                requestBuilder.header("Authorization", "Bearer $accessToken")
-            } else if (isVeo31) {
-                requestBuilder.header("x-goog-api-key", keyToUse)
-            }
-            
-            val request = requestBuilder.build()
-            var operationName = ""
-
-            client.newCall(request).execute().use { response ->
-                val bodyStr = response.body?.string() ?: ""
-                if (!response.isSuccessful) {
-                    val endpointName = if (isVeo31) "Google AI Studio" else "Vertex AI on 'aiplatform'"
-                    if (response.code == 401) {
-                        onLogMessage("> Warning: $endpointName returned HTTP 401 (Unauthorized).\n")
-                        onLogMessage("> Error Details: $bodyStr\n")
-                        onLogMessage("> [System Fallback] Activating high-fidelity local simulator fallback to ensure playability and complete user journey validation...\n")
-                        onLogMessage("> Performing simulated GCS rendering on neural pipelines...\n")
-                        delay(2500)
-                        onLogMessage("> Video generation completed successfully! (Simulation Fallback Mode)\n")
-                        return@withContext "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4"
-                    }
-                    if (response.code == 404) {
-                        onLogMessage("> Warning: $endpointName returned HTTP 404.\n")
-                        onLogMessage("> [System Fallback] Activating high-fidelity local simulator fallback to ensure playability and complete user journey validation.\n")
-                        onLogMessage("> Performing simulated GCS rendering on neural pipelines...\n")
-                        delay(2500)
-                        onLogMessage("> Video generation completed successfully! (Simulation Fallback Mode)\n")
-                        return@withContext "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4"
-                    }
-                    if (response.code == 403) {
-                        onLogMessage("> Warning: $endpointName returned HTTP 403 (Permission Denied). Your credentials do not have active permissions for '$actualModel'.\n")
-                        onLogMessage("> [System Fallback] Activating high-fidelity local simulator fallback to ensure playability and complete user journey validation...\n")
-                        onLogMessage("> Performing simulated GCS rendering on neural pipelines...\n")
-                        delay(2500)
-                        onLogMessage("> Video generation completed successfully! (Simulation Fallback Mode)\n")
-                        return@withContext "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4"
-                    }
-                    if (response.code == 429) {
-                        onLogMessage("> Warning: $endpointName returned HTTP 429 (Resource Exhausted / Quota Exceeded).\n")
-                        onLogMessage("> Error Details: $bodyStr\n")
-                        onLogMessage("> [System Fallback] Activating high-fidelity local simulator fallback to ensure playability and complete user journey validation...\n")
-                        onLogMessage("> Performing simulated GCS rendering on neural pipelines...\n")
-                        delay(2500)
-                        onLogMessage("> Video generation completed successfully! (Simulation Fallback Mode)\n")
-                        return@withContext "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4"
-                    }
-                    throw IllegalStateException("$endpointName predict failed (HTTP ${response.code}): $bodyStr")
-                }
-
-                val responseJson = JSONObject(bodyStr)
-                operationName = responseJson.optString("name")
-                if (operationName.isBlank()) {
-                    throw IllegalStateException("Server did not return a valid operation name. Response: $bodyStr")
-                }
-
-                onLogMessage("> Server started LRO operation successfully.\n> operationName = \"$operationName\"\n")
-            }
-
-            onLogMessage("> Generating video via Google Veo engine...\n> Polling operation status every 10 seconds...\n")
-
-            var completed = false
-            var finalVideoUrl = ""
-            
-            val getUrl = if (isVeo31) {
-                if (accessToken != null) {
-                    "https://generativelanguage.googleapis.com/v1beta/$operationName"
-                } else {
-                    "https://generativelanguage.googleapis.com/v1beta/$operationName?key=$keyToUse"
-                }
-            } else {
-                val region = "us-central1"
-                val projectId = "gen-lang-client-0374672668"
-                val baseUrl = "https://$region-aiplatform.googleapis.com/"
-                val vertexApiVersion = "v1beta1"
-                var cleanOperationName = operationName
-                if (!cleanOperationName.startsWith("projects/")) {
-                    if (cleanOperationName.startsWith("locations/")) {
-                        cleanOperationName = "projects/$projectId/$cleanOperationName"
-                    } else {
-                        if (isVeo31) {
-                            cleanOperationName = "projects/$projectId/locations/$region/publishers/google/models/$actualModel/operations/$cleanOperationName"
-                        } else {
-                            cleanOperationName = "projects/$projectId/locations/$region/operations/$cleanOperationName"
-                        }
-                    }
-                }
-                if (accessToken != null) {
-                    "${baseUrl}${vertexApiVersion}/$cleanOperationName"
-                } else {
-                    "${baseUrl}${vertexApiVersion}/$cleanOperationName?key=$keyToUse"
-                }
-            }
-
-            val loggedUrl = if (keyToUse.isNotEmpty()) getUrl.replace(keyToUse, "REDACTED_API_KEY") else getUrl
-            onLogMessage("> Configured poll target: $loggedUrl\n")
-
-            for (i in 1..36) {
-                delay(10000)
-                onLogMessage("> Polling status (attempt $i/36)...\n")
-
-                val getRequestBuilder = Request.Builder().url(getUrl)
-                if (accessToken != null) {
-                    getRequestBuilder.header("Authorization", "Bearer $accessToken")
-                } else if (isVeo31) {
-                    getRequestBuilder.header("x-goog-api-key", keyToUse)
-                }
-                val getRequest = getRequestBuilder.build()
-
-                client.newCall(getRequest).execute().use { getResponse ->
-                    val getBodyStr = getResponse.body?.string() ?: ""
-                    if (!getResponse.isSuccessful) {
-                        onLogMessage("> Warning: LRO poll status check returned HTTP ${getResponse.code}.\n")
-                        onLogMessage("> Error Details: $getBodyStr\n")
-                        onLogMessage("> [System Fallback] Activating high-fidelity local simulator fallback to ensure playability and complete user journey validation...\n")
-                        onLogMessage("> Performing simulated GCS rendering on neural pipelines...\n")
-                        try {
-                            // Non-blocking wait for realistic timing
-                            Thread.sleep(2500)
-                        } catch (e: Exception) {}
-                        finalVideoUrl = "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4"
-                        completed = true
-                        onLogMessage("> Video generation completed successfully! (Simulation Fallback Mode)\n")
-                        return@use
-                    }
-
-                    val getJson = JSONObject(getBodyStr)
-                    val isDone = getJson.optBoolean("done", false)
-                    if (isDone) {
-                        completed = true
-
-                        if (getJson.has("error")) {
-                            val errorObj = getJson.getJSONObject("error")
-                            val errMsg = errorObj.optString("message", "Unknown operation failure")
-                            throw IllegalStateException("Video generation failed: $errMsg")
-                        }
-
-                        onLogMessage("> Operation completed successfully. Resolving generated content format...\n")
-
-                        if (isVeo31) {
-                            try {
-                                val responseObj = getJson.optJSONObject("response")
-                                if (responseObj != null) {
-                                    val generatedVideos = responseObj.optJSONArray("generatedVideos")
-                                    if (generatedVideos != null && generatedVideos.length() > 0) {
-                                        val firstVideoObj = generatedVideos.optJSONObject(0)
-                                        val videoObj = firstVideoObj?.optJSONObject("video")
-                                        val uri = videoObj?.optString("uri")
-                                        if (!uri.isNullOrBlank()) {
-                                            finalVideoUrl = uri
-                                            onLogMessage("> Successfully extracted video URL: $finalVideoUrl\n")
-                                        }
-                                    }
-                                }
-                            } catch (e: Exception) {
-                                onLogMessage("> Warning while parsing Google AI Studio video structure: ${e.message}\n")
-                            }
-                        }
-
-                        if (finalVideoUrl.isBlank()) {
-                            // 1. Check for Base64 encoded video representation directly
-                            val base64Video = findBase64VideoInJson(getJson)
-                            if (base64Video != null) {
-                                try {
-                                    onLogMessage("> Found Base64-encoded video payload. Decoding and caching locally...\n")
-                                    val cacheDir = com.example.AppContextProvider.context.cacheDir
-                                    val outputFile = java.io.File(cacheDir, "veo_${System.currentTimeMillis()}.mp4")
-                                    val decodedBytes = android.util.Base64.decode(base64Video, android.util.Base64.DEFAULT)
-                                    outputFile.writeBytes(decodedBytes)
-                                    finalVideoUrl = "file://${outputFile.absolutePath}"
-                                    onLogMessage("> Successfully decoded Base64 and saved video locally!\n")
-                                } catch (e: Exception) {
-                                    onLogMessage("> Warning: failed to decode Base64 video: ${e.message}\n")
-                                }
-                            }
-                        }
-
-                        // 2. Extract any GS or HTTP URL
-                        if (finalVideoUrl.isBlank()) {
-                            val rawUrl = findAnyGsOrHttpUrlInJson(getJson)
-                            if (rawUrl != null) {
-                                onLogMessage("> Located video source path: $rawUrl\n")
-                                val resolvableUrl = if (rawUrl.startsWith("gs://", ignoreCase = true)) {
-                                    val restPath = rawUrl.substring(5)
-                                    "https://storage.googleapis.com/$restPath"
-                                } else {
-                                    rawUrl
-                                }
-
-                                // If the file is on private Google Cloud Storage, standard streaming/playback gets HTTP 403.
-                                // We download it locally using the same API access token to resolve authorization.
-                                if (resolvableUrl.contains("storage.googleapis.com")) {
-                                    try {
-                                        onLogMessage("> Media stream requires authentication. Pre-fetching GCS video content...\n")
-                                        val cacheDir = com.example.AppContextProvider.context.cacheDir
-                                        val outputFile = java.io.File(cacheDir, "veo_${System.currentTimeMillis()}.mp4")
-
-                                        val dlBuilder = Request.Builder().url(resolvableUrl)
-                                        if (accessToken != null) {
-                                            dlBuilder.header("Authorization", "Bearer $accessToken")
-                                        }
-
-                                        var dlSuccess = false
-                                        client.newCall(dlBuilder.build()).execute().use { dlResp ->
-                                            if (dlResp.isSuccessful) {
-                                                val bodyBytes = dlResp.body?.bytes()
-                                                if (bodyBytes != null) {
-                                                    outputFile.writeBytes(bodyBytes)
-                                                    dlSuccess = true
-                                                }
-                                            } else {
-                                                onLogMessage("> Warning: Authenticated GCS pre-fetch failed with HTTP ${dlResp.code}\n")
-                                            }
-                                        }
-
-                                        if (dlSuccess) {
-                                            finalVideoUrl = "file://${outputFile.absolutePath}"
-                                            onLogMessage("> Pre-fetch completed! File cached as local MP4 successfully.\n")
-                                        } else {
-                                            onLogMessage("> Downloading expired or failed. Activating high-fidelity fallback video...\n")
-                                            finalVideoUrl = "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4"
-                                        }
-                                    } catch (ex: Exception) {
-                                        onLogMessage("> Error caching GCS record: ${ex.message}. Activating high-fidelity fallback video...\n")
-                                        finalVideoUrl = "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4"
-                                    }
-                                } else {
-                                    finalVideoUrl = resolvableUrl
-                                }
-                            }
-                        }
-
-                        // 3. Robust Fallback
-                        if (finalVideoUrl.isBlank()) {
-                            onLogMessage("> Video format parsing returned empty. Activating high-fidelity fallback video...\n")
-                            finalVideoUrl = "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4"
-                        }
-                    }
-                }
-
-                if (completed) {
-                    break
-                }
-            }
-
-            if (!completed || finalVideoUrl.isBlank()) {
-                throw IllegalStateException("Video generation timed out or response URL could not be resolved.")
-            }
-
-            onLogMessage("> Video generation completed successfully!\n")
-            finalVideoUrl
-        }
-    }
-
-    private fun findBase64VideoInJson(json: Any): String? {
-        if (json is JSONObject) {
-            val keys = listOf("bytesBase64Encoded", "bytes", "videoBytes", "base64", "content", "data")
-            for (key in keys) {
-                val optVal = json.opt(key)
-                if (optVal is String && optVal.length > 1000) {
-                    return optVal
-                }
-            }
-            val allKeys = json.keys()
-            while (allKeys.hasNext()) {
-                val k = allKeys.next()
-                if (keys.contains(k)) continue
-                val nested = json.opt(k) ?: continue
-                val found = findBase64VideoInJson(nested)
-                if (found != null) return found
-            }
-        } else if (json is JSONArray) {
-            for (i in 0 until json.length()) {
-                val nested = json.opt(i) ?: continue
-                val found = findBase64VideoInJson(nested)
-                if (found != null) return found
-            }
-        }
-        return null
-    }
-
-    private fun findAnyGsOrHttpUrlInJson(json: Any): String? {
-        if (json is JSONObject) {
-            val priorityKeys = listOf("video_url", "videoUrl", "video", "download_url", "downloadUri", "download_uri", "output", "uri", "url", "src", "gcsUri", "gcs_uri")
-            for (key in priorityKeys) {
-                val optVal = json.opt(key)
-                if (optVal != null) {
-                    if (optVal is String && isGsOrHttpUrl(optVal)) {
-                        return optVal
-                    } else if (optVal is JSONObject || optVal is JSONArray) {
-                        val found = findAnyGsOrHttpUrlInJson(optVal)
-                        if (found != null) return found
-                    }
-                }
-            }
-            val keys = json.keys()
-            while (keys.hasNext()) {
-                val key = keys.next()
-                if (priorityKeys.contains(key)) continue
-                val value = json.opt(key) ?: continue
-                val found = findAnyGsOrHttpUrlInJson(value)
-                if (found != null) return found
-            }
-        } else if (json is JSONArray) {
-            for (i in 0 until json.length()) {
-                val value = json.opt(i) ?: continue
-                val found = findAnyGsOrHttpUrlInJson(value)
-                if (found != null) return found
-            }
-        } else if (json is String) {
-            if (isGsOrHttpUrl(json)) {
-                return json
-            }
-        }
-        return null
-    }
-
-    private fun findAnyUrlInJson(json: Any): String? {
-        return findAnyGsOrHttpUrlInJson(json)
-    }
-
-    private fun isGsOrHttpUrl(s: String): Boolean {
-        val trimmed = s.trim()
-        if (trimmed.startsWith("gs://", ignoreCase = true)) {
-            return true
-        }
-        return (trimmed.startsWith("http://", ignoreCase = true) || trimmed.startsWith("https://", ignoreCase = true)) &&
-               !trimmed.contains("schema.org", ignoreCase = true) &&
-               !trimmed.contains("purl.org", ignoreCase = true) &&
-               !trimmed.contains("w3.org", ignoreCase = true)
-    }
-
-    private fun isHttpUrl(s: String): Boolean {
-        val trimmed = s.trim()
-        return (trimmed.startsWith("http://", ignoreCase = true) || trimmed.startsWith("https://", ignoreCase = true)) &&
-               !trimmed.contains("schema.org", ignoreCase = true) &&
-               !trimmed.contains("purl.org", ignoreCase = true) &&
-               !trimmed.contains("w3.org", ignoreCase = true)
-    }
-
     suspend fun downloadFile(urlStr: String, destinationFile: java.io.File): Boolean {
         return withContext(Dispatchers.IO) {
             try {
@@ -1773,13 +1440,23 @@ class ChatRepository {
         alibabaVideoUrl: String? = null,
         hunyuanInferenceSteps: Int = 28,
         hunyuanFrames: Int = 121,
+        customBaseUrl: String? = null,
         onLogMessage: (String) -> Unit = {}
     ): String {
         return withContext(Dispatchers.IO) {
+            val isProxy = !customBaseUrl.isNullOrBlank() && (customBaseUrl.contains("api/video") || customBaseUrl.contains("aitools") || customBaseUrl.contains("vercel") || customBaseUrl.contains("workers.dev"))
+            val resolvedProxyUrl = if (isProxy) {
+                val p = customBaseUrl!!.trim()
+                if (p.endsWith("/api/video")) p
+                else if (p.endsWith("/")) "${p}api/video"
+                else "$p/api/video"
+            } else null
+
             val keyToUse = if (!customApiKey.isNullOrBlank()) customApiKey.trim() else BuildConfig.FAL_API_KEY
-            if (keyToUse.isBlank() || keyToUse.contains("PLACEHOLDER")) {
-                throw IllegalStateException("Fal.ai API key is not configured. Please add your FAL_API_KEY in the Secrets panel.")
+            if (resolvedProxyUrl == null && (keyToUse.isBlank() || keyToUse.contains("PLACEHOLDER"))) {
+                throw IllegalStateException("Fal.ai API key is not configured. Please add your FAL_API_KEY in the Secrets panel or configure a Video Proxy in Settings.")
             }
+            val effectiveKey = if (resolvedProxyUrl != null && (keyToUse.isBlank() || keyToUse.contains("PLACEHOLDER"))) "proxy_active" else keyToUse
 
             val actualModel = if (model.lowercase().trim().startsWith("fal-ai/")) {
                 model.trim()
@@ -1839,6 +1516,7 @@ class ChatRepository {
                     enhancePrompt = enhancePrompt,
                     negativePrompt = negativePrompt,
                     safetyTolerance = safetyTolerance,
+                    proxyUrl = resolvedProxyUrl,
                     onLog = onLogMessage
                 )
             }
@@ -1856,6 +1534,7 @@ class ChatRepository {
                     enhancePrompt = enhancePrompt,
                     autoFix = autoFix,
                     negativePrompt = negativePrompt,
+                    proxyUrl = resolvedProxyUrl,
                     onLogMessage = onLogMessage
                 )
             }
@@ -1879,6 +1558,7 @@ class ChatRepository {
                     elementsJson = elementsJson,
                     voiceIds = voiceIds,
                     startImageUrl = startImageUrl,
+                    proxyUrl = resolvedProxyUrl,
                     onLogMessage = onLogMessage
                 )
             }
@@ -2349,12 +2029,17 @@ class ChatRepository {
                 }
             }
 
-            onLogMessage("> Connecting to FalAI serverless pipeline...\n")
+            val targetSubmitUrl = resolvedProxyUrl ?: endpointUrl
+            if (resolvedProxyUrl != null) {
+                jsonBody.put("model", actualModel)
+            }
+
+            onLogMessage("> Connecting to video pipeline ($targetSubmitUrl)...\n")
             val requestBody = jsonBody.toString().toRequestBody("application/json".toMediaTypeOrNull())
             
             val request = Request.Builder()
-                .url(endpointUrl)
-                .header("Authorization", "Key $keyToUse")
+                .url(targetSubmitUrl)
+                .header("Authorization", "Key $effectiveKey")
                 .header("Content-Type", "application/json")
                 .post(requestBody)
                 .build()
@@ -2362,7 +2047,7 @@ class ChatRepository {
             client.newCall(request).execute().use { response ->
                 val bodyStr = response.body?.string() ?: ""
                 if (!response.isSuccessful) {
-                    throw IllegalStateException("Fal.ai Error ${response.code}: $bodyStr")
+                    throw IllegalStateException("Video API Error ${response.code}: $bodyStr")
                 }
                 val responseJson = JSONObject(bodyStr)
                 
@@ -2382,9 +2067,15 @@ class ChatRepository {
                         delay(2000) // Poll every 2 seconds to not spam
                         attempts++
                         
+                        val pollStatusUrl = if (resolvedProxyUrl != null) {
+                            "$resolvedProxyUrl?statusUrl=" + java.net.URLEncoder.encode(statusUrl, "UTF-8")
+                        } else {
+                            statusUrl
+                        }
+
                         val statusRequest = Request.Builder()
-                            .url(statusUrl)
-                            .header("Authorization", "Key $keyToUse")
+                            .url(pollStatusUrl)
+                            .header("Authorization", "Key $effectiveKey")
                             .get()
                             .build()
                         
@@ -2401,7 +2092,7 @@ class ChatRepository {
                                 if (status == "COMPLETED") {
                                     completed = true
                                 } else if (status == "FAILED") {
-                                    throw IllegalStateException("Fal.ai Queue Job Failed: $statusBody")
+                                    throw IllegalStateException("Video Queue Job Failed: $statusBody")
                                 }
                             } else {
                                 onLogMessage("> Warning: status polling returned HTTP ${statusResponse.code}. Retrying...\n")
@@ -2411,9 +2102,15 @@ class ChatRepository {
                     
                     if (completed) {
                         onLogMessage("> Fetching completed video outputs...\n")
+                        val pollResultUrl = if (resolvedProxyUrl != null) {
+                            "$resolvedProxyUrl?statusUrl=" + java.net.URLEncoder.encode(responseUrl, "UTF-8")
+                        } else {
+                            responseUrl
+                        }
+
                         val resultRequest = Request.Builder()
-                            .url(responseUrl)
-                            .header("Authorization", "Key $keyToUse")
+                            .url(pollResultUrl)
+                            .header("Authorization", "Key $effectiveKey")
                             .get()
                             .build()
                         

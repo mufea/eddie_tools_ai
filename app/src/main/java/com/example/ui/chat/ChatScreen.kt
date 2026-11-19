@@ -68,6 +68,7 @@ import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextStyle
@@ -145,12 +146,14 @@ fun ChatScreen(
 
     // Dialog state controllers
     var showInstructionDialog by remember { mutableStateOf(false) }
-    var showApiKeyDialog by remember { mutableStateOf(false) }
     var showHelpDialog by remember { mutableStateOf(false) }
     var showAuthDialog by remember { mutableStateOf(false) }
     var showBookmarksDialog by remember { mutableStateOf(false) }
     var showSubscriptionDialog by remember { mutableStateOf(false) }
     var showMemoriesDialog by remember { mutableStateOf(false) }
+    var showApiKeySettingsDialog by remember { mutableStateOf(false) }
+    var showThemeDialog by remember { mutableStateOf(false) }
+    var showAddModelDialog by remember { mutableStateOf(false) }
 
     // TTS Engine Setup
     var ttsUser by remember { mutableStateOf<TextToSpeech?>(null) }
@@ -309,7 +312,7 @@ fun ChatScreen(
                     )
                     Spacer(modifier = Modifier.height(12.dp))
                     Text(
-                        text = "Eddie Assistant",
+                        text = "Prof Eddie",
                         style = MaterialTheme.typography.titleLarge.copy(
                             fontWeight = FontWeight.Bold,
                             letterSpacing = (-0.5).sp
@@ -461,6 +464,16 @@ fun ChatScreen(
                         }
                     )
 
+                    NavigationDrawerItem(
+                        icon = { Text("📐", style = TextStyle(fontSize = 16.sp)) },
+                        label = { Text("AI Math & Science Solver", fontWeight = FontWeight.SemiBold) },
+                        selected = activeTab == "math_tutor",
+                        onClick = {
+                            activeTab = "math_tutor"
+                            scope.launch { drawerState.close() }
+                        }
+                    )
+
 
 
 
@@ -560,9 +573,6 @@ fun ChatScreen(
                         modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
                     )
 
-                    // Gemini Nano drawer item removed
-
-
                     NavigationDrawerItem(
                         icon = { Text("🤖", style = TextStyle(fontSize = 16.sp)) },
                         label = { Text("System Instructions (Custom)") },
@@ -579,16 +589,6 @@ fun ChatScreen(
                         selected = false,
                         onClick = {
                             showMemoriesDialog = true
-                            scope.launch { drawerState.close() }
-                        }
-                    )
-
-                    NavigationDrawerItem(
-                        icon = { Text("🔑", style = TextStyle(fontSize = 16.sp)) },
-                        label = { Text("API Key Manager") },
-                        selected = false,
-                        onClick = {
-                            showApiKeyDialog = true
                             scope.launch { drawerState.close() }
                         }
                     )
@@ -673,6 +673,16 @@ fun ChatScreen(
                         style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold, letterSpacing = 1.sp),
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
+                    )
+
+                    NavigationDrawerItem(
+                        icon = { Text("🎨", style = TextStyle(fontSize = 16.sp)) },
+                        label = { Text("Tema Skin") },
+                        selected = false,
+                        onClick = {
+                            showThemeDialog = true
+                            scope.launch { drawerState.close() }
+                        }
                     )
 
                     NavigationDrawerItem(
@@ -803,16 +813,8 @@ fun ChatScreen(
             }
         }
     ) {
-        val backgroundGradient = Brush.verticalGradient(
-            colors = listOf(
-                Color(0xFFFFFFFF),
-                Color(0xFFFFFFFF)
-            )
-        )
-
         Scaffold(
-            modifier = Modifier.background(backgroundGradient),
-            containerColor = Color.Transparent,
+            containerColor = MaterialTheme.colorScheme.background,
             topBar = {
                 Column {
                     TopAppBar(
@@ -853,12 +855,12 @@ fun ChatScreen(
                                     ) {
                                         Column {
                                             Text(
-                                                text = "Eddie Chat",
+                                                text = "Prof Eddie Chat",
                                                 style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
                                                 color = MaterialTheme.colorScheme.onSurface
                                             )
                                             Text(
-                                                text = "${uiState.selectedModel.provider} • ${uiState.selectedModel.displayName} (${uiState.selectedModel.tokenPrice})",
+                                                text = "${uiState.selectedModel.provider} • ${uiState.selectedModel.displayName}",
                                                 style = MaterialTheme.typography.labelSmall,
                                                 color = MaterialTheme.colorScheme.primary
                                             )
@@ -879,7 +881,8 @@ fun ChatScreen(
                                             .width(320.dp)
                                             .background(MaterialTheme.colorScheme.surface)
                                     ) {
-                                        val groupedModels = availableModels.groupBy { it.provider }
+                                        val allModels = availableModels + uiState.customModels
+                                        val groupedModels = allModels.groupBy { it.provider }
                                         groupedModels.forEach { (provider, models) ->
                                             Text(
                                                 text = provider.uppercase(),
@@ -891,8 +894,8 @@ fun ChatScreen(
                                                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)
                                             )
                                             models.forEach { model ->
-                                                val isSelected = model == uiState.selectedModel
-                                                val isPro = model.isPro
+                                                val isSelected = model.apiValue == uiState.selectedModel.apiValue
+                                                val isCustom = uiState.customModels.any { it.apiValue == model.apiValue }
                                                 DropdownMenuItem(
                                                     text = {
                                                         Row(
@@ -903,60 +906,107 @@ fun ChatScreen(
                                                             Column(modifier = Modifier.weight(1f)) {
                                                                 Text(
                                                                     text = model.displayName,
-                                                                    style = MaterialTheme.typography.bodyLarge.copy(
-                                                                        fontSize = 18.sp,
+                                                                    style = MaterialTheme.typography.bodyMedium.copy(
                                                                         fontWeight = if (isSelected) FontWeight.Bold else FontWeight.SemiBold
                                                                     ),
                                                                     color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
                                                                 )
-                                                                Spacer(modifier = Modifier.height(2.dp))
                                                                 Text(
-                                                                    text = model.tokenPrice,
-                                                                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-                                                                    color = if (model.tokenPrice.contains("Free")) Color(0xFF10B981) else Color(0xFF6366F1)
-                                                                )
-                                                                Spacer(modifier = Modifier.height(2.dp))
-                                                                Text(
-                                                                    text = model.subtitle,
+                                                                    text = model.subtitle.ifBlank { model.apiValue },
                                                                     style = MaterialTheme.typography.labelSmall,
-                                                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
-                                                                    lineHeight = 13.sp
+                                                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
                                                                 )
                                                             }
-                                                            if (isPro) {
-                                                                Surface(
-                                                                    color = if (uiState.isSubscribed) MaterialTheme.colorScheme.primary else Color(0xFFFFB100),
-                                                                    shape = RoundedCornerShape(4.dp)
+                                                            if (isCustom) {
+                                                                IconButton(
+                                                                    onClick = {
+                                                                        viewModel.deleteCustomModel(model.apiValue)
+                                                                    },
+                                                                    modifier = Modifier.size(28.dp)
                                                                 ) {
-                                                                    Text(
-                                                                        text = "PRO",
-                                                                        color = if (uiState.isSubscribed) MaterialTheme.colorScheme.onPrimary else Color(0xFF111111),
-                                                                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 8.sp, fontWeight = FontWeight.Bold),
-                                                                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
+                                                                    Icon(
+                                                                        imageVector = Icons.Default.Delete,
+                                                                        contentDescription = "Hapus Model",
+                                                                        tint = MaterialTheme.colorScheme.error.copy(alpha = 0.7f),
+                                                                        modifier = Modifier.size(16.dp)
                                                                     )
                                                                 }
                                                             }
                                                         }
                                                     },
                                                     onClick = {
-                                                        if (isPro && !uiState.isSubscribed) {
-                                                            showSubscriptionDialog = true
-                                                            Toast.makeText(context, "Model ${model.displayName} requires an active Premium subscription.", Toast.LENGTH_LONG).show()
-                                                        } else {
-                                                            viewModel.selectModel(model)
-                                                        }
                                                         dropdownExpanded = false
+                                                        viewModel.selectModel(model)
                                                     },
-                                                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
+                                                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 6.dp)
                                                 )
                                             }
                                             HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
+                                        }
+
+                                        HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
+
+                                        DropdownMenuItem(
+                                            text = {
+                                                Row(
+                                                    verticalAlignment = Alignment.CenterVertically,
+                                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                                ) {
+                                                    Icon(
+                                                        imageVector = Icons.Default.Add,
+                                                        contentDescription = null,
+                                                        tint = MaterialTheme.colorScheme.primary,
+                                                        modifier = Modifier.size(18.dp)
+                                                    )
+                                                    Text(
+                                                        text = "Tambah Model AI Baru",
+                                                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                                                        color = MaterialTheme.colorScheme.primary
+                                                    )
+                                                }
+                                            },
+                                            onClick = {
+                                                dropdownExpanded = false
+                                                showAddModelDialog = true
+                                            },
+                                            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 10.dp)
+                                        )
+
+                                        if (uiState.customModels.isNotEmpty()) {
+                                            DropdownMenuItem(
+                                                text = {
+                                                    Row(
+                                                        verticalAlignment = Alignment.CenterVertically,
+                                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                                    ) {
+                                                        Icon(
+                                                            imageVector = Icons.Default.Delete,
+                                                            contentDescription = null,
+                                                            tint = MaterialTheme.colorScheme.error,
+                                                            modifier = Modifier.size(18.dp)
+                                                        )
+                                                        Text(
+                                                            text = "Hapus Semua Model",
+                                                            style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Medium),
+                                                            color = MaterialTheme.colorScheme.error
+                                                        )
+                                                    }
+                                                },
+                                                onClick = {
+                                                    dropdownExpanded = false
+                                                    viewModel.deleteAllCustomModels()
+                                                },
+                                                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
+                                            )
                                         }
                                     }
                                 }
                             }
                         },
                         actions = {
+                            IconButton(onClick = { showThemeDialog = true }) {
+                                Text("🎨", fontSize = 18.sp)
+                            }
                             IconButton(onClick = { viewModel.resetAgenticTooltip() }) {
                                 Icon(
                                     imageVector = Icons.Default.Info,
@@ -1433,6 +1483,31 @@ fun ChatScreen(
                     onCopyText = { text -> copyToClipboard(text) },
                     onShareText = { text -> shareMessage(text) }
                 )
+            } else if (activeTab == "math_tutor") {
+                EddieMathScienceSolverView(
+                    uiState = uiState,
+                    paddingValues = paddingValues,
+                    onImageSelected = { uri, bitmap ->
+                        viewModel.selectMathImage(uri, bitmap)
+                    },
+                    onSolveProblem = { textFallback, jsonPreset ->
+                        viewModel.solveMathProblem(textFallback, jsonPreset)
+                    },
+                    onAskTutorQuestion = { customQuery ->
+                        viewModel.askMathTutorQuestion(customQuery)
+                    },
+                    onReset = {
+                        viewModel.resetMathTutor()
+                    },
+                    onStepSelected = { index ->
+                        viewModel.setMathCurrentStepIndex(index)
+                    },
+                    onLevelSelected = { level ->
+                        viewModel.setMathStudentLevel(level)
+                    },
+                    onCopyText = { text -> copyToClipboard(text) },
+                    onShareText = { text -> shareMessage(text) }
+                )
             } else if (activeTab == "web_researcher") {
                 EddieDeepWebResearcherView(
                     uiState = uiState,
@@ -1681,236 +1756,6 @@ fun ChatScreen(
         )
     }
 
-    // 2. Dialog API Key Manager
-    if (showApiKeyDialog) {
-        var tempGeminiKey by remember { mutableStateOf(uiState.geminiApiKey) }
-        var tempOpenaiKey by remember { mutableStateOf(uiState.openaiApiKey) }
-        var tempFalKey by remember { mutableStateOf(uiState.falApiKey) }
-        var tempStabilityKey by remember { mutableStateOf(uiState.stabilityApiKey) }
-        var tempDeepseekKey by remember { mutableStateOf(uiState.deepseekApiKey) }
-        var tempClaudeKey by remember { mutableStateOf(uiState.claudeApiKey) }
-        var tempXaiKey by remember { mutableStateOf(uiState.xaiApiKey) }
-        var tempGeminiBaseUrl by remember { mutableStateOf(uiState.geminiBaseUrl) }
-        var tempOpenaiBaseUrl by remember { mutableStateOf(uiState.openaiBaseUrl) }
-        var tempOpenaiWebhookUrl by remember { mutableStateOf(uiState.openaiWebhookUrl) }
-        var tempDeepseekBaseUrl by remember { mutableStateOf(uiState.deepseekBaseUrl) }
-        var tempClaudeBaseUrl by remember { mutableStateOf(uiState.claudeBaseUrl) }
-        var tempXaiBaseUrl by remember { mutableStateOf(uiState.xaiBaseUrl) }
-
-        AlertDialog(
-            onDismissRequest = { showApiKeyDialog = false },
-            title = {
-                Text(
-                    text = "🔑 API Key & Custom Proxy Manager",
-                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
-                )
-            },
-            text = {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .heightIn(max = 400.dp)
-                        .verticalScroll(rememberScrollState()),
-                    verticalArrangement = Arrangement.spacedBy(16.dp)
-                ) {
-                    Text(
-                        text = "Enter your custom API Keys below. If left blank (for OpenAI & DeepSeek), the application will automatically route connections to our free server tiers. You may also specify Custom Base URLs / Reverse Proxies below.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-
-                    // Gemini Key inputs removed
-
-                    // OpenAI Key
-                    Column {
-                        Text(
-                            text = "OpenAI API Key (GPT 4o & GPT 5.5)",
-                            style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
-                            color = Color(0xFF10A37F)
-                        )
-                        Spacer(modifier = Modifier.height(4.dp))
-                        OutlinedTextField(
-                            value = tempOpenaiKey,
-                            onValueChange = { tempOpenaiKey = it },
-                            modifier = Modifier.fillMaxWidth(),
-                            placeholder = { Text("Enter your OpenAI API Key") },
-                            singleLine = true,
-                            textStyle = MaterialTheme.typography.bodySmall
-                        )
-                        Spacer(modifier = Modifier.height(4.dp))
-                        OutlinedTextField(
-                            value = tempOpenaiBaseUrl,
-                            onValueChange = { tempOpenaiBaseUrl = it },
-                            modifier = Modifier.fillMaxWidth(),
-                            label = { Text("OpenAI Base URL / Proxy", style = MaterialTheme.typography.bodySmall) },
-                            placeholder = { Text("e.g., https://api.openai.com/v1/chat/completions") },
-                            singleLine = true,
-                            textStyle = MaterialTheme.typography.bodySmall
-                        )
-                        Spacer(modifier = Modifier.height(4.dp))
-                        OutlinedTextField(
-                            value = tempOpenaiWebhookUrl,
-                            onValueChange = { tempOpenaiWebhookUrl = it },
-                            modifier = Modifier.fillMaxWidth(),
-                            label = { Text("OpenAI Webhook URL (Bypasses Polling)", style = MaterialTheme.typography.bodySmall) },
-                            placeholder = { Text("e.g., https://your-server.com/api/webhook") },
-                            singleLine = true,
-                            textStyle = MaterialTheme.typography.bodySmall
-                        )
-                    }
-
-                    // DeepSeek Key
-                    Column {
-                        Text(
-                            text = "DeepSeek API Key (Deepseek Chat)",
-                            style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
-                            color = Color(0xFF0066FF)
-                        )
-                        Spacer(modifier = Modifier.height(4.dp))
-                        OutlinedTextField(
-                            value = tempDeepseekKey,
-                            onValueChange = { tempDeepseekKey = it },
-                            modifier = Modifier.fillMaxWidth(),
-                            placeholder = { Text("Enter your DeepSeek API Key") },
-                            singleLine = true,
-                            textStyle = MaterialTheme.typography.bodySmall
-                        )
-                        Spacer(modifier = Modifier.height(4.dp))
-                        OutlinedTextField(
-                            value = tempDeepseekBaseUrl,
-                            onValueChange = { tempDeepseekBaseUrl = it },
-                            modifier = Modifier.fillMaxWidth(),
-                            label = { Text("DeepSeek Base URL / Proxy", style = MaterialTheme.typography.bodySmall) },
-                            placeholder = { Text("e.g., https://api.deepseek.com/v1/chat/completions") },
-                            singleLine = true,
-                            textStyle = MaterialTheme.typography.bodySmall
-                        )
-                    }
-
-                    // Claude Key
-                    Column {
-                        Text(
-                            text = "Anthropic Claude API Key (Claude Sonet & Opus)",
-                            style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
-                            color = Color(0xFFD97706)
-                        )
-                        Spacer(modifier = Modifier.height(4.dp))
-                        OutlinedTextField(
-                            value = tempClaudeKey,
-                            onValueChange = { tempClaudeKey = it },
-                            modifier = Modifier.fillMaxWidth(),
-                            placeholder = { Text("Enter your Anthropic Claude API Key") },
-                            singleLine = true,
-                            textStyle = MaterialTheme.typography.bodySmall
-                        )
-                        Spacer(modifier = Modifier.height(4.dp))
-                        OutlinedTextField(
-                            value = tempClaudeBaseUrl,
-                            onValueChange = { tempClaudeBaseUrl = it },
-                            modifier = Modifier.fillMaxWidth(),
-                            label = { Text("Claude Base URL / Proxy", style = MaterialTheme.typography.bodySmall) },
-                            placeholder = { Text("e.g., https://api.anthropic.com/v1/messages") },
-                            singleLine = true,
-                            textStyle = MaterialTheme.typography.bodySmall
-                        )
-                    }
-
-                    // XAI Key
-                    Column {
-                        Text(
-                            text = "xAI Grok API Key (Grok 4)",
-                            style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                        Spacer(modifier = Modifier.height(4.dp))
-                        OutlinedTextField(
-                            value = tempXaiKey,
-                            onValueChange = { tempXaiKey = it },
-                            modifier = Modifier.fillMaxWidth(),
-                            placeholder = { Text("Enter your xAI Grok API Key") },
-                            singleLine = true,
-                            textStyle = MaterialTheme.typography.bodySmall
-                        )
-                        Spacer(modifier = Modifier.height(4.dp))
-                        OutlinedTextField(
-                            value = tempXaiBaseUrl,
-                            onValueChange = { tempXaiBaseUrl = it },
-                            modifier = Modifier.fillMaxWidth(),
-                            label = { Text("xAI Base URL / Proxy", style = MaterialTheme.typography.bodySmall) },
-                            placeholder = { Text("e.g., https://api.x.ai/v1/chat/completions") },
-                            singleLine = true,
-                            textStyle = MaterialTheme.typography.bodySmall
-                        )
-                    }
-
-                    // Fal.ai Key
-                    Column {
-                        Text(
-                            text = "Fal.ai / Veo / Kling API Key (Veo, Kling, Flux Schnell, Pro & Realism)",
-                            style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
-                            color = Color(0xFFFF5E00)
-                        )
-                        Spacer(modifier = Modifier.height(4.dp))
-                        OutlinedTextField(
-                            value = tempFalKey,
-                            onValueChange = { tempFalKey = it },
-                            modifier = Modifier.fillMaxWidth(),
-                            placeholder = { Text("Default Active (FAL_API_KEY in .env)") },
-                            singleLine = true,
-                            textStyle = MaterialTheme.typography.bodySmall
-                        )
-                    }
-
-                    // Stability AI Key
-                    Column {
-                        Text(
-                            text = "Stability AI API Key (Stable Image Core / v2beta)",
-                            style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
-                            color = Color(0xFF6366F1)
-                        )
-                        Spacer(modifier = Modifier.height(4.dp))
-                        OutlinedTextField(
-                            value = tempStabilityKey,
-                            onValueChange = { tempStabilityKey = it },
-                            modifier = Modifier.fillMaxWidth(),
-                            placeholder = { Text("Default Active (STABILITY_API_KEY in .env)") },
-                            singleLine = true,
-                            textStyle = MaterialTheme.typography.bodySmall
-                        )
-                    }
-                }
-            },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        viewModel.updateProviderApiKey("Gemini", tempGeminiKey)
-                        viewModel.updateProviderApiKey("OpenAI", tempOpenaiKey)
-                        viewModel.updateProviderApiKey("FalAI", tempFalKey)
-                        viewModel.updateProviderApiKey("Stable Diffusion", tempStabilityKey)
-                        viewModel.updateProviderApiKey("DeepSeek", tempDeepseekKey)
-                        viewModel.updateProviderApiKey("Claude", tempClaudeKey)
-                        viewModel.updateProviderApiKey("XAI", tempXaiKey)
-                        viewModel.updateProviderBaseUrl("Gemini", tempGeminiBaseUrl)
-                        viewModel.updateProviderBaseUrl("OpenAI", tempOpenaiBaseUrl)
-                        viewModel.updateOpenAiWebhookUrl(tempOpenaiWebhookUrl)
-                        viewModel.updateProviderBaseUrl("DeepSeek", tempDeepseekBaseUrl)
-                        viewModel.updateProviderBaseUrl("Claude", tempClaudeBaseUrl)
-                        viewModel.updateProviderBaseUrl("XAI", tempXaiBaseUrl)
-                        showApiKeyDialog = false
-                        Toast.makeText(context, "All API Keys and custom Base URLs saved successfully!", Toast.LENGTH_SHORT).show()
-                    }
-                ) {
-                    Text("Save")
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showApiKeyDialog = false }) {
-                    Text("Cancel")
-                }
-            }
-        )
-    }
-
     // 3. Dialog Bantuan & Tentang Aplikasi
     if (showHelpDialog) {
         AlertDialog(
@@ -1951,12 +1796,12 @@ fun ChatScreen(
                             verticalArrangement = Arrangement.spacedBy(4.dp)
                         ) {
                             Text(
-                                text = "Eddie Assistant v1.4.0",
+                                text = "Prof Eddie v1.4.0",
                                 style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
                                 color = MaterialTheme.colorScheme.primary
                             )
                             Text(
-                                text = "Your multi-modal AI companion powered by Google Gemini, OpenAI, Claude, DeepSeek, and xAI.",
+                                text = "Your multi-modal AI companion powered by OpenAI, Claude, DeepSeek, and xAI.",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurface
                             )
@@ -2032,6 +1877,16 @@ fun ChatScreen(
                     Text("Close")
                 }
             }
+        )
+    }
+
+    if (showThemeDialog) {
+        ThemeSelectorDialog(
+            currentThemeId = uiState.appSkinThemeId,
+            onSelectTheme = { skin ->
+                viewModel.setAppSkinTheme(skin.id)
+            },
+            onDismiss = { showThemeDialog = false }
         )
     }
 
@@ -2416,6 +2271,103 @@ fun ChatScreen(
             onRequireAuth = {
                 showSubscriptionDialog = false
                 showAuthDialog = true
+            }
+        )
+    }
+
+    if (showApiKeySettingsDialog) {
+        ApiKeySettingsDialog(
+            uiState = uiState,
+            viewModel = viewModel,
+            onDismiss = { showApiKeySettingsDialog = false }
+        )
+    }
+
+    if (showAddModelDialog) {
+        var inputModelName by remember { mutableStateOf("") }
+        var inputApiValue by remember { mutableStateOf("") }
+        var selectedProvider by remember { mutableStateOf("OpenAI") }
+        val providerOptions = listOf("OpenAI", "Deepseek", "Anthropic", "Xai", "Custom")
+
+        AlertDialog(
+            onDismissRequest = { showAddModelDialog = false },
+            title = {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Icon(Icons.Default.Add, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                    Text("Tambah Model AI Baru", style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold))
+                }
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text(
+                        "Masukkan informasi model AI yang ingin Anda gunakan.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+
+                    OutlinedTextField(
+                        value = inputModelName,
+                        onValueChange = { inputModelName = it },
+                        label = { Text("Nama Tampilan (Opsional)") },
+                        placeholder = { Text("Contoh: GPT-4o, Claude 3.5") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    OutlinedTextField(
+                        value = inputApiValue,
+                        onValueChange = { inputApiValue = it },
+                        label = { Text("Model ID / API Value *") },
+                        placeholder = { Text("Contoh: gpt-4o, deepseek-chat") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    Column {
+                        Text(
+                            "Provider / Penyedia:",
+                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            providerOptions.forEach { prov ->
+                                FilterChip(
+                                    selected = selectedProvider == prov,
+                                    onClick = { selectedProvider = prov },
+                                    label = { Text(prov, fontSize = 11.sp) }
+                                )
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        if (inputApiValue.isNotBlank()) {
+                            viewModel.addCustomModel(
+                                displayName = inputModelName.ifBlank { inputApiValue },
+                                apiValue = inputApiValue.trim(),
+                                provider = selectedProvider
+                            )
+                            showAddModelDialog = false
+                            Toast.makeText(context, "Model ${inputModelName.ifBlank { inputApiValue }} berhasil ditambahkan", Toast.LENGTH_SHORT).show()
+                        } else {
+                            Toast.makeText(context, "Model ID tidak boleh kosong", Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                ) {
+                    Text("Tambah")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showAddModelDialog = false }) {
+                    Text("Batal")
+                }
             }
         )
     }
@@ -2884,7 +2836,7 @@ fun TypingIndicator(uiState: ChatUiState) {
             }
         }
     } else {
-        // Render Gemini API Text Response Skeleton Screen
+        // Render AI Text Response Skeleton Screen
         Card(
             modifier = Modifier
                 .fillMaxWidth()
@@ -3247,12 +3199,6 @@ fun ChatInputBar(
                             else -> null
                         }
                     }
-                    "Gemini" -> {
-                        when (selectedImageModel) {
-                            "imagen3" -> "Google's state-of-the-art image generation model with high-quality photorealism, excellent detail resolution, and text-to-image accuracy."
-                            else -> null
-                        }
-                    }
                     "Stability" -> {
                         when (selectedImageModel) {
                             "sd3" -> "Stability AI's classic SD3 engine using Multimodal Diffusion Transformers to deliver strong composition and prompt compliance."
@@ -3578,9 +3524,20 @@ fun EddieImageGeneratorView(
     var numImages by remember { mutableStateOf(1) }
     var selectedBackground by remember { mutableStateOf("Auto") }
 
+    // Debug window state
+    var showDebugWindow by remember { mutableStateOf(false) }
+
+    // Auto-open debug window when image generation is active
+    LaunchedEffect(uiState.imageGenIsLoading) {
+        if (uiState.imageGenIsLoading) {
+            showDebugWindow = true
+        }
+    }
+
     // Zoom popup dialog state controllers
     var selectedImageForZoom by remember { mutableStateOf<com.example.data.db.GeneratedImageEntity?>(null) }
     var editingImageItem by remember { mutableStateOf<com.example.data.db.GeneratedImageEntity?>(null) }
+    val allArtwork = uiState.generatedImages
 
     val scrollState = rememberScrollState()
 
@@ -3841,7 +3798,7 @@ fun EddieImageGeneratorView(
                                     modelId == "flux/schnell" || modelId == "flux-schnell" -> 0.75
                                     else -> 0.0
                                 }
-                                val isPro = provider != "Gemini" && tokenCost > 25.0
+                                val isPro = tokenCost > 25.0
                                 
                                 val priceStartIndex = displayName.lastIndexOf('(')
                                 val baseName = if (priceStartIndex != -1) displayName.substring(0, priceStartIndex).trim() else displayName
@@ -3913,12 +3870,6 @@ fun EddieImageGeneratorView(
                                         else -> null
                                     }
                                 }
-                                "Gemini" -> {
-                                    when (activeModelID) {
-                                        "imagen3" -> "Google's state-of-the-art image generation model with high-quality photorealism, excellent detail resolution, and text-to-image accuracy."
-                                        else -> null
-                                    }
-                                }
                                 "Stability" -> {
                                     when (activeModelID) {
                                         "sd3" -> "Stability AI's classic SD3 engine using Multimodal Diffusion Transformers to deliver strong composition and prompt compliance."
@@ -3956,12 +3907,6 @@ fun EddieImageGeneratorView(
                                     when (activeModelID) {
                                         "gpt-image-1.5" -> "GPT Image 1.5"
                                         "gpt-image-2" -> "GPT Image 2"
-                                        else -> activeModelID
-                                    }
-                                }
-                                "Gemini" -> {
-                                    when (activeModelID) {
-                                        "imagen3" -> "Imagen 3"
                                         else -> activeModelID
                                     }
                                 }
@@ -4326,16 +4271,110 @@ fun EddieImageGeneratorView(
             }
         }
 
-        HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f), modifier = Modifier.padding(vertical = 8.dp))
-
-        // History Gallery Section
-        Text(
-            text = "Your Premium Artwork Collection",
-            style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
-            color = MaterialTheme.colorScheme.onSurface
+        // Image Studio Debug Window
+        StudioDebugToggleBar(
+            title = "🛠️ Jendela Debug (Image Studio)",
+            isOpen = showDebugWindow,
+            onToggle = { showDebugWindow = !showDebugWindow },
+            hasLogs = uiState.imageGenLog.isNotBlank(),
+            isLoading = uiState.imageGenIsLoading,
+            modifier = Modifier.padding(top = 8.dp)
         )
 
+        AnimatedVisibility(
+            visible = showDebugWindow,
+            enter = fadeIn(),
+            exit = fadeOut()
+        ) {
+            StudioDebugConsole(
+                title = "Image Studio Debug Pipeline",
+                logText = uiState.imageGenLog,
+                isLoading = uiState.imageGenIsLoading,
+                onClearLog = onClearLog,
+                onClose = { showDebugWindow = false },
+                modifier = Modifier.padding(top = 4.dp)
+            )
+        }
+
+        HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f), modifier = Modifier.padding(vertical = 8.dp))
+
+        // History Gallery Section with Pagination System
         val userImages = uiState.generatedImages
+        var imagesPerPage by remember { mutableStateOf(4) }
+        var imageCurrentPage by remember { mutableStateOf(1) }
+        val totalImagePages = maxOf(1, (userImages.size + imagesPerPage - 1) / imagesPerPage)
+
+        LaunchedEffect(userImages.size, imagesPerPage) {
+            if (imageCurrentPage > totalImagePages) {
+                imageCurrentPage = totalImagePages
+            }
+            if (imageCurrentPage < 1) {
+                imageCurrentPage = 1
+            }
+        }
+
+        val paginatedImages = remember(userImages, imageCurrentPage, imagesPerPage) {
+            val startIndex = (imageCurrentPage - 1) * imagesPerPage
+            val endIndex = minOf(startIndex + imagesPerPage, userImages.size)
+            if (startIndex < userImages.size && startIndex >= 0) {
+                userImages.subList(startIndex, endIndex)
+            } else {
+                emptyList()
+            }
+        }
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = "Your Premium Artwork Collection",
+                    style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                if (userImages.isNotEmpty()) {
+                    val startNum = (imageCurrentPage - 1) * imagesPerPage + 1
+                    val endNum = minOf(imageCurrentPage * imagesPerPage, userImages.size)
+                    Text(
+                        text = "Showing $startNum–$endNum of ${userImages.size} artworks • Page $imageCurrentPage of $totalImagePages",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+
+            if (userImages.size > 4) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    listOf(4, 8, 12).forEach { count ->
+                        FilterChip(
+                            selected = imagesPerPage == count,
+                            onClick = {
+                                imagesPerPage = count
+                                imageCurrentPage = 1
+                            },
+                            label = {
+                                Text(
+                                    text = "$count/p",
+                                    style = MaterialTheme.typography.labelSmall.copy(
+                                        fontSize = 10.sp,
+                                        fontWeight = if (imagesPerPage == count) FontWeight.Bold else FontWeight.Normal
+                                    )
+                                )
+                            },
+                            modifier = Modifier
+                                .height(28.dp)
+                                .testTag("image_items_per_page_$count")
+                        )
+                    }
+                }
+            }
+        }
+
         if (userImages.isEmpty()) {
             Box(
                 modifier = Modifier
@@ -4371,11 +4410,12 @@ fun EddieImageGeneratorView(
                 modifier = Modifier.fillMaxWidth(),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                userImages.forEach { imageItem ->
+                paginatedImages.forEach { imageItem ->
                     Card(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clickable { selectedImageForZoom = imageItem },
+                            .clickable { selectedImageForZoom = imageItem }
+                            .testTag("image_card_${imageItem.id}"),
                         shape = RoundedCornerShape(14.dp),
                         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.25f)),
                         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
@@ -4390,12 +4430,21 @@ fun EddieImageGeneratorView(
                                 modifier = Modifier.fillMaxWidth(),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Surface(
-                                    shape = CircleShape,
-                                    color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f),
-                                    modifier = Modifier.size(36.dp)
+                                Box(
+                                    modifier = Modifier
+                                        .size(44.dp)
+                                        .clip(RoundedCornerShape(10.dp))
+                                        .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f)),
+                                    contentAlignment = Alignment.Center
                                 ) {
-                                    Box(contentAlignment = Alignment.Center) {
+                                    if (imageItem.imageUrl.isNotBlank()) {
+                                        AsyncImage(
+                                            model = imageItem.imageUrl,
+                                            contentDescription = imageItem.prompt,
+                                            modifier = Modifier.fillMaxSize(),
+                                            contentScale = ContentScale.Crop
+                                        )
+                                    } else {
                                         Icon(
                                             imageVector = Icons.Default.Star,
                                             contentDescription = null,
@@ -4447,13 +4496,13 @@ fun EddieImageGeneratorView(
                                 ) {
                                     IconButton(
                                         onClick = { editingImageItem = imageItem },
-                                        modifier = Modifier.size(28.dp)
+                                        modifier = Modifier.size(36.dp)
                                     ) {
                                         Icon(
                                             imageVector = Icons.Default.Edit,
                                             contentDescription = "Edit Image",
                                             tint = MaterialTheme.colorScheme.primary,
-                                            modifier = Modifier.size(16.dp)
+                                            modifier = Modifier.size(18.dp)
                                         )
                                     }
                                     DownloadIconButton(
@@ -4467,20 +4516,106 @@ fun EddieImageGeneratorView(
                                                 }
                                             }
                                         },
-                                        size = 24.dp
+                                        size = 26.dp
                                     )
                                     IconButton(
                                         onClick = { onDeleteImage(imageItem.id) },
-                                        modifier = Modifier.size(28.dp)
+                                        modifier = Modifier.size(36.dp)
                                     ) {
                                         Icon(
                                             imageVector = Icons.Default.Delete,
                                             contentDescription = "Delete Image",
                                             tint = MaterialTheme.colorScheme.error.copy(alpha = 0.8f),
-                                            modifier = Modifier.size(16.dp)
+                                            modifier = Modifier.size(18.dp)
                                         )
                                     }
                                 }
+                            }
+                        }
+                    }
+                }
+
+                // Pagination Navigation Controls
+                if (totalImagePages > 1) {
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("image_pagination_card"),
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)
+                        ),
+                        shape = RoundedCornerShape(12.dp),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 12.dp, vertical = 8.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            OutlinedButton(
+                                onClick = { if (imageCurrentPage > 1) imageCurrentPage-- },
+                                enabled = imageCurrentPage > 1,
+                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+                                shape = RoundedCornerShape(8.dp),
+                                modifier = Modifier
+                                    .minimumInteractiveComponentSize()
+                                    .testTag("image_prev_page_button")
+                            ) {
+                                Icon(
+                                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                    contentDescription = "Previous Page",
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("Prev", style = MaterialTheme.typography.labelMedium)
+                            }
+
+                            Row(
+                                modifier = Modifier
+                                    .weight(1f, fill = false)
+                                    .horizontalScroll(rememberScrollState())
+                                    .padding(horizontal = 6.dp),
+                                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                (1..totalImagePages).forEach { p ->
+                                    FilterChip(
+                                        selected = p == imageCurrentPage,
+                                        onClick = { imageCurrentPage = p },
+                                        label = {
+                                            Text(
+                                                text = "$p",
+                                                style = MaterialTheme.typography.labelMedium.copy(
+                                                    fontWeight = if (p == imageCurrentPage) FontWeight.Bold else FontWeight.Normal
+                                                )
+                                            )
+                                        },
+                                        modifier = Modifier
+                                            .height(32.dp)
+                                            .testTag("image_page_chip_$p")
+                                    )
+                                }
+                            }
+
+                            OutlinedButton(
+                                onClick = { if (imageCurrentPage < totalImagePages) imageCurrentPage++ },
+                                enabled = imageCurrentPage < totalImagePages,
+                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+                                shape = RoundedCornerShape(8.dp),
+                                modifier = Modifier
+                                    .minimumInteractiveComponentSize()
+                                    .testTag("image_next_page_button")
+                            ) {
+                                Text("Next", style = MaterialTheme.typography.labelMedium)
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Icon(
+                                    imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                                    contentDescription = "Next Page",
+                                    modifier = Modifier.size(16.dp)
+                                )
                             }
                         }
                     }
@@ -4490,13 +4625,33 @@ fun EddieImageGeneratorView(
     }
 
     selectedImageForZoom?.let { imageItem ->
+        val zoomIdx = allArtwork.indexOfFirst { it.id == imageItem.id }
         AlertDialog(
             onDismissRequest = { selectedImageForZoom = null },
             title = {
-                Text(
-                    text = "Your AI Artwork Details",
-                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
-                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Your AI Artwork Details",
+                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
+                    )
+                    if (zoomIdx != -1 && allArtwork.size > 1) {
+                        Surface(
+                            shape = RoundedCornerShape(12.dp),
+                            color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
+                        ) {
+                            Text(
+                                text = "${zoomIdx + 1} of ${allArtwork.size}",
+                                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                                color = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                            )
+                        }
+                    }
+                }
             },
             text = {
                 Column(
@@ -4527,6 +4682,46 @@ fun EddieImageGeneratorView(
                                 color = MaterialTheme.colorScheme.secondary,
                                 modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp)
                             )
+                        }
+                    }
+
+                    if (allArtwork.size > 1 && zoomIdx != -1) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            TextButton(
+                                onClick = {
+                                    if (zoomIdx > 0) {
+                                        selectedImageForZoom = allArtwork[zoomIdx - 1]
+                                    }
+                                },
+                                enabled = zoomIdx > 0
+                            ) {
+                                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Previous Image", modifier = Modifier.size(16.dp))
+                                Spacer(Modifier.width(4.dp))
+                                Text("Previous", style = MaterialTheme.typography.labelMedium)
+                            }
+
+                            Text(
+                                text = "Artwork ${zoomIdx + 1}/${allArtwork.size}",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+
+                            TextButton(
+                                onClick = {
+                                    if (zoomIdx < allArtwork.size - 1) {
+                                        selectedImageForZoom = allArtwork[zoomIdx + 1]
+                                    }
+                                },
+                                enabled = zoomIdx < allArtwork.size - 1
+                            ) {
+                                Text("Next", style = MaterialTheme.typography.labelMedium)
+                                Spacer(Modifier.width(4.dp))
+                                Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = "Next Image", modifier = Modifier.size(16.dp))
+                            }
                         }
                     }
                     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -5062,7 +5257,7 @@ fun SocialDistributionDialog(
                             .padding(16.dp),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
-                        Text("💡 Click 'Draft SEO Copy' above to let Gemini create high-engagement titles, SEO descriptions and hashtags for $selectedPlatform!", style = MaterialTheme.typography.bodySmall, textAlign = TextAlign.Center, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text("💡 Click 'Draft SEO Copy' above to let AI create high-engagement titles, SEO descriptions and hashtags for $selectedPlatform!", style = MaterialTheme.typography.bodySmall, textAlign = TextAlign.Center, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
 
@@ -6190,6 +6385,16 @@ fun EddieVideoGeneratorView(
     var endUserIdText by remember { mutableStateOf("aistudio-user-default") }
     var pixverseMultiClip by remember { mutableStateOf(false) }
 
+    // Video Debug Window State
+    var showVideoDebugWindow by remember { mutableStateOf(false) }
+
+    // Automatically expand debug console when video rendering is active
+    LaunchedEffect(uiState.videoGenIsLoading) {
+        if (uiState.videoGenIsLoading) {
+            showVideoDebugWindow = true
+        }
+    }
+
     val videoScrollState = rememberScrollState()
     var pixverseThinkingType by remember { mutableStateOf("auto") }
     var lumaLoop by remember { mutableStateOf(false) }
@@ -6420,8 +6625,6 @@ fun EddieVideoGeneratorView(
             selectedDuration = "5"
         }
     }
-
-    val isGeminiVeo3_1 = false
 
     var uploadedImages by remember { mutableStateOf<List<com.example.data.db.GeneratedImageEntity>>(emptyList()) }
 
@@ -7429,8 +7632,8 @@ fun EddieVideoGeneratorView(
                                                     DropdownMenuItem(
                                                         text = { Text("$sOpt seconds") },
                                                         onClick = {
-                                                            shot.second.value = sOpt
                                                             expandedDurationDropdown = false
+                                                            shot.second.value = sOpt
                                                         }
                                                     )
                                                 }
@@ -8910,7 +9113,7 @@ fun EddieVideoGeneratorView(
             }
         }
 
-    if (((uiState.selectedVideoProvider == "Gemini" && uiState.selectedVideoMode == "Text to Video") || isFalVeo3 || isFalVeo3FastModel || isVeo2 || isKlingV26Pro || isKlingV3Standard || isKlingV3Pro || isKlingO3_4k || isKlingO3Standard || isKlingO3Pro || isKlingV3_4k || isBytedance || uiState.selectedVideoProvider == "PixVerse") && !isVeo2) {
+    if ((isFalVeo3 || isFalVeo3FastModel || isVeo2 || isKlingV26Pro || isKlingV3Standard || isKlingV3Pro || isKlingO3_4k || isKlingO3Standard || isKlingO3Pro || isKlingV3_4k || isBytedance || uiState.selectedVideoProvider == "PixVerse") && !isVeo2) {
             Column {
                 Text(
                     text = "Generate Audio",
@@ -9414,6 +9617,31 @@ fun EddieVideoGeneratorView(
                     style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
                 )
             }
+        }
+
+        // Video Studio Debug Window
+        StudioDebugToggleBar(
+            title = "🛠️ Jendela Debug (Video Studio)",
+            isOpen = showVideoDebugWindow,
+            onToggle = { showVideoDebugWindow = !showVideoDebugWindow },
+            hasLogs = uiState.videoGenLog.isNotBlank(),
+            isLoading = uiState.videoGenIsLoading,
+            modifier = Modifier.padding(top = 8.dp)
+        )
+
+        AnimatedVisibility(
+            visible = showVideoDebugWindow,
+            enter = fadeIn(),
+            exit = fadeOut()
+        ) {
+            StudioDebugConsole(
+                title = "Video Studio Debug Pipeline",
+                logText = uiState.videoGenLog,
+                isLoading = uiState.videoGenIsLoading,
+                onClearLog = { chatViewModel.clearVideoGenLog() },
+                onClose = { showVideoDebugWindow = false },
+                modifier = Modifier.padding(top = 4.dp)
+            )
         }
 
         if (uiState.videoGenIsLoading) {

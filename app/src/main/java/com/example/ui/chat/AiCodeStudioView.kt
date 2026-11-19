@@ -69,7 +69,8 @@ fun EddieAiCodeStudioView(
     // Code Tasks
     val codeActions = listOf(
         Triple("Code Generation", "Write new code from your functional description.", false),
-        Triple("Bug Finder & Debugger", "Find errors, security bugs, and fix their code.", false),
+        Triple("Code Review & Bug Hunter", "Comprehensive code review, security vulnerability audit & bug fix.", false),
+        Triple("Bug Finder & Debugger", "Find errors, syntax bugs, and runtime exceptions.", false),
         Triple("Refactor & Optimization", "Optimize algorithm efficiency, readability, and speed.", true),
         Triple("Language Converter", "Convert code structure from one language to another.", true)
     )
@@ -116,12 +117,12 @@ fun EddieAiCodeStudioView(
                     Spacer(modifier = Modifier.width(16.dp))
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            text = "Eddie AI Code Studio",
+                            text = "Eddie AI Code Studio & Reviewer",
                             style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
                             color = MaterialTheme.colorScheme.onSurface
                         )
                         Text(
-                            text = "Intelligent assistant for code design, performance optimization, and programming language conversion.",
+                            text = "Intelligent assistant for code generation, bug hunting, automated code review, and optimization.",
                             style = MaterialTheme.typography.labelMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -381,6 +382,7 @@ fun EddieAiCodeStudioView(
             // STEP 3: INPUT AREA
             val inputLabelText = when (selectedTask) {
                 "Code Generation" -> "Describe the program you want to build..."
+                "Code Review & Bug Hunter" -> "Paste your $selectedLanguage code here for in-depth security & bug review..."
                 "Bug Finder & Debugger" -> "Paste your code here to debug..."
                 "Refactor & Optimization" -> "Paste your code to optimize..."
                 "Language Converter" -> "Paste your $selectedLanguage code to convert to $targetLanguage..."

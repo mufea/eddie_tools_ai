@@ -169,8 +169,8 @@ fun EddieSfxGeneratorView(
                                         DropdownMenuItem(
                                             text = { Text(category) },
                                             onClick = {
-                                                selectedCategory = category
                                                 showCategoryDropdown = false
+                                                selectedCategory = category
                                             }
                                         )
                                     }

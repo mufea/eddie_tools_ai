@@ -790,7 +790,7 @@ fun EddiePhotoTourismView(
                             shape = RoundedCornerShape(10.dp),
                             enabled = !uiState.arIsScanning
                         ) {
-                            Text("🔍 Synchronize AR & Scan with Gemini AI", fontWeight = FontWeight.Bold)
+                            Text("🔍 Synchronize AR & Scan with AI", fontWeight = FontWeight.Bold)
                         }
 
                         OutlinedTextField(

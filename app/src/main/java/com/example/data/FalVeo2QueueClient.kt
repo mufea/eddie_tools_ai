@@ -131,10 +131,19 @@ class FalVeo2QueueClient {
         enhancePrompt: Boolean = true,
         autoFix: Boolean = true,
         negativePrompt: String? = null,
+        proxyUrl: String? = null,
         onRequestIdReceived: (String) -> Unit = {},
         onLogMessage: (String) -> Unit = {}
     ): String = withContext(Dispatchers.IO) {
-        val apiKey = getApiKey(customApiKey)
+        val isProxy = !proxyUrl.isNullOrBlank() && (proxyUrl.contains("api/video") || proxyUrl.contains("gemini") || proxyUrl.contains("vercel") || proxyUrl.contains("workers.dev"))
+        val resolvedProxyUrl = if (isProxy) {
+            val p = proxyUrl!!.trim()
+            if (p.endsWith("/api/video")) p
+            else if (p.endsWith("/")) "${p}api/video"
+            else "$p/api/video"
+        } else null
+
+        val apiKey = getApiKey(customApiKey, resolvedProxyUrl != null)
         
         onLogMessage("> [Veo 2 Engine] Initializing asynchronous rendering pipeline...\n")
         
@@ -150,6 +159,7 @@ class FalVeo2QueueClient {
             enhancePrompt = enhancePrompt,
             autoFix = autoFix,
             negativePrompt = negativePrompt,
+            proxyUrl = resolvedProxyUrl,
             onLog = onLogMessage
         )
         
@@ -169,6 +179,7 @@ class FalVeo2QueueClient {
         pollStatus(
             statusUrl = statusUrl,
             apiKey = apiKey,
+            proxyUrl = resolvedProxyUrl,
             onLog = onLogMessage
         )
         
@@ -177,6 +188,7 @@ class FalVeo2QueueClient {
         val finalVideoUrl = retrieveResult(
             responseUrl = responseUrl,
             apiKey = apiKey,
+            proxyUrl = resolvedProxyUrl,
             onLog = onLogMessage
         )
         
@@ -198,14 +210,15 @@ class FalVeo2QueueClient {
         enhancePrompt: Boolean = true,
         autoFix: Boolean = true,
         negativePrompt: String? = null,
+        proxyUrl: String? = null,
         onLog: (String) -> Unit
     ): QueueSubmitResponse {
         val actualModel = "fal-ai/veo2"
         val isImageToVideo = mode == "Image to Video" && !imageUrl.isNullOrBlank()
         
-        val submitUrl = "https://queue.fal.run/$actualModel"
+        val submitUrl = proxyUrl ?: "https://queue.fal.run/$actualModel"
         
-        onLog("> [Veo 2 API] POST submission initiated to queue endpoint...\n")
+        onLog("> [Veo 2 API] POST submission initiated to queue endpoint: $submitUrl...\n")
         
         val durationSecs = when {
             duration.contains("8") -> "8s"
@@ -219,6 +232,9 @@ class FalVeo2QueueClient {
         }
         
         val requestJson = JSONObject().apply {
+            if (proxyUrl != null) {
+                put("model", actualModel)
+            }
             put("prompt", prompt)
             put("duration", durationSecs)
             put("aspect_ratio", aspectToUse)
@@ -274,6 +290,7 @@ class FalVeo2QueueClient {
     suspend fun pollStatus(
         statusUrl: String,
         apiKey: String,
+        proxyUrl: String? = null,
         onLog: (String) -> Unit
     ) {
         onLog("> [Veo 2 Polling] Starting active status check loop (Interval: 5s, Max Duration: 10m)...\n")
@@ -291,8 +308,14 @@ class FalVeo2QueueClient {
             
             delay(pollIntervalMs)
             
+            val targetStatusUrl = if (proxyUrl != null) {
+                "$proxyUrl?statusUrl=" + java.net.URLEncoder.encode(statusUrl, "UTF-8")
+            } else {
+                statusUrl
+            }
+            
             val statusRequest = Request.Builder()
-                .url(statusUrl)
+                .url(targetStatusUrl)
                 .header("Authorization", "Key $apiKey")
                 .get()
                 .build()
@@ -334,10 +357,17 @@ class FalVeo2QueueClient {
     suspend fun retrieveResult(
         responseUrl: String,
         apiKey: String,
+        proxyUrl: String? = null,
         onLog: (String) -> Unit
     ): String {
+        val targetResultUrl = if (proxyUrl != null) {
+            "$proxyUrl?statusUrl=" + java.net.URLEncoder.encode(responseUrl, "UTF-8")
+        } else {
+            responseUrl
+        }
+
         val resultRequest = Request.Builder()
-            .url(responseUrl)
+            .url(targetResultUrl)
             .header("Authorization", "Key $apiKey")
             .get()
             .build()
@@ -433,10 +463,13 @@ class FalVeo2QueueClient {
      * Resolves the correct Fal API Key from parameter or BuildConfig.
      * Implements requirement #13.
      */
-    private fun getApiKey(customKey: String?): String {
+    private fun getApiKey(customKey: String?, isProxy: Boolean = false): String {
         val key = if (!customKey.isNullOrBlank()) customKey.trim() else BuildConfig.FAL_API_KEY
+        if (isProxy && (key.isBlank() || key.contains("PLACEHOLDER"))) {
+            return "proxy_active"
+        }
         if (key.isBlank() || key.contains("PLACEHOLDER")) {
-            throw IllegalStateException("Fal.ai API Key is missing. Please configure FAL_API_KEY in the Secrets panel.")
+            throw IllegalStateException("Fal.ai API Key is missing. Please configure FAL_API_KEY in the Secrets panel or select a Video Proxy in Settings.")
         }
         return key
     }

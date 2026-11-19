@@ -16,87 +16,82 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
 import java.util.UUID
 import com.example.BuildConfig
-import com.example.data.GeminiClient
-import com.example.data.GenerateContentRequest
 import org.json.JSONObject
 import org.json.JSONArray
-import com.example.data.Content
-import com.example.data.Part
-import com.example.data.GenerationConfig
-import com.example.data.ImageConfig
 
 fun Double.formatTokens(): String {
     return if (this % 1.0 == 0.0) {
         this.toLong().toString()
     } else {
-        val formatted = String.format(java.util.Locale.US, "%.3f", this)
+        val formatted = String.format(java.util.Locale.US, "%.4f", this)
         formatted.replace(Regex("0+$"), "").replace(Regex("\\.$"), "")
     }
 }
 
-data class GeminiModel(
+data class AiModel(
     val displayName: String,
     val apiValue: String,
     val subtitle: String,
-    val provider: String = "Gemini",
+    val provider: String = "OpenAI",
     val isPro: Boolean = false,
     val tokenPrice: String = "Free"
 )
+typealias GeminiModel = AiModel
 
-val availableModels = listOf(
-    // OpenAI
-    GeminiModel(
-        displayName = "GPT 5 Mini",
-        apiValue = "gpt-5-mini",
-        subtitle = "OpenAI's efficient, lightweight model with high-speed intelligence.",
+val defaultDynamicModels: List<AiModel> = listOf(
+    AiModel(
+        displayName = "GPT",
+        apiValue = "gpt-5-2025-08-07",
+        subtitle = "OpenAI flagship reasoning model",
         provider = "OpenAI",
         isPro = false,
-        tokenPrice = "🪙 0.0167 Tokens / 25 words"
+        tokenPrice = "Free"
     ),
-    GeminiModel(
-        displayName = "GPT 5.5",
-        apiValue = "gpt5.5",
-        subtitle = "Next-generation reasoning model from OpenAI.",
+    AiModel(
+        displayName = "GPT mini",
+        apiValue = "gpt-5-mini-2025-08-07",
+        subtitle = "OpenAI fast lightweight reasoning model",
         provider = "OpenAI",
         isPro = false,
-        tokenPrice = "🪙 0.2500 Tokens / 25 words"
+        tokenPrice = "Free"
     ),
-    // DeepSeek
-    GeminiModel(
-        displayName = "DeepSeek Chat",
+    AiModel(
+        displayName = "Claude Opus",
+        apiValue = "claude-opus-5",
+        subtitle = "Anthropic deep reasoning & synthesis model",
+        provider = "Anthropic",
+        isPro = false,
+        tokenPrice = "Free"
+    ),
+    AiModel(
+        displayName = "Claude Sonnet",
+        apiValue = "claude-sonnet-5",
+        subtitle = "Anthropic high-intelligence balanced model",
+        provider = "Anthropic",
+        isPro = false,
+        tokenPrice = "Free"
+    ),
+    AiModel(
+        displayName = "Deepseek",
         apiValue = "deepseek-chat",
-        subtitle = "DeepSeek's powerful, cost-efficient language model.",
-        provider = "DeepSeek",
+        subtitle = "DeepSeek code & reasoning intelligence",
+        provider = "Deepseek",
         isPro = false,
-        tokenPrice = "🪙 0.0092 Tokens / 25 words"
+        tokenPrice = "Free"
     ),
-    // Anthropic
-    GeminiModel(
-        displayName = "Claude Sonnet 4.6",
-        apiValue = "claude-sonnet-4-6",
-        subtitle = "Anthropic's latest flagship model with balanced speed and depth.",
-        provider = "Claude",
-        isPro = false,
-        tokenPrice = "🪙 0.0938 Tokens / 25 words"
-    ),
-    GeminiModel(
-        displayName = "Claude Opus 4.7",
-        apiValue = "claude-opus-4-7",
-        subtitle = "Anthropic's most powerful future reasoning model.",
-        provider = "Claude",
-        isPro = true,
-        tokenPrice = "🪙 0.0938 Tokens / 25 words"
-    ),
-    // XAI
-    GeminiModel(
-        displayName = "Grok 4.3",
+    AiModel(
+        displayName = "Grok",
         apiValue = "grok-4.3",
-        subtitle = "xAI's next-generation reasoning model.",
-        provider = "XAI",
-        isPro = true,
-        tokenPrice = "🪙 0.0688 Tokens / 25 words"
+        subtitle = "xAI conversational intelligence",
+        provider = "Xai",
+        isPro = false,
+        tokenPrice = "Free"
     )
 )
+
+var availableModels: List<AiModel> = defaultDynamicModels
+
+val defaultFallbackModel = availableModels[0]
 
 data class ChatSession(
     val id: String = UUID.randomUUID().toString(),
@@ -209,23 +204,24 @@ data class ChatUiState(
     val sessions: List<ChatSession> = emptyList(),
     val currentSessionId: String = "",
     val isLoading: Boolean = false,
-    val selectedModel: GeminiModel = availableModels[0], // Default is GPT 5 Mini
-    val customSystemInstruction: String = "You are Eddie, a helpful and expert AI Assistant. Please use Indonesian if requested, or Markdown formatting for easy reading.",
+    val selectedModel: AiModel = availableModels[0],
+    val customModels: List<AiModel> = emptyList(),
+    val customSystemInstruction: String = "You are Prof Eddie, a helpful and expert AI Assistant. Please use Indonesian if requested, or Markdown formatting for easy reading.",
     val customApiKey: String = "",
-    val geminiApiKey: String = "",
+    val proxyBaseUrl: String = "https://geminiaitools.com/",
     val openaiApiKey: String = "",
     val falApiKey: String = "",
     val stabilityApiKey: String = "",
     val deepseekApiKey: String = "",
     val claudeApiKey: String = "",
     val xaiApiKey: String = "",
-    val geminiBaseUrl: String = "",
-    val openaiBaseUrl: String = "",
+    val openaiBaseUrl: String = "https://geminiaitools.com/",
     val openaiWebhookUrl: String = "",
-    val deepseekBaseUrl: String = "",
-    val claudeBaseUrl: String = "",
-    val xaiBaseUrl: String = "",
+    val deepseekBaseUrl: String = "https://geminiaitools.com/",
+    val claudeBaseUrl: String = "https://geminiaitools.com/",
+    val xaiBaseUrl: String = "https://geminiaitools.com/",
     val isDarkTheme: Boolean = false,
+    val appSkinThemeId: String = "slate",
     val currentUserProfile: UserProfile? = null,
     val isSubscribed: Boolean = true,
     val activeSubscriptionPlan: String? = "Developer Pro (Testing)",
@@ -522,6 +518,29 @@ class ChatViewModel(
     private var musicCollectionJob: Job? = null
     private var interiorDesignsCollectionJob: Job? = null
 
+    private fun getActiveKeysMap(): Map<String, String> = mapOf(
+        "OpenAI" to _uiState.value.openaiApiKey,
+        "DeepSeek" to _uiState.value.deepseekApiKey,
+        "Deepseek" to _uiState.value.deepseekApiKey,
+        "Claude" to _uiState.value.claudeApiKey,
+        "Anthropic" to _uiState.value.claudeApiKey,
+        "XAI" to _uiState.value.xaiApiKey,
+        "Xai" to _uiState.value.xaiApiKey
+    )
+
+    private fun getActiveUrlsMap(): Map<String, String> {
+        val proxy = _uiState.value.proxyBaseUrl.ifBlank { "https://geminiaitools.com/" }
+        return mapOf(
+            "OpenAI" to _uiState.value.openaiBaseUrl.ifBlank { proxy },
+            "DeepSeek" to _uiState.value.deepseekBaseUrl.ifBlank { proxy },
+            "Deepseek" to _uiState.value.deepseekBaseUrl.ifBlank { proxy },
+            "Claude" to _uiState.value.claudeBaseUrl.ifBlank { proxy },
+            "Anthropic" to _uiState.value.claudeBaseUrl.ifBlank { proxy },
+            "XAI" to _uiState.value.xaiBaseUrl.ifBlank { proxy },
+            "Xai" to _uiState.value.xaiBaseUrl.ifBlank { proxy }
+        )
+    }
+
     // Keep track of registered users in memory for high-fidelity fully-functional Sign In/Up
     private val registeredUsers = mutableMapOf<String, Pair<String, String>>(
         "mufeas@gmail.com" to Pair("password123", "Eddie")
@@ -535,6 +554,260 @@ class ChatViewModel(
             initialValue = emptyList()
         )
 
+    fun testProxyConnection(url: String = _uiState.value.proxyBaseUrl, onResult: (Boolean, String) -> Unit) {
+        viewModelScope.launch {
+            val res = repository.testProxyConnectivity(url)
+            onResult(res.first, res.second)
+        }
+    }
+
+    fun fetchApiKeysFromProxy(
+        url: String = _uiState.value.proxyBaseUrl,
+        onResult: (Boolean, Map<String, String>?, String) -> Unit
+    ) {
+        viewModelScope.launch {
+            val result = repository.fetchApiKeysFromProxy(url)
+            result.onSuccess { keysMap ->
+                val prefs = try {
+                    AppContextProvider.context.getSharedPreferences("eddie_prefs", Context.MODE_PRIVATE)
+                } catch (e: Exception) {
+                    null
+                }
+                val editor = prefs?.edit()
+
+                val openaiKey = keysMap["openai"]
+                val deepseekKey = keysMap["deepseek"]
+                val claudeKey = keysMap["anthropic"] ?: keysMap["claude"]
+                val xaiKey = keysMap["xai"]
+                val stabilityKey = keysMap["stability"] ?: keysMap["stablediffusion"] ?: keysMap["stabilityai"]
+                val falKey = keysMap["fal"] ?: keysMap["falai"] ?: keysMap["fal_key"]
+
+                _uiState.update { state ->
+                    var s = state
+                    if (!openaiKey.isNullOrBlank()) {
+                        s = s.copy(openaiApiKey = openaiKey)
+                        editor?.putString("openai_key", openaiKey)
+                    }
+                    if (!deepseekKey.isNullOrBlank()) {
+                        s = s.copy(deepseekApiKey = deepseekKey)
+                        editor?.putString("deepseek_key", deepseekKey)
+                    }
+                    if (!claudeKey.isNullOrBlank()) {
+                        s = s.copy(claudeApiKey = claudeKey)
+                        editor?.putString("claude_key", claudeKey)
+                    }
+                    if (!xaiKey.isNullOrBlank()) {
+                        s = s.copy(xaiApiKey = xaiKey)
+                        editor?.putString("xai_key", xaiKey)
+                    }
+                    if (!stabilityKey.isNullOrBlank()) {
+                        s = s.copy(stabilityApiKey = stabilityKey)
+                        editor?.putString("stability_key", stabilityKey)
+                        editor?.putString("stable diffusion_key", stabilityKey)
+                    }
+                    if (!falKey.isNullOrBlank()) {
+                        s = s.copy(falApiKey = falKey)
+                        editor?.putString("falai_key", falKey)
+                    }
+                    s
+                }
+                editor?.apply()
+                onResult(true, keysMap, "Berhasil mengambil ${keysMap.size} API Keys dari proxy!")
+            }.onFailure { err ->
+                onResult(false, null, err.localizedMessage ?: "Gagal mengambil API key dari proxy.")
+            }
+        }
+    }
+
+    fun fetchDynamicModelsFromProxy(
+        url: String = _uiState.value.proxyBaseUrl,
+        onResult: ((Boolean, List<AiModel>?, String) -> Unit)? = null
+    ) {
+        viewModelScope.launch {
+            val params = listOf(
+                "OPENAI_MODEL_GPT",
+                "OPENAI_MODEL_GPT_MINI",
+                "ANTHROPIC_MODEL_OPUS",
+                "ANTHROPIC_MODEL_SONET",
+                "DEEPSEEK_MODEL",
+                "XAI_MODEL_GROK",
+                "FAL",
+                "STABILITY"
+            )
+
+            val result = repository.fetchDynamicModelConfigsFromProxy(url, params)
+            result.onSuccess { configMap ->
+                val prefs = try {
+                    AppContextProvider.context.getSharedPreferences("eddie_prefs", Context.MODE_PRIVATE)
+                } catch (e: Exception) {
+                    null
+                }
+                val editor = prefs?.edit()
+
+                val newModels = mutableListOf<AiModel>()
+
+                // 1. GPT
+                configMap["OPENAI_MODEL_GPT"]?.let { c ->
+                    val targetModel = c["targetModel"]?.takeIf { it.isNotBlank() } ?: "gpt-5-2025-08-07"
+                    val key = c["apiKey"]?.takeIf { it.isNotBlank() }
+                    if (key != null) {
+                        _uiState.update { it.copy(openaiApiKey = key) }
+                        editor?.putString("openai_key", key)
+                    }
+                    newModels.add(
+                        AiModel(
+                            displayName = "GPT",
+                            apiValue = targetModel,
+                            subtitle = "OpenAI flagship reasoning model ($targetModel)",
+                            provider = "OpenAI",
+                            isPro = false,
+                            tokenPrice = "Free"
+                        )
+                    )
+                }
+
+                // 2. GPT mini
+                configMap["OPENAI_MODEL_GPT_MINI"]?.let { c ->
+                    val targetModel = c["targetModel"]?.takeIf { it.isNotBlank() } ?: "gpt-5-mini-2025-08-07"
+                    val key = c["apiKey"]?.takeIf { it.isNotBlank() }
+                    if (key != null && _uiState.value.openaiApiKey.isBlank()) {
+                        _uiState.update { it.copy(openaiApiKey = key) }
+                        editor?.putString("openai_key", key)
+                    }
+                    newModels.add(
+                        AiModel(
+                            displayName = "GPT mini",
+                            apiValue = targetModel,
+                            subtitle = "OpenAI fast lightweight reasoning model ($targetModel)",
+                            provider = "OpenAI",
+                            isPro = false,
+                            tokenPrice = "Free"
+                        )
+                    )
+                }
+
+                // 3. Claude Opus
+                configMap["ANTHROPIC_MODEL_OPUS"]?.let { c ->
+                    val targetModel = c["targetModel"]?.takeIf { it.isNotBlank() } ?: "claude-opus-5"
+                    val key = c["apiKey"]?.takeIf { it.isNotBlank() }
+                    if (key != null) {
+                        _uiState.update { it.copy(claudeApiKey = key) }
+                        editor?.putString("claude_key", key)
+                    }
+                    newModels.add(
+                        AiModel(
+                            displayName = "Claude Opus",
+                            apiValue = targetModel,
+                            subtitle = "Anthropic deep reasoning & synthesis model ($targetModel)",
+                            provider = "Anthropic",
+                            isPro = false,
+                            tokenPrice = "Free"
+                        )
+                    )
+                }
+
+                // 4. Claude Sonnet
+                configMap["ANTHROPIC_MODEL_SONET"]?.let { c ->
+                    val targetModel = c["targetModel"]?.takeIf { it.isNotBlank() } ?: "claude-sonnet-5"
+                    val key = c["apiKey"]?.takeIf { it.isNotBlank() }
+                    if (key != null && _uiState.value.claudeApiKey.isBlank()) {
+                        _uiState.update { it.copy(claudeApiKey = key) }
+                        editor?.putString("claude_key", key)
+                    }
+                    newModels.add(
+                        AiModel(
+                            displayName = "Claude Sonnet",
+                            apiValue = targetModel,
+                            subtitle = "Anthropic high-intelligence balanced model ($targetModel)",
+                            provider = "Anthropic",
+                            isPro = false,
+                            tokenPrice = "Free"
+                        )
+                    )
+                }
+
+                // 5. Deepseek
+                configMap["DEEPSEEK_MODEL"]?.let { c ->
+                    val targetModel = c["targetModel"]?.takeIf { it.isNotBlank() } ?: "deepseek-chat"
+                    val key = c["apiKey"]?.takeIf { it.isNotBlank() }
+                    if (key != null) {
+                        _uiState.update { it.copy(deepseekApiKey = key) }
+                        editor?.putString("deepseek_key", key)
+                    }
+                    newModels.add(
+                        AiModel(
+                            displayName = "Deepseek",
+                            apiValue = targetModel,
+                            subtitle = "DeepSeek advanced reasoning model ($targetModel)",
+                            provider = "Deepseek",
+                            isPro = false,
+                            tokenPrice = "Free"
+                        )
+                    )
+                }
+
+                // 6. Grok
+                configMap["XAI_MODEL_GROK"]?.let { c ->
+                    val targetModel = c["targetModel"]?.takeIf { it.isNotBlank() } ?: "grok-4.3"
+                    val key = c["apiKey"]?.takeIf { it.isNotBlank() }
+                    if (key != null) {
+                        _uiState.update { it.copy(xaiApiKey = key) }
+                        editor?.putString("xai_key", key)
+                    }
+                    newModels.add(
+                        AiModel(
+                            displayName = "Grok",
+                            apiValue = targetModel,
+                            subtitle = "xAI conversational intelligence ($targetModel)",
+                            provider = "Xai",
+                            isPro = false,
+                            tokenPrice = "Free"
+                        )
+                    )
+                }
+
+                // 7. Fal.ai & Stability AI keys
+                configMap["FAL"]?.let { c ->
+                    val key = c["apiKey"]?.takeIf { it.isNotBlank() }
+                    if (key != null) {
+                        _uiState.update { it.copy(falApiKey = key) }
+                        editor?.putString("falai_key", key)
+                    }
+                }
+
+                configMap["STABILITY"]?.let { c ->
+                    val key = c["apiKey"]?.takeIf { it.isNotBlank() }
+                    if (key != null) {
+                        _uiState.update { it.copy(stabilityApiKey = key) }
+                        editor?.putString("stability_key", key)
+                        editor?.putString("stable diffusion_key", key)
+                    }
+                }
+
+                editor?.apply()
+
+                if (newModels.isNotEmpty()) {
+                    availableModels = newModels
+                    saveDynamicModels(newModels)
+
+                    _uiState.update { state ->
+                        val currentSelected = state.selectedModel
+                        val updatedSelected = newModels.firstOrNull { it.displayName == currentSelected.displayName || it.apiValue == currentSelected.apiValue }
+                            ?: newModels.firstOrNull()
+                            ?: currentSelected
+                        state.copy(selectedModel = updatedSelected)
+                    }
+
+                    onResult?.invoke(true, newModels, "Berhasil memuat ${newModels.size} model dari proxy eddie!")
+                } else {
+                    onResult?.invoke(false, null, "Tidak ada model yang ditemukan dari proxy.")
+                }
+            }.onFailure { err ->
+                onResult?.invoke(false, null, err.localizedMessage ?: "Gagal memuat model dari proxy.")
+            }
+        }
+    }
+
     init {
         val prefs = try {
             AppContextProvider.context.getSharedPreferences("eddie_prefs", Context.MODE_PRIVATE)
@@ -544,50 +817,13 @@ class ChatViewModel(
         }
         val showTooltip = prefs?.getBoolean("show_agentic_tooltip", false) ?: false
         
-        var existingOpenai = prefs?.getString("openai_key", "") ?: ""
-        if (existingOpenai == "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") {
-            try {
-                prefs?.edit()?.remove("openai_key")?.apply()
-            } catch (e: Exception) {
-                // Ignore
-            }
-            existingOpenai = ""
-        }
-        val initialOpenai = existingOpenai
-
-        // Clear any stored DeepSeek key from preferences as requested
-        try {
-            prefs?.edit()?.remove("deepseek_key")?.apply()
-        } catch (e: Exception) {
-            // Ignore
-        }
-
-        // Clear any stored Claude key from preferences as requested
-        try {
-            prefs?.edit()?.remove("claude_key")?.apply()
-        } catch (e: Exception) {
-            // Ignore
-        }
-
-        // Clear any stored xAI key from preferences as requested
-        try {
-            prefs?.edit()?.remove("xai_key")?.apply()
-        } catch (e: Exception) {
-            // Ignore
-        }
-
-        val existingGemini = prefs?.getString("gemini_key", "") ?: ""
-        val initialGemini = if (existingGemini.isBlank()) {
-            val key = "AIzaSyA2L6MULkOonvtSdlDQEUJCep3Kc13UzAQ"
-            try {
-                prefs?.edit()?.putString("gemini_key", key)?.apply()
-            } catch (e: Exception) {
-                // Ignore save errors
-            }
-            key
-        } else {
-            existingGemini
-        }
+        val initialOpenai = prefs?.getString("openai_key", "") ?: ""
+        val initialDeepseek = prefs?.getString("deepseek_key", "") ?: ""
+        val initialClaude = prefs?.getString("claude_key", "") ?: ""
+        val initialXai = prefs?.getString("xai_key", "") ?: ""
+        val initialFal = prefs?.getString("falai_key", "") ?: ""
+        val initialStability = (prefs?.getString("stability_key", "")?.takeIf { it.isNotBlank() }
+            ?: prefs?.getString("stable diffusion_key", "")) ?: ""
 
         val tokens = if (prefs != null) {
             try {
@@ -603,21 +839,43 @@ class ChatViewModel(
             999999.0
         }
 
-         _uiState.update { state ->
+        val defaultProxy = "https://geminiaitools.com/"
+        fun sanitizeStoredProxy(key: String): String {
+            val stored = prefs?.getString(key, defaultProxy)?.trim()
+            return if (stored.isNullOrBlank() || stored.contains("eddie-proxy.onrender.com")) defaultProxy else stored
+        }
+
+        val loadedDynamicModels = loadDynamicModels()
+        if (loadedDynamicModels.isNotEmpty()) {
+            availableModels = loadedDynamicModels
+        }
+
+        val loadedCustomModels = loadCustomModels()
+        val allAvailableModels = availableModels + loadedCustomModels
+        val lastSelectedApi = prefs?.getString("selected_chat_model_api", "") ?: ""
+        val initialSelectedModel = allAvailableModels.firstOrNull { it.apiValue == lastSelectedApi }
+            ?: availableModels.firstOrNull()
+            ?: loadedCustomModels.firstOrNull()
+            ?: defaultFallbackModel
+
+        _uiState.update { state ->
             state.copy(
-                geminiApiKey = initialGemini,
+                customModels = loadedCustomModels,
+                selectedModel = initialSelectedModel,
                 openaiApiKey = initialOpenai,
                 falApiKey = prefs?.getString("falai_key", "") ?: "",
-                stabilityApiKey = prefs?.getString("stable diffusion_key", "") ?: "",
-                deepseekApiKey = prefs?.getString("deepseek_key", "") ?: "",
-                claudeApiKey = prefs?.getString("claude_key", "") ?: "",
-                xaiApiKey = prefs?.getString("xai_key", "") ?: "",
-                geminiBaseUrl = prefs?.getString("gemini_base_url", "") ?: "",
-                openaiBaseUrl = prefs?.getString("openai_base_url", "") ?: "",
+                stabilityApiKey = (prefs?.getString("stability_key", "")?.takeIf { it.isNotBlank() }
+                    ?: prefs?.getString("stable diffusion_key", "")) ?: "",
+                deepseekApiKey = initialDeepseek,
+                claudeApiKey = initialClaude,
+                xaiApiKey = initialXai,
+                proxyBaseUrl = sanitizeStoredProxy("proxy_base_url"),
+                openaiBaseUrl = sanitizeStoredProxy("openai_base_url"),
                 openaiWebhookUrl = prefs?.getString("openai_webhook_url", "") ?: "",
-                deepseekBaseUrl = prefs?.getString("deepseek_base_url", "") ?: "",
-                claudeBaseUrl = prefs?.getString("claude_base_url", "") ?: "",
-                xaiBaseUrl = prefs?.getString("xai_base_url", "") ?: "",
+                deepseekBaseUrl = sanitizeStoredProxy("deepseek_base_url"),
+                claudeBaseUrl = sanitizeStoredProxy("claude_base_url"),
+                xaiBaseUrl = sanitizeStoredProxy("xai_base_url"),
+                appSkinThemeId = prefs?.getString("app_skin_theme", "slate") ?: "slate",
                 showAgenticTooltip = showTooltip,
                 userTokens = tokens
             )
@@ -644,6 +902,22 @@ class ChatViewModel(
                 ))
             } catch (e: Exception) {
                 android.util.Log.e("ChatViewModel", "Failed to create initial clean session", e)
+            }
+        }
+
+        if ((initialOpenai.isBlank() && initialDeepseek.isBlank() && initialClaude.isBlank()) ||
+            initialFal.isBlank() || initialStability.isBlank()) {
+            fetchApiKeysFromProxy(defaultProxy) { success, keys, _ ->
+                if (success) {
+                    android.util.Log.d("ChatViewModel", "Auto-loaded API keys from proxy: ${keys?.keys}")
+                }
+            }
+        }
+
+        // Fetch / update model IDs dynamically from proxy
+        fetchDynamicModelsFromProxy(defaultProxy) { success, models, _ ->
+            if (success) {
+                android.util.Log.d("ChatViewModel", "Auto-loaded ${models?.size} dynamic models from proxy")
             }
         }
     }
@@ -673,18 +947,28 @@ class ChatViewModel(
         resetAgenticTooltip()
     }
 
+    fun updateProxyBaseUrl(url: String) {
+        val prefs = AppContextProvider.context.getSharedPreferences("eddie_prefs", Context.MODE_PRIVATE)
+        prefs.edit().putString("proxy_base_url", url).apply()
+        _uiState.update { state ->
+            state.copy(proxyBaseUrl = url)
+        }
+    }
+
     fun updateProviderApiKey(provider: String, key: String) {
         val prefs = AppContextProvider.context.getSharedPreferences("eddie_prefs", Context.MODE_PRIVATE)
         prefs.edit().putString("${provider.lowercase()}_key", key).apply()
         _uiState.update { state ->
-            when (provider) {
-                "Gemini" -> state.copy(geminiApiKey = key)
-                "OpenAI" -> state.copy(openaiApiKey = key)
-                "DeepSeek" -> state.copy(deepseekApiKey = key)
-                "Claude" -> state.copy(claudeApiKey = key)
-                "XAI" -> state.copy(xaiApiKey = key)
-                "FalAI" -> state.copy(falApiKey = key)
-                "Stable Diffusion", "Stability" -> state.copy(stabilityApiKey = key)
+            when (provider.lowercase().trim()) {
+                "openai" -> state.copy(openaiApiKey = key)
+                "deepseek" -> state.copy(deepseekApiKey = key)
+                "claude", "anthropic" -> state.copy(claudeApiKey = key)
+                "xai" -> state.copy(xaiApiKey = key)
+                "falai" -> state.copy(falApiKey = key)
+                "stable diffusion", "stability" -> {
+                    prefs.edit().putString("stability_key", key).putString("stable diffusion_key", key).apply()
+                    state.copy(stabilityApiKey = key)
+                }
                 else -> state
             }
         }
@@ -694,12 +978,11 @@ class ChatViewModel(
         val prefs = AppContextProvider.context.getSharedPreferences("eddie_prefs", Context.MODE_PRIVATE)
         prefs.edit().putString("${provider.lowercase()}_base_url", url).apply()
         _uiState.update { state ->
-            when (provider) {
-                "Gemini" -> state.copy(geminiBaseUrl = url)
-                "OpenAI" -> state.copy(openaiBaseUrl = url)
-                "DeepSeek" -> state.copy(deepseekBaseUrl = url)
-                "Claude" -> state.copy(claudeBaseUrl = url)
-                "XAI" -> state.copy(xaiBaseUrl = url)
+            when (provider.lowercase().trim()) {
+                "openai" -> state.copy(openaiBaseUrl = url)
+                "deepseek" -> state.copy(deepseekBaseUrl = url)
+                "claude", "anthropic" -> state.copy(claudeBaseUrl = url)
+                "xai" -> state.copy(xaiBaseUrl = url)
                 else -> state
             }
         }
@@ -1083,8 +1366,139 @@ class ChatViewModel(
     }
 
     fun selectModel(model: GeminiModel) {
+        val prefs = AppContextProvider.context.getSharedPreferences("eddie_prefs", Context.MODE_PRIVATE)
+        prefs.edit().putString("selected_chat_model_api", model.apiValue).apply()
         _uiState.update { state ->
             state.copy(selectedModel = model)
+        }
+    }
+
+    fun addCustomModel(displayName: String, apiValue: String, provider: String = "OpenAI", subtitle: String = "") {
+        val newModel = AiModel(
+            displayName = displayName.trim().ifBlank { apiValue.trim() },
+            apiValue = apiValue.trim(),
+            subtitle = subtitle.trim().ifBlank { "Model $provider (${apiValue.trim()})" },
+            provider = provider.trim().ifBlank { "OpenAI" },
+            isPro = false,
+            tokenPrice = "Free"
+        )
+        val current = _uiState.value.customModels
+        val updated = current.filter { it.apiValue.lowercase() != newModel.apiValue.lowercase() } + newModel
+        saveCustomModels(updated)
+        selectModel(newModel)
+        _uiState.update { it.copy(customModels = updated) }
+    }
+
+    fun deleteCustomModel(apiValue: String) {
+        val updated = _uiState.value.customModels.filter { it.apiValue != apiValue }
+        saveCustomModels(updated)
+        _uiState.update { state ->
+            val all = availableModels + updated
+            val newSelected = if (state.selectedModel.apiValue == apiValue) {
+                all.firstOrNull() ?: defaultFallbackModel
+            } else {
+                state.selectedModel
+            }
+            state.copy(customModels = updated, selectedModel = newSelected)
+        }
+    }
+
+    fun deleteAllCustomModels() {
+        saveCustomModels(emptyList())
+        _uiState.update { it.copy(customModels = emptyList(), selectedModel = availableModels.firstOrNull() ?: defaultFallbackModel) }
+    }
+
+    private fun saveCustomModels(models: List<AiModel>) {
+        try {
+            val prefs = AppContextProvider.context.getSharedPreferences("eddie_prefs", Context.MODE_PRIVATE)
+            val arr = JSONArray()
+            models.forEach { m ->
+                val obj = JSONObject().apply {
+                    put("displayName", m.displayName)
+                    put("apiValue", m.apiValue)
+                    put("subtitle", m.subtitle)
+                    put("provider", m.provider)
+                    put("isPro", m.isPro)
+                    put("tokenPrice", m.tokenPrice)
+                }
+                arr.put(obj)
+            }
+            prefs.edit().putString("custom_chat_models", arr.toString()).apply()
+        } catch (e: Exception) {
+            android.util.Log.e("ChatViewModel", "Error saving custom models", e)
+        }
+    }
+
+    private fun loadCustomModels(): List<AiModel> {
+        try {
+            val prefs = AppContextProvider.context.getSharedPreferences("eddie_prefs", Context.MODE_PRIVATE)
+            val json = prefs.getString("custom_chat_models", null) ?: return emptyList()
+            val list = mutableListOf<AiModel>()
+            val arr = JSONArray(json)
+            for (i in 0 until arr.length()) {
+                val obj = arr.getJSONObject(i)
+                list.add(
+                    AiModel(
+                        displayName = obj.optString("displayName", ""),
+                        apiValue = obj.optString("apiValue", ""),
+                        subtitle = obj.optString("subtitle", ""),
+                        provider = obj.optString("provider", "OpenAI"),
+                        isPro = obj.optBoolean("isPro", false),
+                        tokenPrice = obj.optString("tokenPrice", "Free")
+                    )
+                )
+            }
+            return list
+        } catch (e: Exception) {
+            android.util.Log.e("ChatViewModel", "Error loading custom models", e)
+            return emptyList()
+        }
+    }
+
+    private fun saveDynamicModels(models: List<AiModel>) {
+        try {
+            val prefs = AppContextProvider.context.getSharedPreferences("eddie_prefs", Context.MODE_PRIVATE)
+            val arr = JSONArray()
+            models.forEach { m ->
+                val obj = JSONObject().apply {
+                    put("displayName", m.displayName)
+                    put("apiValue", m.apiValue)
+                    put("subtitle", m.subtitle)
+                    put("provider", m.provider)
+                    put("isPro", m.isPro)
+                    put("tokenPrice", m.tokenPrice)
+                }
+                arr.put(obj)
+            }
+            prefs.edit().putString("dynamic_proxy_models", arr.toString()).apply()
+        } catch (e: Exception) {
+            android.util.Log.e("ChatViewModel", "Error saving dynamic models", e)
+        }
+    }
+
+    private fun loadDynamicModels(): List<AiModel> {
+        try {
+            val prefs = AppContextProvider.context.getSharedPreferences("eddie_prefs", Context.MODE_PRIVATE)
+            val json = prefs.getString("dynamic_proxy_models", null) ?: return emptyList()
+            val list = mutableListOf<AiModel>()
+            val arr = JSONArray(json)
+            for (i in 0 until arr.length()) {
+                val obj = arr.getJSONObject(i)
+                list.add(
+                    AiModel(
+                        displayName = obj.optString("displayName", ""),
+                        apiValue = obj.optString("apiValue", ""),
+                        subtitle = obj.optString("subtitle", ""),
+                        provider = obj.optString("provider", "OpenAI"),
+                        isPro = obj.optBoolean("isPro", false),
+                        tokenPrice = obj.optString("tokenPrice", "Free")
+                    )
+                )
+            }
+            return if (list.isNotEmpty()) list else emptyList()
+        } catch (e: Exception) {
+            android.util.Log.e("ChatViewModel", "Error loading dynamic models", e)
+            return emptyList()
         }
     }
 
@@ -1105,11 +1519,10 @@ class ChatViewModel(
 
     fun selectImageProvider(provider: String) {
         val defaultModel = when (provider) {
-            "Gemini" -> "imagen3"
             "OpenAI" -> "gpt-image-1.5"
             "Stable Diffusion", "Stability" -> "sd3"
             "FalAI", "Fal AI" -> "flux-pro"
-            else -> "imagen3"
+            else -> "gpt-image-1.5"
         }
         _uiState.update { state ->
             state.copy(
@@ -1348,16 +1761,8 @@ class ChatViewModel(
         }
 
         val selectedModel = _uiState.value.selectedModel
-        val isTokenBased = selectedModel.apiValue == "gpt-5-mini" || selectedModel.apiValue == "gpt5.5" || selectedModel.apiValue == "deepseek-chat" || selectedModel.apiValue == "claude-sonnet-4-6" || selectedModel.apiValue == "claude-opus-4-7" || selectedModel.apiValue == "grok-4.3"
-        val minTokensNeeded = when (selectedModel.apiValue) {
-            "gpt-5-mini" -> 0.0166875
-            "deepseek-chat" -> 0.0091875
-            "claude-sonnet-4-6" -> 0.09375
-            "claude-opus-4-7" -> 0.09375
-            "grok-4.3" -> 0.06875
-            "gpt5.5" -> 0.25
-            else -> 0.0
-        }
+        val isTokenBased = false
+        val minTokensNeeded = 0.0
 
         if (isTokenBased && _uiState.value.userTokens < minTokensNeeded) {
             viewModelScope.launch {
@@ -1497,21 +1902,8 @@ class ChatViewModel(
                 val history = _uiState.value.messages
 
                 // Call API Repository
-                val keysMap = mapOf(
-                    "Gemini" to _uiState.value.geminiApiKey,
-                    "OpenAI" to _uiState.value.openaiApiKey,
-                    "DeepSeek" to _uiState.value.deepseekApiKey,
-                    "Claude" to _uiState.value.claudeApiKey,
-                    "XAI" to _uiState.value.xaiApiKey
-                )
-
-                val urlsMap = mapOf(
-                    "Gemini" to _uiState.value.geminiBaseUrl,
-                    "OpenAI" to _uiState.value.openaiBaseUrl,
-                    "DeepSeek" to _uiState.value.deepseekBaseUrl,
-                    "Claude" to _uiState.value.claudeBaseUrl,
-                    "XAI" to _uiState.value.xaiBaseUrl
-                )
+                val keysMap = getActiveKeysMap()
+                val urlsMap = getActiveUrlsMap()
 
                 // Let's call the repository API with the injected search payload & extended contextual system instruction
                 val responseText = repository.sendMessage(
@@ -1649,7 +2041,6 @@ class ChatViewModel(
             
             val tokenCost = getImageTokenCost(provider, model)
             val statusMessageText = when (provider) {
-                "Gemini" -> "🎨 **Gemini Imagen ($model)**\nGenerating masterpiece for prompt: *\"$promptText\"*... ⏳ Please hold on, creating artwork now.\n\n*Estimated Token Cost:* 🪙 **$tokenCost tokens**"
                 "OpenAI" -> "🎨 **OpenAI ($model)**\nGenerating masterpiece for prompt: *\"$promptText\"*... ⏳ Please hold on, creating artwork now.\n\n*Estimated Token Cost:* 🪙 **$tokenCost tokens**"
                 "Stable Diffusion", "Stability" -> "🎨 **Stability AI ($model)**\nGenerating masterpiece for prompt: *\"$promptText\"*... ⏳ Please hold on, creating artwork now.\n\n*Estimated Token Cost:* 🪙 **$tokenCost tokens**"
                 else -> "🎨 **Fal.ai Flux ($model)**\nGenerating masterpiece for prompt: *\"$promptText\"*... ⏳ Please hold on, creating artwork now.\n\n*Estimated Token Cost:* 🪙 **$tokenCost tokens**"
@@ -1667,20 +2058,6 @@ class ChatViewModel(
 
             try {
                 val imageUrl = when (provider) {
-                    "Gemini" -> {
-                        val key = _uiState.value.geminiApiKey.ifBlank { null }
-                        val geminiModel = when (model.lowercase()) {
-                            "imagen 3 pro", "imagen-3-pro", "gemini-3-flash-preview", "gemini-3.1-flash-image-preview" -> "gemini-3-flash-preview"
-                            "imagen3" -> "gemini-2.5-flash"
-                            else -> "gemini-2.5-flash"
-                        }
-                        repository.generateGeminiImage(
-                            prompt = promptText,
-                            model = geminiModel,
-                            aspectRatio = "1:1",
-                            customApiKey = key
-                        )
-                    }
                     "OpenAI" -> {
                         val key = _uiState.value.openaiApiKey.ifBlank { null }
                         val customUrl = _uiState.value.openaiBaseUrl.ifBlank { null }
@@ -1759,7 +2136,7 @@ class ChatViewModel(
                 chatDao.insertGeneratedImage(imageEntity)
 
             } catch (e: Exception) {
-                val errorMessage = "❌ **Failed to generate image via $provider**\nError details: ${e.localizedMessage ?: "Unknown server error"}\n\n*Please verify that your API Key is configured correctly in the Secrets panel or API Key Manager.*"
+                val errorMessage = "❌ **Failed to generate image via $provider**\nError details: ${e.localizedMessage ?: "Unknown server error"}\n\n*Please verify that your Proxy (geminiaitools.com) or Secrets panel is configured properly.*"
                 chatDao.insertMessage(ChatMessageEntity(
                     id = modelMessageId,
                     sessionId = sessionId,
@@ -1966,7 +2343,7 @@ class ChatViewModel(
                 }
                 seconds * rate
             }
-            "Gemini" -> {
+            "Veo" -> {
                 when {
                     modelLower == "veo-2.0-generate-001" || modelLower == "veo2" || modelLower == "veo 2" -> {
                         val secClean = duration.replace("s", "").replace(" seconds", "").trim()
@@ -2290,7 +2667,6 @@ class ChatViewModel(
     fun getMusicTokenCost(provider: String, model: String): Int {
         return when (provider) {
             "ElevenLabs" -> 20
-            "Gemini" -> 15
             "Stable Audio" -> 12
             else -> 10
         }
@@ -2304,23 +2680,25 @@ class ChatViewModel(
     fun calculateTextResponseTokenCost(apiValue: String, text: String): Double {
         val words = countWords(text)
         if (words == 0) return 0.0
-        return when (apiValue) {
-            "gpt-5-mini" -> {
+        val v = apiValue.lowercase()
+        return when {
+            v.contains("mini") -> {
                 kotlin.math.ceil(words.toDouble() / 25.0) * 0.0166875
             }
-            "deepseek-chat" -> {
-                kotlin.math.ceil(words.toDouble() / 25.0) * 0.0091875
+            v.contains("deepseek") -> {
+                if (v.contains("pro")) {
+                    kotlin.math.ceil(words.toDouble() / 25.0) * 0.05
+                } else {
+                    kotlin.math.ceil(words.toDouble() / 25.0) * 0.0025
+                }
             }
-            "claude-sonnet-4-6" -> {
+            v.contains("claude") || v.contains("anthropic") -> {
                 kotlin.math.ceil(words.toDouble() / 25.0) * 0.09375
             }
-            "claude-opus-4-7" -> {
-                kotlin.math.ceil(words.toDouble() / 25.0) * 0.09375
-            }
-            "grok-4.3" -> {
+            v.contains("grok") -> {
                 kotlin.math.ceil(words.toDouble() / 25.0) * 0.06875
             }
-            "gpt5.5" -> {
+            v.contains("gpt-5") || v.contains("gpt5") -> {
                 kotlin.math.ceil(words.toDouble() / 25.0) * 0.25
             }
             else -> 0.0
@@ -2328,13 +2706,9 @@ class ChatViewModel(
     }
 
     fun getTextTokenCost(apiValue: String): Int {
-        return when (apiValue) {
-            "gpt-5-mini" -> 1
-            "deepseek-chat" -> 1
-            "claude-sonnet-4-6" -> 1
-            "claude-opus-4-7" -> 1
-            "grok-4.3" -> 1
-            "gpt5.5" -> 1
+        val v = apiValue.lowercase()
+        return when {
+            v.contains("gpt") || v.contains("deepseek") || v.contains("claude") || v.contains("grok") -> 1
             else -> 0
         }
     }
@@ -2388,7 +2762,7 @@ class ChatViewModel(
         val isDailyLimitReached = currentImagesCount >= 3
 
         if (!isSubscribed) {
-            if (isProStyle || isProRatio || isDailyLimitReached || numImages > 1 || provider != "Gemini" || background != "Auto") {
+            if (isProStyle || isProRatio || isDailyLimitReached || numImages > 1 || background != "Auto") {
                 onSubscriptionRequired()
                 return
             }
@@ -2500,33 +2874,7 @@ class ChatViewModel(
                 var finalImageUrl = "$baselineImageUrl?w=1024&sig=${UUID.randomUUID()}"
                 
                 val variationLabel = if (numImages > 1) " (Variant $i of $numImages)" else ""
-                if (provider == "Gemini") {
-                    try {
-                        _uiState.update { state ->
-                            state.copy(imageGenLog = state.imageGenLog + "> [Gemini API] Dispatching secure JSON body payload using $model model$variationLabel...\n")
-                        }
-                        val customApiKey = _uiState.value.geminiApiKey
-                        val geminiModel = when (model.lowercase()) {
-                            "imagen 3 pro", "imagen-3-pro", "gemini-3-flash-preview", "gemini-3.1-flash-image-preview" -> "gemini-3-flash-preview"
-                            "imagen3" -> "gemini-2.5-flash"
-                            else -> "gemini-2.5-flash"
-                        }
-                        val generatedUrl = repository.generateGeminiImage(
-                            prompt = "${prompt.trim()}, $style aesthetic style, $aspectRatio, background: $background",
-                            model = geminiModel,
-                            aspectRatio = aspectRatio,
-                            customApiKey = customApiKey.ifBlank { null }
-                        )
-                        finalImageUrl = generatedUrl
-                        _uiState.update { state ->
-                            state.copy(imageGenLog = state.imageGenLog + "> [Gemini API] Image processed successfully!$variationLabel\n")
-                        }
-                    } catch (e: Exception) {
-                        _uiState.update { state ->
-                            state.copy(imageGenLog = state.imageGenLog + "⚠️ [Gemini API] Generation error$variationLabel: ${e.localizedMessage}. Using high fidelity studio placeholder.\n")
-                        }
-                    }
-                } else if (provider == "Stable Diffusion" || provider == "Stability") {
+                if (provider == "Stable Diffusion" || provider == "Stability") {
                     try {
                         _uiState.update { state ->
                             state.copy(imageGenLog = state.imageGenLog + "> [Stability AI] Uploading visual weights utilizing model $model$variationLabel...\n")
@@ -2621,16 +2969,8 @@ class ChatViewModel(
             _uiState.update { state ->
                 state.copy(
                     imageGenIsLoading = false,
-                    imageGenLog = state.imageGenLog + "> ALL ARTWORKS GENERATED SUCCESSFULLY!\n> Saved to your gallery."
+                    imageGenLog = state.imageGenLog + "\n> ALL ARTWORKS GENERATED SUCCESSFULLY!\n> Saved to your gallery."
                 )
-            }
-            delay(3000)
-            _uiState.update { state ->
-                if (!state.imageGenIsLoading) {
-                    state.copy(imageGenLog = "")
-                } else {
-                    state
-                }
             }
         }
     }
@@ -2638,6 +2978,12 @@ class ChatViewModel(
     fun clearImageGenLog() {
         _uiState.update { state ->
             state.copy(imageGenLog = "")
+        }
+    }
+
+    fun clearVideoGenLog() {
+        _uiState.update { state ->
+            state.copy(videoGenLog = "")
         }
     }
 
@@ -2656,9 +3002,8 @@ class ChatViewModel(
     }
 
     suspend fun generateVideoCopy(videoPrompt: String, style: String, platform: String, tone: String): String {
-        val apiKey = if (uiState.value.geminiApiKey.isNotBlank()) uiState.value.geminiApiKey else uiState.value.customApiKey
-        val keysMap = mapOf("Gemini" to apiKey)
-        val urlsMap = mapOf("Gemini" to uiState.value.geminiBaseUrl)
+        val keysMap = getActiveKeysMap()
+        val urlsMap = getActiveUrlsMap()
         
         val systemPrompt = "You are a professional social media marketing and SEO copywriting expert."
         
@@ -2814,9 +3159,9 @@ class ChatViewModel(
                         state.copy(videoGenLog = state.videoGenLog + "> Setting up temporal 3D visual latents with model $model...\n")
                     }
                 }
-                "Gemini" -> {
+                "Veo" -> {
                     _uiState.update { state ->
-                        state.copy(videoGenLog = state.videoGenLog + "> Initializing Google Veo video model ($model)...\n")
+                        state.copy(videoGenLog = state.videoGenLog + "> Initializing Veo video model ($model)...\n")
                     }
                     delay(800)
                     _uiState.update { state ->
@@ -2824,7 +3169,7 @@ class ChatViewModel(
                         val logText = if (isVeo2) {
                             val durationSecs = if (duration.contains("5")) 5 else if (duration.contains("6")) 6 else if (duration.contains("7")) 7 else 8
                             val aspect = if (aspectRatio == "9:16") "9:16" else "16:9"
-                            "> [Gemini Native API] Serializing Client Payload to client.models.generateVideos:\n" +
+                            "> [Veo Native API] Serializing Client Payload to client.models.generateVideos:\n" +
                             "   ├─ Top-Level Parameters:\n" +
                             "   │   ├─ model: \"veo-2.0-generate-001\"\n" +
                             "   │   └─ prompt: \"${prompt.trim()}\"\n" +
@@ -2837,7 +3182,7 @@ class ChatViewModel(
                             "   │   └─ autoFix: $autoFix\n" +
                             "   └─ Note: Native audio generation is not supported on Veo 2. Payload configured without acoustical targets.\n"
                         } else {
-                            "> [Gemini Native API] Serializing Client Payload to client.models.generateVideos:\n" +
+                            "> [Veo Native API] Serializing Client Payload to client.models.generateVideos:\n" +
                             "   ├─ Top-Level Parameters:\n" +
                             "   │   ├─ model: \"$model\"\n" +
                             "   │   └─ prompt: \"${prompt.trim()}\"\n" +
@@ -2858,7 +3203,7 @@ class ChatViewModel(
                         delay(1200)
                     }
                     _uiState.update { state ->
-                        state.copy(videoGenLog = state.videoGenLog + "> Optimizing super-resolution parameters with Google Cloud TPU...\n")
+                        state.copy(videoGenLog = state.videoGenLog + "> Optimizing super-resolution parameters...\n")
                     }
                 }
                 "FalAI", "Kling", "Minimax" -> {
@@ -2874,7 +3219,7 @@ class ChatViewModel(
             delay(1000)
 
             _uiState.update { state ->
-                val audioText = if (provider == "Gemini") " and audio [$generateAudio]" else ""
+                val audioText = if (provider == "Veo") " and audio [$generateAudio]" else ""
                 state.copy(videoGenLog = state.videoGenLog + "> Configuring resolution [$resolution], aspect ratio [$aspectRatio], duration [$duration]$audioText...\n")
             }
             delay(1200)
@@ -3558,6 +3903,16 @@ class ChatViewModel(
                     User Requirement: $input
                     Make sure the generated code is clean, has relevant explanatory comments, up-to-date, secure from vulnerabilities, and ready to compile and run.
                 """.trimIndent()
+                "Code Review & Bug Hunter" -> """
+                    Act as a Senior Software Architect and Security Auditor. Perform an exhaustive Code Review and Bug Hunt on this $language code:
+                    $input
+
+                    Provide a structured evaluation with:
+                    1. 🛡️ Critical Bugs & Security Vulnerabilities (e.g. memory leaks, race conditions, injection, NPE/crashes, unhandled edge cases)
+                    2. ⚡ Performance & Efficiency Bottlenecks (Time and Space complexity improvements)
+                    3. 🧹 Clean Code, Architecture & Idiomatic $language Best Practices
+                    4. ✅ Fully Fixed & Production-Ready Refactored Code (with explanatory comments)
+                """.trimIndent()
                 "Bug Finder & Debugger" -> """
                     Please analyze this $language code snippet:
                     $input
@@ -3809,8 +4164,8 @@ class ChatViewModel(
                 Ensure the JSON is perfectly valid and is NOT wrapped inside markdown code fences. Respond directly with the raw JSON string itself.
             """.trimIndent()
             
-            val keysMap = mapOf("Gemini" to _uiState.value.geminiApiKey)
-            val urlsMap = mapOf("Gemini" to _uiState.value.geminiBaseUrl)
+            val keysMap = getActiveKeysMap()
+            val urlsMap = getActiveUrlsMap()
             
             val historyBuilder = java.lang.StringBuilder()
             historyBuilder.append("Conversation historical record:\n")
@@ -3940,8 +4295,8 @@ class ChatViewModel(
             val topic = _uiState.value.languageConversationTopic
             val level = _uiState.value.languagePracticeLevel
             
-            val keysMap = mapOf("Gemini" to _uiState.value.geminiApiKey)
-            val urlsMap = mapOf("Gemini" to _uiState.value.geminiBaseUrl)
+            val keysMap = getActiveKeysMap()
+            val urlsMap = getActiveUrlsMap()
             
             val systemInstruction = """
                 You are Eddie, a helpful language learning system.
@@ -4151,8 +4506,8 @@ class ChatViewModel(
                 arFactsList = emptyList()
             ) }
 
-            val keysMap = mapOf("Gemini" to _uiState.value.geminiApiKey)
-            val urlsMap = mapOf("Gemini" to _uiState.value.geminiBaseUrl)
+            val keysMap = getActiveKeysMap()
+            val urlsMap = getActiveUrlsMap()
 
             val systemInstruction = """
                 You are a historical tourist guide. Analyze this tourist snapshot image.
@@ -4248,7 +4603,7 @@ class ChatViewModel(
             } catch (e: Exception) {
                 _uiState.update { it.copy(
                     arIsScanning = false,
-                    arSearchError = "Scan failed: ${e.localizedMessage}. Please verify your network and Gemini API keys."
+                    arSearchError = "Scan failed: ${e.localizedMessage}. Please verify your network and API keys."
                 ) }
             }
         }
@@ -4271,8 +4626,8 @@ class ChatViewModel(
                 arSearchQuery = query
             ) }
 
-            val keysMap = mapOf("Gemini" to _uiState.value.geminiApiKey)
-            val urlsMap = mapOf("Gemini" to _uiState.value.geminiBaseUrl)
+            val keysMap = getActiveKeysMap()
+            val urlsMap = getActiveUrlsMap()
 
             val prompt = "Provide a clean historical trivia, ticket packages, or visiting guide about $landmark answering the query: '$query'. Provide 3 concise bullet points."
             val systemText = "You are a professional historical tour curator. Give exactly 3 fascinating tourist facts formatted with bullet points."
@@ -4397,8 +4752,10 @@ class ChatViewModel(
                 }
             }
 
-            val keysMap = mapOf("OpenAI" to _uiState.value.openaiApiKey)
-            val urlsMap = mapOf("OpenAI" to _uiState.value.openaiBaseUrl)
+            val currentProvider = if (_uiState.value.openaiApiKey.isNotBlank()) "OpenAI" else if (_uiState.value.deepseekApiKey.isNotBlank()) "DeepSeek" else if (_uiState.value.claudeApiKey.isNotBlank()) "Claude" else "OpenAI"
+            val currentModel = if (currentProvider == "OpenAI") "gpt-4o-mini" else if (currentProvider == "DeepSeek") "deepseek-v4-flash" else if (currentProvider == "Claude") "claude-sonnet-4-6" else "gpt-4o-mini"
+            val keysMap = getActiveKeysMap()
+            val urlsMap = getActiveUrlsMap()
             val studentLevel = _uiState.value.mathStudentLevel
 
             val systemInstruction = """
@@ -4429,8 +4786,8 @@ class ChatViewModel(
                     repository.sendVisionRequest(
                         bitmap = bitmap,
                         prompt = "$systemInstruction\nPrompt: $prompt",
-                        provider = "OpenAI",
-                        model = "gpt-4o-mini",
+                        provider = currentProvider,
+                        model = currentModel,
                         providerKeys = keysMap,
                         providerUrls = urlsMap
                     )
@@ -4438,8 +4795,8 @@ class ChatViewModel(
                     repository.sendSimpleRequest(
                         prompt = prompt,
                         systemText = systemInstruction,
-                        provider = "OpenAI",
-                        model = "gpt-4o-mini",
+                        provider = currentProvider,
+                        model = currentModel,
                         providerKeys = keysMap,
                         providerUrls = urlsMap
                     )
@@ -4530,8 +4887,10 @@ class ChatViewModel(
                 mathConceptExplanation = ""
             ) }
 
-            val keysMap = mapOf("OpenAI" to _uiState.value.openaiApiKey)
-            val urlsMap = mapOf("OpenAI" to _uiState.value.openaiBaseUrl)
+            val currentProvider = if (_uiState.value.openaiApiKey.isNotBlank()) "OpenAI" else if (_uiState.value.deepseekApiKey.isNotBlank()) "DeepSeek" else if (_uiState.value.claudeApiKey.isNotBlank()) "Claude" else "OpenAI"
+            val currentModel = if (currentProvider == "OpenAI") "gpt-4o-mini" else if (currentProvider == "DeepSeek") "deepseek-v4-flash" else if (currentProvider == "Claude") "claude-sonnet-4-6" else "gpt-4o-mini"
+            val keysMap = getActiveKeysMap()
+            val urlsMap = getActiveUrlsMap()
 
             val currentStepExpress = activeStep.mathematicalExpression
             val currentStepExplain = activeStep.intuitiveExplanation
@@ -4559,8 +4918,8 @@ class ChatViewModel(
                 val explanation = repository.sendSimpleRequest(
                     prompt = prompt,
                     systemText = systemText,
-                    provider = "OpenAI",
-                    model = "gpt-4o-mini",
+                    provider = currentProvider,
+                    model = currentModel,
                     providerKeys = keysMap,
                     providerUrls = urlsMap
                 )
@@ -4930,8 +5289,8 @@ class ChatViewModel(
                 Follow this structure precisely for Slide 1, Slide 2, Slide 3, Slide 4, Slide 5. Ensure it looks visually distinct and elegant!
             """.trimIndent()
             
-            val keysMap = mapOf("Gemini" to _uiState.value.geminiApiKey)
-            val urlsMap = mapOf("Gemini" to _uiState.value.geminiBaseUrl)
+            val keysMap = getActiveKeysMap()
+            val urlsMap = getActiveUrlsMap()
             
             try {
                 val output = repository.sendSimpleRequest(
@@ -5069,7 +5428,7 @@ class ChatViewModel(
                     
                     ---
                     
-                    *💡 Note: To retrieve real, bespoke copy generated in real-time by Gemini, please check your API Key settings in the Multi-Provider API Key Manager.*
+                    *💡 Note: Connected via Proxy (geminiaitools.com).*
                 """.trimIndent()
                 
                 _uiState.update { it.copy(
@@ -5687,7 +6046,7 @@ class ChatViewModel(
                 )
             }
 
-            val apiKey = _uiState.value.geminiApiKey
+            val apiKey = _uiState.value.openaiApiKey
             if (apiKey.isBlank() || apiKey.contains("PLACEHOLDER")) {
                 // If API Key is missing, load a beautiful offline story!
                 delay(1500)
@@ -5731,8 +6090,8 @@ class ChatViewModel(
 
                 val promptMsg = "Theme: $sanitizedTheme, Child Name: $sanitizedName."
 
-                val keysMap = mapOf("Gemini" to apiKey)
-                val urlsMap = mapOf("Gemini" to _uiState.value.geminiBaseUrl)
+                val keysMap = getActiveKeysMap()
+                val urlsMap = getActiveUrlsMap()
 
                 val output = repository.sendSimpleRequest(
                     prompt = promptMsg,
@@ -5807,7 +6166,7 @@ class ChatViewModel(
                 val updatedList = _uiState.value.storyBookList.toMutableList().apply { add(0, book) }
                 _uiState.update {
                     it.copy(
-                        storyError = "Gemini API failed: ${e.message}. Loaded dynamic Offline Tale!",
+                        storyError = "AI API failed: ${e.message}. Loaded dynamic Offline Tale!",
                         storyActiveBook = book,
                         storyIsLoading = null,
                         storyBookList = updatedList
@@ -5831,11 +6190,11 @@ class ChatViewModel(
             book.pages.forEach { page ->
                 try {
                     val fullPrompt = "$stylePrefix${page.imagePrompt}"
-                    val imageUri = repository.generateGeminiImage(
+                    val imageUri = repository.generateOpenAiImage(
                         prompt = fullPrompt,
-                        model = "gemini-2.5-flash",
-                        aspectRatio = "1:1",
-                        imageSize = "1K"
+                        model = "gpt-image-1.5",
+                        customApiKey = _uiState.value.openaiApiKey.ifBlank { null },
+                        customBaseUrl = _uiState.value.openaiBaseUrl.ifBlank { null }
                     )
 
                     _uiState.update { state ->
@@ -5987,7 +6346,7 @@ class ChatViewModel(
         }
 
         viewModelScope.launch {
-            val apiKey = _uiState.value.geminiApiKey
+            val apiKey = _uiState.value.openaiApiKey
             val worksOffline = apiKey.isBlank() || apiKey.contains("PLACEHOLDER")
 
             if (worksOffline) {
@@ -6018,8 +6377,8 @@ class ChatViewModel(
 
                 val promptMsg = "Theme: $sanitizedTheme, Child's Name: $sanitizedName."
                 
-                val keysMap = mapOf("Gemini" to apiKey)
-                val urlsMap = mapOf("Gemini" to _uiState.value.geminiBaseUrl)
+                val keysMap = getActiveKeysMap()
+                val urlsMap = getActiveUrlsMap()
                 
                 val output = repository.sendSimpleRequest(
                     prompt = promptMsg,
@@ -6067,7 +6426,7 @@ class ChatViewModel(
             } catch (e: Exception) {
                 _uiState.update { 
                     it.copy(
-                        colorBookError = "Gemini API failed: ${e.message}. Offline Fallback loaded.",
+                        colorBookError = "AI API failed: ${e.message}. Offline Fallback loaded.",
                         colorBookPages = getOfflineColoringPages(presetType, sanitizedTheme, sanitizedName),
                         colorBookIsLoading = false
                     ) 
@@ -6081,11 +6440,11 @@ class ChatViewModel(
             pages.forEach { page ->
                 try {
                     val imagePrompt = "Thick black lines vector outline contour coloring page for children, bold comic lines, clean white solid filled shapes, no gray, no gradient, no shading, simple, friendly, printable, subject: ${page.title}"
-                    val imageUri = repository.generateGeminiImage(
+                    val imageUri = repository.generateOpenAiImage(
                         prompt = imagePrompt,
-                        model = "gemini-2.5-flash",
-                        aspectRatio = "1:1",
-                        imageSize = "1K"
+                        model = "gpt-image-1.5",
+                        customApiKey = _uiState.value.openaiApiKey.ifBlank { null },
+                        customBaseUrl = _uiState.value.openaiBaseUrl.ifBlank { null }
                     )
                     _uiState.update { state ->
                         val updatedList = state.colorBookPages.map { p ->
@@ -6899,7 +7258,7 @@ class ChatViewModel(
                 )
             }
             
-            val apiKey = _uiState.value.customApiKey.ifBlank { _uiState.value.geminiApiKey }
+            val apiKey = _uiState.value.customApiKey.ifBlank { _uiState.value.openaiApiKey }
             if (apiKey.isBlank() || apiKey.contains("PLACEHOLDER")) {
                 // Return offline beautiful recipes
                 delay(2000)
@@ -6941,8 +7300,8 @@ class ChatViewModel(
                     Strict rule: Do not output any markdown wrapping. Just pure, clean JSON. Check ingredients against Keto, Vegetarian guidelines carefully to fill the tags.
                 """.trimIndent()
 
-                val keysMap = mapOf("Gemini" to apiKey)
-                val urlsMap = mapOf("Gemini" to _uiState.value.geminiBaseUrl)
+                val keysMap = getActiveKeysMap()
+                val urlsMap = getActiveUrlsMap()
 
                 val output = repository.sendVisionRequest(
                     bitmap = bitmap,
@@ -7034,7 +7393,7 @@ class ChatViewModel(
                             culinaryIsScanning = false,
                             culinaryDetectedIngredients = listOf("Milk", "Cheddar Cheese", "Tomatoes", "Asparagus", "Chicken Breast"),
                             culinaryRecipes = offlineRecipes,
-                            culinaryError = "Could not parse Gemini's custom recipe format: using our visual assistant presets!"
+                            culinaryError = "Could not parse AI recipe format: using our visual assistant presets!"
                         )
                     }
                 }
@@ -7816,7 +8175,8 @@ class ChatViewModel(
         if (query.isBlank()) return
         viewModelScope.launch {
             _uiState.update { it.copy(mapIsSearching = true, mapError = "", mapSearchQuery = query) }
-            val apiKey = if (_uiState.value.geminiApiKey.isNotBlank()) _uiState.value.geminiApiKey else _uiState.value.customApiKey
+            val keysMap = getActiveKeysMap()
+            val urlsMap = getActiveUrlsMap()
             
             val prompt = """
                 You are a real-time Google Maps data assistant. 
@@ -7848,14 +8208,11 @@ class ChatViewModel(
             """.trimIndent()
 
             try {
-                val keysMap = mapOf("Gemini" to apiKey)
-                val urlsMap = mapOf("Gemini" to _uiState.value.geminiBaseUrl)
-
                 val responseText = repository.sendMessage(
                     history = emptyList(),
                     newPrompt = prompt,
-                    model = "gemini-3.5-flash",
-                    provider = "Gemini",
+                    model = "gpt-5-mini",
+                    provider = "OpenAI",
                     customSystemInstruction = "You are a precise JSON generator. Output only JSON array.",
                     providerKeys = keysMap,
                     providerUrls = urlsMap
@@ -7967,7 +8324,7 @@ class ChatViewModel(
         
         viewModelScope.launch {
             _uiState.update { it.copy(mapIsSearching = true) }
-            val apiKey = if (_uiState.value.geminiApiKey.isNotBlank()) _uiState.value.geminiApiKey else _uiState.value.customApiKey
+            val apiKey = if (_uiState.value.openaiApiKey.isNotBlank()) _uiState.value.openaiApiKey else _uiState.value.customApiKey
             
             val activePlace = _uiState.value.mapSelectedPlace
             val placesContext = _uiState.value.mapPlaces.joinToString("\n") { 
@@ -7996,14 +8353,14 @@ class ChatViewModel(
             """.trimIndent()
 
             try {
-                val keysMap = mapOf("Gemini" to apiKey)
-                val urlsMap = mapOf("Gemini" to _uiState.value.geminiBaseUrl)
+                val keysMap = getActiveKeysMap()
+                val urlsMap = getActiveUrlsMap()
 
                 val answer = repository.sendMessage(
                     history = emptyList(),
                     newPrompt = prompt,
-                    model = "gemini-3.5-flash",
-                    provider = "Gemini",
+                    model = "gpt-5-mini",
+                    provider = "OpenAI",
                     customSystemInstruction = "You are Atlas, a professional and charismatic Geographical Travel Advisor.",
                     providerKeys = keysMap,
                     providerUrls = urlsMap
@@ -8027,6 +8384,16 @@ class ChatViewModel(
                     )
                 }
             }
+        }
+    }
+
+    fun setAppSkinTheme(skinId: String) {
+        _uiState.update { it.copy(appSkinThemeId = skinId) }
+        try {
+            val prefs = AppContextProvider.context.getSharedPreferences("eddie_prefs", Context.MODE_PRIVATE)
+            prefs.edit().putString("app_skin_theme", skinId).apply()
+        } catch (e: Exception) {
+            android.util.Log.e("ChatViewModel", "Failed to save skin theme", e)
         }
     }
 }

@@ -1,6 +1,6 @@
 {
-  "name": "Eddie",
-  "description": "Eddie Personal Assistant featuring Socratic Tutor, real-time Voice Language Partner, magical Kid's AI Storyteller, hands-free Smart Fridge, and experimental AI Meme Lab with instant Magic Caption.",
+  "name": "Prof Eddie",
+  "description": "Prof Eddie Personal Assistant featuring Socratic Tutor, real-time Voice Language Partner, magical Kid's AI Storyteller, hands-free Smart Fridge, and experimental AI Meme Lab with instant Magic Caption.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }
