@@ -154,6 +154,7 @@ fun ChatScreen(
     var showApiKeySettingsDialog by remember { mutableStateOf(false) }
     var showThemeDialog by remember { mutableStateOf(false) }
     var showAddModelDialog by remember { mutableStateOf(false) }
+    var historyPage by remember { mutableStateOf(0) }
 
     // TTS Engine Setup
     var ttsUser by remember { mutableStateOf<TextToSpeech?>(null) }
@@ -358,6 +359,7 @@ fun ChatScreen(
                         selected = false,
                         onClick = {
                             activeTab = "chat"
+                            historyPage = 0
                             viewModel.startNewChat()
                             scope.launch { drawerState.close() }
                         },
@@ -517,12 +519,48 @@ fun ChatScreen(
                     )
 
                     Spacer(modifier = Modifier.height(16.dp))
-                    Text(
-                        text = "CHAT HISTORY",
-                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold, letterSpacing = 1.sp),
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
-                    )
+                    val historyPageSize = 10
+                    val totalHistoryCount = uiState.sessions.size
+                    val totalHistoryPages = ((totalHistoryCount + historyPageSize - 1) / historyPageSize).coerceAtLeast(1)
+                    val currentHistoryPage = historyPage.coerceIn(0, totalHistoryPages - 1)
+
+                    LaunchedEffect(totalHistoryPages) {
+                        if (historyPage >= totalHistoryPages) {
+                            historyPage = (totalHistoryPages - 1).coerceAtLeast(0)
+                        }
+                    }
+
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 12.dp, vertical = 4.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "CHAT HISTORY",
+                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold, letterSpacing = 1.sp),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        if (totalHistoryCount > 0) {
+                            val startIdx = currentHistoryPage * historyPageSize + 1
+                            val endIdx = ((currentHistoryPage + 1) * historyPageSize).coerceAtMost(totalHistoryCount)
+                            Surface(
+                                color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.45f),
+                                shape = RoundedCornerShape(8.dp)
+                            ) {
+                                Text(
+                                    text = "$startIdx–$endIdx / $totalHistoryCount",
+                                    style = MaterialTheme.typography.labelSmall.copy(
+                                        fontWeight = FontWeight.SemiBold,
+                                        fontSize = 10.sp
+                                    ),
+                                    color = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                )
+                            }
+                        }
+                    }
 
                     if (uiState.sessions.isEmpty()) {
                         Text(
@@ -532,7 +570,11 @@ fun ChatScreen(
                             modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
                         )
                     } else {
-                        uiState.sessions.forEach { session ->
+                        val startIndex = currentHistoryPage * historyPageSize
+                        val endIndex = (startIndex + historyPageSize).coerceAtMost(totalHistoryCount)
+                        val pagedSessions = uiState.sessions.subList(startIndex, endIndex)
+
+                        pagedSessions.forEach { session ->
                             val isSelected = session.id == uiState.currentSessionId
                             NavigationDrawerItem(
                                 icon = { Icon(Icons.Default.Edit, contentDescription = null) },
@@ -550,7 +592,9 @@ fun ChatScreen(
                                         )
                                         IconButton(
                                             onClick = { viewModel.deleteSession(session.id) },
-                                            modifier = Modifier.size(24.dp)
+                                            modifier = Modifier
+                                                .size(24.dp)
+                                                .testTag("delete_session_${session.id}")
                                         ) {
                                             Text("🗑️", fontSize = 14.sp)
                                         }
@@ -558,10 +602,93 @@ fun ChatScreen(
                                 },
                                 selected = isSelected,
                                 onClick = {
+                                    activeTab = "chat"
                                     viewModel.selectSession(session.id)
                                     scope.launch { drawerState.close() }
-                                }
+                                },
+                                modifier = Modifier.testTag("history_session_item_${session.id}")
                             )
+                        }
+
+                        if (totalHistoryPages > 1) {
+                            Surface(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 8.dp, vertical = 6.dp),
+                                shape = RoundedCornerShape(12.dp),
+                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
+                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
+                            ) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 4.dp, vertical = 2.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    IconButton(
+                                        onClick = {
+                                            if (currentHistoryPage > 0) {
+                                                historyPage = currentHistoryPage - 1
+                                            }
+                                        },
+                                        enabled = currentHistoryPage > 0,
+                                        modifier = Modifier
+                                            .size(48.dp)
+                                            .testTag("history_prev_page_button")
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                            contentDescription = "Halaman Sebelumnya",
+                                            tint = if (currentHistoryPage > 0) {
+                                                MaterialTheme.colorScheme.primary
+                                            } else {
+                                                MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.35f)
+                                            },
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                    }
+
+                                    Column(
+                                        horizontalAlignment = Alignment.CenterHorizontally,
+                                        modifier = Modifier.weight(1f)
+                                    ) {
+                                        Text(
+                                            text = "Halaman ${currentHistoryPage + 1} / $totalHistoryPages",
+                                            style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                                            color = MaterialTheme.colorScheme.onSurface
+                                        )
+                                        Text(
+                                            text = "10 item per halaman",
+                                            style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+
+                                    IconButton(
+                                        onClick = {
+                                            if (currentHistoryPage < totalHistoryPages - 1) {
+                                                historyPage = currentHistoryPage + 1
+                                            }
+                                        },
+                                        enabled = currentHistoryPage < totalHistoryPages - 1,
+                                        modifier = Modifier
+                                            .size(48.dp)
+                                            .testTag("history_next_page_button")
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                                            contentDescription = "Halaman Berikutnya",
+                                            tint = if (currentHistoryPage < totalHistoryPages - 1) {
+                                                MaterialTheme.colorScheme.primary
+                                            } else {
+                                                MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.35f)
+                                            },
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                    }
+                                }
+                            }
                         }
                     }
 
