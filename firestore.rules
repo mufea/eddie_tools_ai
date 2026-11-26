@@ -1,0 +1,292 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Global default-deny safety net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Shared hardened primitives
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isNonNegNumber(val) {
+      return (val is int || val is float) && val >= 0;
+    }
+
+    // --- Validation Helpers ---
+
+    function isValidUserProfile(data) {
+      return data.userId is string && data.userId == request.auth.uid &&
+             data.username is string && data.username.size() >= 1 && data.username.size() <= 100 &&
+             (!('email' in data) || (data.email is string && data.email.size() <= 254)) &&
+             (!('photoUrl' in data) || (data.photoUrl is string && data.photoUrl.size() <= 1000)) &&
+             (!('appSkinThemeId' in data) || (data.appSkinThemeId is string && data.appSkinThemeId.size() <= 40)) &&
+             (!('customSystemInstruction' in data) || (data.customSystemInstruction is string && data.customSystemInstruction.size() <= 4000)) &&
+             (!('activeSubscriptionPlan' in data) || (data.activeSubscriptionPlan is string && data.activeSubscriptionPlan.size() <= 80)) &&
+             (!('subscriptionExpiryDate' in data) || (data.subscriptionExpiryDate is string && data.subscriptionExpiryDate.size() <= 80)) &&
+             (!('subscribed' in data) || data.subscribed is bool) &&
+             (!('userTokens' in data) || isNonNegNumber(data.userTokens)) &&
+             data.createdAt is timestamp && data.createdAt <= request.time &&
+             data.updatedAt is timestamp && data.updatedAt <= request.time;
+    }
+
+    function isValidChatSession(data) {
+      return data.userId is string && data.userId == request.auth.uid &&
+             data.title is string && data.title.size() >= 1 && data.title.size() <= 200 &&
+             data.modelValue is string && data.modelValue.size() >= 1 && data.modelValue.size() <= 120 &&
+             data.clientTimestamp is int && data.clientTimestamp >= 0 &&
+             data.createdAt is timestamp && data.createdAt <= request.time &&
+             data.updatedAt is timestamp && data.updatedAt <= request.time;
+    }
+
+    function isValidChatMessage(data) {
+      return data.userId is string && data.userId == request.auth.uid &&
+             isValidId(data.sessionId) &&
+             data.role is string && (data.role == 'USER' || data.role == 'MODEL') &&
+             data.text is string && data.text.size() <= 50000 &&
+             data.bookmarked is bool &&
+             data.clientTimestamp is int && data.clientTimestamp >= 0 &&
+             data.createdAt is timestamp && data.createdAt <= request.time &&
+             data.updatedAt is timestamp && data.updatedAt <= request.time;
+    }
+
+    function isValidGeneratedImage(data) {
+      return data.userId is string && data.userId == request.auth.uid &&
+             data.prompt is string && data.prompt.size() <= 4000 &&
+             data.imageUrl is string && data.imageUrl.size() <= 800000 &&
+             data.style is string && data.style.size() <= 120 &&
+             data.aspectRatio is string && data.aspectRatio.size() <= 40 &&
+             data.model is string && data.model.size() <= 120 &&
+             data.clientTimestamp is int && data.clientTimestamp >= 0 &&
+             data.createdAt is timestamp && data.createdAt <= request.time;
+    }
+
+    function isValidGeneratedVideo(data) {
+      return data.userId is string && data.userId == request.auth.uid &&
+             data.prompt is string && data.prompt.size() <= 4000 &&
+             data.videoUrl is string && data.videoUrl.size() <= 4000 &&
+             data.style is string && data.style.size() <= 120 &&
+             data.aspectRatio is string && data.aspectRatio.size() <= 40 &&
+             data.resolution is string && data.resolution.size() <= 40 &&
+             data.duration is string && data.duration.size() <= 40 &&
+             data.model is string && data.model.size() <= 120 &&
+             data.clientTimestamp is int && data.clientTimestamp >= 0 &&
+             data.createdAt is timestamp && data.createdAt <= request.time;
+    }
+
+    function isValidGeneratedMusic(data) {
+      return data.userId is string && data.userId == request.auth.uid &&
+             data.prompt is string && data.prompt.size() <= 4000 &&
+             data.musicUrl is string && data.musicUrl.size() <= 4000 &&
+             data.genre is string && data.genre.size() <= 120 &&
+             data.duration is string && data.duration.size() <= 40 &&
+             data.tempo is string && data.tempo.size() <= 40 &&
+             data.clientTimestamp is int && data.clientTimestamp >= 0 &&
+             data.createdAt is timestamp && data.createdAt <= request.time;
+    }
+
+    function isValidUserMemory(data) {
+      return data.userId is string && data.userId == request.auth.uid &&
+             data.key is string && data.key.size() >= 1 && data.key.size() <= 120 &&
+             data.content is string && data.content.size() >= 1 && data.content.size() <= 4000 &&
+             data.clientTimestamp is int && data.clientTimestamp >= 0 &&
+             data.createdAt is timestamp && data.createdAt <= request.time;
+    }
+
+    function isValidTokenUsage(data) {
+      return data.userId is string && data.userId == request.auth.uid &&
+             data.featureType is string && data.featureType.size() >= 1 && data.featureType.size() <= 120 &&
+             data.detail is string && data.detail.size() <= 2000 &&
+             isNonNegNumber(data.tokenCost) &&
+             data.clientTimestamp is int && data.clientTimestamp >= 0 &&
+             data.createdAt is timestamp && data.createdAt <= request.time;
+    }
+
+    function isValidInteriorDesign(data) {
+      return data.userId is string && data.userId == request.auth.uid &&
+             data.title is string && data.title.size() <= 200 &&
+             (!('originalImageUri' in data) || (data.originalImageUri is string && data.originalImageUri.size() <= 400000)) &&
+             data.selectedStyle is string && data.selectedStyle.size() <= 120 &&
+             data.reimaginedImageUrl is string && data.reimaginedImageUrl.size() <= 400000 &&
+             data.chatHistoryJson is string && data.chatHistoryJson.size() <= 100000 &&
+             data.shoppableItemsJson is string && data.shoppableItemsJson.size() <= 100000 &&
+             data.clientTimestamp is int && data.clientTimestamp >= 0 &&
+             data.createdAt is timestamp && data.createdAt <= request.time;
+    }
+
+    // --- Collection Rules ---
+
+    match /users/{userId} {
+      allow get: if isOwner(userId) && isValidId(userId);
+      allow list: if isOwner(userId);
+
+      allow create: if isOwner(userId) &&
+                       isValidId(userId) &&
+                       incoming().keys().hasAll(['userId', 'username', 'createdAt', 'updatedAt']) &&
+                       incoming().keys().hasOnly([
+                         'userId', 'email', 'username', 'photoUrl',
+                         'appSkinThemeId', 'customSystemInstruction',
+                         'activeSubscriptionPlan', 'subscriptionExpiryDate',
+                         'subscribed', 'userTokens', 'createdAt', 'updatedAt'
+                       ]) &&
+                       isValidUserProfile(incoming());
+
+      allow update: if isOwner(userId) &&
+                       isValidId(userId) &&
+                       isValidUserProfile(incoming()) &&
+                       incoming().userId == existing().userId &&
+                       incoming().createdAt == existing().createdAt &&
+                       incoming().diff(existing()).affectedKeys().hasOnly([
+                         'email', 'username', 'photoUrl',
+                         'appSkinThemeId', 'customSystemInstruction',
+                         'activeSubscriptionPlan', 'subscriptionExpiryDate',
+                         'subscribed', 'userTokens', 'updatedAt'
+                       ]);
+
+      allow delete: if isOwner(userId) && isValidId(userId);
+
+      match /sessions/{sessionId} {
+        allow get: if isOwner(userId) && isValidId(sessionId);
+        allow list: if isOwner(userId);
+
+        allow create: if isOwner(userId) &&
+                         isValidId(sessionId) &&
+                         incoming().keys().hasAll(['userId', 'title', 'modelValue', 'clientTimestamp', 'createdAt', 'updatedAt']) &&
+                         incoming().keys().hasOnly(['userId', 'title', 'modelValue', 'clientTimestamp', 'createdAt', 'updatedAt']) &&
+                         isValidChatSession(incoming());
+
+        allow update: if isOwner(userId) &&
+                         isValidId(sessionId) &&
+                         isValidChatSession(incoming()) &&
+                         incoming().userId == existing().userId &&
+                         incoming().createdAt == existing().createdAt &&
+                         incoming().diff(existing()).affectedKeys().hasOnly(['title', 'modelValue', 'clientTimestamp', 'updatedAt']);
+
+        allow delete: if isOwner(userId) && isValidId(sessionId);
+      }
+
+      match /messages/{messageId} {
+        allow get: if isOwner(userId) && isValidId(messageId);
+        allow list: if isOwner(userId);
+
+        allow create: if isOwner(userId) &&
+                         isValidId(messageId) &&
+                         incoming().keys().hasAll(['userId', 'sessionId', 'role', 'text', 'bookmarked', 'clientTimestamp', 'createdAt', 'updatedAt']) &&
+                         incoming().keys().hasOnly(['userId', 'sessionId', 'role', 'text', 'bookmarked', 'clientTimestamp', 'createdAt', 'updatedAt']) &&
+                         isValidChatMessage(incoming());
+
+        allow update: if isOwner(userId) &&
+                         isValidId(messageId) &&
+                         isValidChatMessage(incoming()) &&
+                         incoming().userId == existing().userId &&
+                         incoming().sessionId == existing().sessionId &&
+                         incoming().createdAt == existing().createdAt &&
+                         incoming().diff(existing()).affectedKeys().hasOnly(['text', 'bookmarked', 'updatedAt']);
+
+        allow delete: if isOwner(userId) && isValidId(messageId);
+      }
+
+      match /generated_images/{imageId} {
+        allow get: if isOwner(userId) && isValidId(imageId);
+        allow list: if isOwner(userId);
+
+        allow create: if isOwner(userId) &&
+                         isValidId(imageId) &&
+                         incoming().keys().hasAll(['userId', 'prompt', 'imageUrl', 'style', 'aspectRatio', 'model', 'clientTimestamp', 'createdAt']) &&
+                         incoming().keys().hasOnly(['userId', 'prompt', 'imageUrl', 'style', 'aspectRatio', 'model', 'clientTimestamp', 'createdAt']) &&
+                         isValidGeneratedImage(incoming());
+
+        allow update: if false;
+        allow delete: if isOwner(userId) && isValidId(imageId);
+      }
+
+      match /generated_videos/{videoId} {
+        allow get: if isOwner(userId) && isValidId(videoId);
+        allow list: if isOwner(userId);
+
+        allow create: if isOwner(userId) &&
+                         isValidId(videoId) &&
+                         incoming().keys().hasAll(['userId', 'prompt', 'videoUrl', 'style', 'aspectRatio', 'resolution', 'duration', 'model', 'clientTimestamp', 'createdAt']) &&
+                         incoming().keys().hasOnly(['userId', 'prompt', 'videoUrl', 'style', 'aspectRatio', 'resolution', 'duration', 'model', 'clientTimestamp', 'createdAt']) &&
+                         isValidGeneratedVideo(incoming());
+
+        allow update: if false;
+        allow delete: if isOwner(userId) && isValidId(videoId);
+      }
+
+      match /generated_music/{musicId} {
+        allow get: if isOwner(userId) && isValidId(musicId);
+        allow list: if isOwner(userId);
+
+        allow create: if isOwner(userId) &&
+                         isValidId(musicId) &&
+                         incoming().keys().hasAll(['userId', 'prompt', 'musicUrl', 'genre', 'duration', 'tempo', 'clientTimestamp', 'createdAt']) &&
+                         incoming().keys().hasOnly(['userId', 'prompt', 'musicUrl', 'genre', 'duration', 'tempo', 'clientTimestamp', 'createdAt']) &&
+                         isValidGeneratedMusic(incoming());
+
+        allow update: if false;
+        allow delete: if isOwner(userId) && isValidId(musicId);
+      }
+
+      match /memories/{memoryId} {
+        allow get: if isOwner(userId) && isValidId(memoryId);
+        allow list: if isOwner(userId);
+
+        allow create: if isOwner(userId) &&
+                         isValidId(memoryId) &&
+                         incoming().keys().hasAll(['userId', 'key', 'content', 'clientTimestamp', 'createdAt']) &&
+                         incoming().keys().hasOnly(['userId', 'key', 'content', 'clientTimestamp', 'createdAt']) &&
+                         isValidUserMemory(incoming());
+
+        allow update: if false;
+        allow delete: if isOwner(userId) && isValidId(memoryId);
+      }
+
+      match /token_usages/{usageId} {
+        allow get: if isOwner(userId) && isValidId(usageId);
+        allow list: if isOwner(userId);
+
+        allow create: if isOwner(userId) &&
+                         isValidId(usageId) &&
+                         incoming().keys().hasAll(['userId', 'featureType', 'detail', 'tokenCost', 'clientTimestamp', 'createdAt']) &&
+                         incoming().keys().hasOnly(['userId', 'featureType', 'detail', 'tokenCost', 'clientTimestamp', 'createdAt']) &&
+                         isValidTokenUsage(incoming());
+
+        allow update: if false;
+        allow delete: if isOwner(userId) && isValidId(usageId);
+      }
+
+      match /interior_designs/{designId} {
+        allow get: if isOwner(userId) && isValidId(designId);
+        allow list: if isOwner(userId);
+
+        allow create: if isOwner(userId) &&
+                         isValidId(designId) &&
+                         incoming().keys().hasAll(['userId', 'title', 'selectedStyle', 'reimaginedImageUrl', 'chatHistoryJson', 'shoppableItemsJson', 'clientTimestamp', 'createdAt']) &&
+                         incoming().keys().hasOnly(['userId', 'title', 'originalImageUri', 'selectedStyle', 'reimaginedImageUrl', 'chatHistoryJson', 'shoppableItemsJson', 'clientTimestamp', 'createdAt']) &&
+                         isValidInteriorDesign(incoming());
+
+        allow update: if false;
+        allow delete: if isOwner(userId) && isValidId(designId);
+      }
+    }
+  }
+}

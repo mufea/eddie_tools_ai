@@ -1,3 +1,11 @@
 <resources>
     <string name="app_name">Prof Eddie</string>
+    <string name="auth_welcome_title">Masuk ke Prof Eddie</string>
+    <string name="auth_welcome_subtitle">Sign In atau buat akun permanen secara otomatis menggunakan akun Google Anda.</string>
+    <string name="auth_continue_with_google">Lanjutkan dengan Google</string>
+    <string name="auth_signing_in">Menghubungkan akun...</string>
+    <string name="auth_benefit_permanent">Akun &amp; sesi login tersimpan permanen</string>
+    <string name="auth_benefit_sync">Riwayat chat, memori &amp; karya tersinkronisasi via Cloud Firestore</string>
+    <string name="auth_benefit_private">Data terisolasi aman khusus untuk akun Anda</string>
+    <string name="auth_footer_note">Pengguna baru otomatis terdaftar saat pertama kali masuk dengan Google.</string>
 </resources>

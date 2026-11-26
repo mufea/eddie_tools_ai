@@ -535,7 +535,7 @@ fun EddieDocumentIntelligenceView(
     }
 }
 
-private fun getFileName(context: android.content.Context, uri: Uri): String {
+internal fun getFileName(context: android.content.Context, uri: Uri): String {
     var fileName: String? = null
     if (uri.scheme == "content") {
         try {
@@ -565,7 +565,7 @@ private fun getFileName(context: android.content.Context, uri: Uri): String {
     return fileName?.ifBlank { "document.pdf" } ?: "document.pdf"
 }
 
-private fun extractDocumentText(context: android.content.Context, uri: Uri, fileName: String): String {
+internal fun extractDocumentText(context: android.content.Context, uri: Uri, fileName: String): String {
     val mimeType = context.contentResolver.getType(uri) ?: ""
     val lowerName = fileName.lowercase()
     val stringBuilder = StringBuilder()

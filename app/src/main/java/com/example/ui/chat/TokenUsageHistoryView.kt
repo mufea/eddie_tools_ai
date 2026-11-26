@@ -36,7 +36,8 @@ import java.util.*
 fun TokenUsageHistoryView(
     uiState: ChatUiState,
     paddingValues: PaddingValues,
-    onClearHistory: () -> Unit
+    onClearHistory: () -> Unit,
+    onOpenTopUp: () -> Unit = {}
 ) {
     var selectedFilter by remember { mutableStateOf("All") }
     var searchQuery by remember { mutableStateOf("") }
@@ -138,6 +139,17 @@ fun TokenUsageHistoryView(
                                 style = MaterialTheme.typography.labelMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
+                            Spacer(modifier = Modifier.height(6.dp))
+                            FilledTonalButton(
+                                onClick = onOpenTopUp,
+                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+                                modifier = Modifier.testTag("token_history_topup_button")
+                            ) {
+                                Text(
+                                    text = "🪙 Top Up Token",
+                                    style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold)
+                                )
+                            }
                         }
                     }
 

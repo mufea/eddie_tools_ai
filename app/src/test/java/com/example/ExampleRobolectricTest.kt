@@ -31,7 +31,18 @@ class ExampleRobolectricTest {
 
   @Test
   fun testTokenCalculations() {
-    val state = com.example.ui.chat.ChatUiState(userTokens = 999900.0)
+    val state = com.example.ui.chat.ChatUiState(
+      tokenUsages = listOf(
+        com.example.data.db.TokenUsageEntity(
+          id = "test-usage-1",
+          featureType = "Text Generation",
+          detail = "Unit test usage",
+          tokenCost = 99.0,
+          timestamp = 0L,
+          userEmail = "test@example.com"
+        )
+      )
+    )
     assertEquals("99", state.getFormattedConsumedTokens())
     val formattedSpent = state.getFormattedConsumedTokens()
     assertEquals("99", formattedSpent)

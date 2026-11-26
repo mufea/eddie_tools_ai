@@ -1,6 +1,6 @@
 package com.example.data
 
-import com.example.BuildConfig
+import com.example.data.BackendProxyClient.withProxyAuth
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
@@ -36,27 +36,19 @@ class ChatRepository {
             .build()
     }
 
-    private fun getFallbackKey(activeKey: String, configKey: String, placeholder: String): String? {
-        val trimmedActive = activeKey.trim()
-        if (trimmedActive.isNotBlank()) return trimmedActive
-        val trimmedConfig = configKey.trim()
-        if (trimmedConfig.isNotBlank() && trimmedConfig != placeholder) {
-            return trimmedConfig
-        }
-        return null
-    }
-
-    suspend fun testProxyConnectivity(baseUrl: String = "https://geminiaitools.com/"): Pair<Boolean, String> {
+    suspend fun testProxyConnectivity(baseUrl: String = BackendProxyClient.DEFAULT_PROXY_ROOT): Pair<Boolean, String> {
         return withContext(Dispatchers.IO) {
             try {
-                val clean = baseUrl.trim()
-                val rootUrl = if (clean.endsWith("/api/chat")) clean.removeSuffix("/api/chat")
-                else if (clean.endsWith("/v1/chat/completions")) clean.removeSuffix("/v1/chat/completions")
-                else clean.trimEnd('/')
+                val rootUrl = BackendProxyClient.normalizeProxyRoot(baseUrl)
+                val firebaseToken = BackendProxyClient.getFirebaseIdToken()
 
                 // 1. First test root health check
                 try {
-                    val rootRequest = Request.Builder().url(rootUrl).get().build()
+                    val rootRequest = Request.Builder()
+                        .url(rootUrl)
+                        .withProxyAuth("Bearer", firebaseToken)
+                        .get()
+                        .build()
                     client.newCall(rootRequest).execute().use { rootResp ->
                         if (rootResp.isSuccessful) {
                             val body = rootResp.body?.string() ?: ""
@@ -66,7 +58,7 @@ class ChatRepository {
                 } catch (_: Exception) {}
 
                 // 2. Test chat endpoint
-                val targetUrl = if (clean.endsWith("/api/chat") || clean.endsWith("/v1/chat/completions")) clean else "$rootUrl/api/chat"
+                val targetUrl = BackendProxyClient.resolveEndpoint(baseUrl, "/api/chat")
 
                 val jsonBody = JSONObject().apply {
                     put("contents", JSONArray().put(JSONObject().apply {
@@ -82,7 +74,7 @@ class ChatRepository {
                 val request = Request.Builder()
                     .url(targetUrl)
                     .header("Content-Type", "application/json")
-                    .header("Authorization", "Bearer proxy_active")
+                    .withProxyAuth("Bearer", firebaseToken)
                     .post(jsonBody.toString().toRequestBody("application/json".toMediaTypeOrNull()))
                     .build()
 
@@ -91,7 +83,7 @@ class ChatRepository {
                     if (response.isSuccessful && !body.contains("API key not valid", ignoreCase = true)) {
                         Pair(true, "Proxy server is ONLINE and functional! (HTTP ${response.code})")
                     } else if (body.contains("API key not valid", ignoreCase = true) || body.contains("API_KEY_INVALID", ignoreCase = true)) {
-                        Pair(true, "Proxy Reachable (HTTP ${response.code}), but upstream API key on proxy server has expired. Enter your API key in settings to bypass this.")
+                        Pair(true, "Proxy Reachable (HTTP ${response.code}), but upstream API key on proxy server needs attention.")
                     } else {
                         Pair(true, "Proxy Reachable (HTTP ${response.code}): ${body.take(100)}")
                     }
@@ -103,23 +95,22 @@ class ChatRepository {
     }
 
     suspend fun fetchDynamicModelConfigsFromProxy(
-        baseUrl: String = "https://geminiaitools.com/",
+        baseUrl: String = BackendProxyClient.DEFAULT_PROXY_ROOT,
         params: List<String>
     ): Result<Map<String, Map<String, String>>> {
         return withContext(Dispatchers.IO) {
             try {
-                val clean = baseUrl.trim()
-                val rootUrl = if (clean.endsWith("/api/chat")) clean.removeSuffix("/api/chat")
-                else if (clean.endsWith("/v1/chat/completions")) clean.removeSuffix("/v1/chat/completions")
-                else clean.trimEnd('/')
-
+                val rootUrl = BackendProxyClient.normalizeProxyRoot(baseUrl)
+                val firebaseToken = BackendProxyClient.getFirebaseIdToken()
                 val resultMap = mutableMapOf<String, Map<String, String>>()
 
                 for (param in params) {
-                    val targetUrl = "$rootUrl/api/keys?model=$param"
+                    val encodedModel = java.net.URLEncoder.encode(param, "UTF-8")
+                    val targetUrl = "$rootUrl/api/keys?model=$encodedModel"
                     val request = Request.Builder()
                         .url(targetUrl)
                         .header("User-Agent", "ChatAssistant-App/1.0")
+                        .withProxyAuth("Bearer", firebaseToken)
                         .get()
                         .build()
 
@@ -129,12 +120,10 @@ class ChatRepository {
                             val json = JSONObject(bodyStr)
                             val targetModel = json.optString("targetModel", "").trim()
                             val modelId = json.optString("modelId", "").trim()
-                            val apiKey = (json.optString("apiKey", "").takeIf { it.isNotBlank() } ?: json.optString("key", "")).trim()
 
                             resultMap[param] = mapOf(
                                 "targetModel" to targetModel,
-                                "modelId" to modelId,
-                                "apiKey" to apiKey
+                                "modelId" to modelId
                             )
                         }
                     }
@@ -151,54 +140,232 @@ class ChatRepository {
         }
     }
 
-    suspend fun fetchApiKeysFromProxy(baseUrl: String = "https://geminiaitools.com/"): Result<Map<String, String>> {
+    data class TopUpPackage(
+        val id: String,
+        val name: String,
+        val tokens: Int,
+        val price: String,
+        val description: String,
+        val badge: String? = null
+    )
+
+    private fun parseTopUpPackageObject(obj: JSONObject, index: Int): TopUpPackage? {
+        val id = obj.optString("id", "pack_${index + 1}").trim().ifBlank { "pack_${index + 1}" }
+        val directName = obj.optString("name", obj.optString("title", "")).trim()
+        val directTokens = obj.optInt("tokens", obj.optInt("amount", 0))
+        val directPrice = obj.optString("price", obj.optString("priceLabel", "")).trim()
+        val directDesc = obj.optString("description", obj.optString("desc", "")).trim()
+        val directBadge = obj.optString("badge", "").trim().takeIf {
+            it.isNotBlank() && !it.equals("null", ignoreCase = true)
+        }
+        if (directName.isNotBlank() && directTokens > 0 && directPrice.isNotBlank()) {
+            return TopUpPackage(
+                id = id,
+                name = directName,
+                tokens = directTokens,
+                price = directPrice,
+                description = directDesc.ifBlank { "+$directTokens tokens untuk chat & studio AI" },
+                badge = directBadge
+            )
+        }
+
+        // Also support targetModel / modelId pipe format: "Starter Pack|250|$0.99|Deskripsi|POPULAR"
+        val packed = obj.optString("targetModel", obj.optString("modelId", "")).trim()
+        if (packed.contains("|")) {
+            val parts = packed.split("|").map { it.trim() }
+            if (parts.size >= 3) {
+                val pName = parts[0]
+                val pTokens = parts[1].filter { it.isDigit() }.toIntOrNull() ?: 0
+                val pPrice = parts[2]
+                val pDesc = parts.getOrNull(3).orEmpty().ifBlank { "+$pTokens tokens untuk chat & studio AI" }
+                val pBadge = parts.getOrNull(4)?.takeIf { it.isNotBlank() && !it.equals("null", ignoreCase = true) }
+                if (pName.isNotBlank() && pTokens > 0 && pPrice.isNotBlank()) {
+                    return TopUpPackage(
+                        id = id,
+                        name = pName,
+                        tokens = pTokens,
+                        price = pPrice,
+                        description = pDesc,
+                        badge = pBadge
+                    )
+                }
+            }
+        }
+        return null
+    }
+
+    suspend fun fetchTopUpPackagesFromProxy(
+        baseUrl: String = BackendProxyClient.DEFAULT_PROXY_ROOT
+    ): Result<List<TopUpPackage>> {
         return withContext(Dispatchers.IO) {
             try {
-                val clean = baseUrl.trim()
-                val rootUrl = if (clean.endsWith("/api/chat")) clean.removeSuffix("/api/chat")
-                else if (clean.endsWith("/v1/chat/completions")) clean.removeSuffix("/v1/chat/completions")
-                else clean.trimEnd('/')
+                val rootUrl = BackendProxyClient.normalizeProxyRoot(baseUrl)
+                val firebaseToken = BackendProxyClient.getFirebaseIdToken()
+                val candidateUrls = listOf(
+                    "$rootUrl/api/topup-packages",
+                    "$rootUrl/api/keys?model=TOPUP_PACKAGES"
+                )
 
-                val targetUrl = "$rootUrl/api/keys"
-                val request = Request.Builder()
-                    .url(targetUrl)
-                    .header("User-Agent", "ChatAssistant-App/1.0")
-                    .get()
-                    .build()
+                for (targetUrl in candidateUrls) {
+                    try {
+                        val request = Request.Builder()
+                            .url(targetUrl)
+                            .header("User-Agent", "ChatAssistant-App/1.0")
+                            .withProxyAuth("Bearer", firebaseToken)
+                            .get()
+                            .build()
 
-                client.newCall(request).execute().use { response ->
-                    if (!response.isSuccessful) {
-                        return@withContext Result.failure(Exception("HTTP ${response.code}: ${response.message}"))
-                    }
-                    val bodyStr = response.body?.string() ?: ""
-                    val json = JSONObject(bodyStr)
-                    val map = mutableMapOf<String, String>()
-                    if (json.has("keys")) {
-                        val keysObj = json.getJSONObject("keys")
-                        val it = keysObj.keys()
-                        while (it.hasNext()) {
-                            val k = it.next()
-                            val v = keysObj.optString(k, "").trim()
-                            if (v.isNotBlank()) {
-                                map[k.lowercase()] = v
+                        client.newCall(request).execute().use { response ->
+                            if (!response.isSuccessful) return@use
+                            val bodyStr = response.body?.string().orEmpty().trim()
+                            if (bodyStr.isBlank()) return@use
+
+                            val packagesArray = when {
+                                bodyStr.startsWith("[") -> JSONArray(bodyStr)
+                                bodyStr.startsWith("{") -> {
+                                    val json = JSONObject(bodyStr)
+                                    json.optJSONArray("packages")
+                                        ?: json.optJSONArray("data")
+                                        ?: json.optJSONArray("items")
+                                        ?: json.optJSONArray("topupPackages")
+                                }
+                                else -> null
+                            }
+
+                            if (packagesArray != null && packagesArray.length() > 0) {
+                                val parsed = mutableListOf<TopUpPackage>()
+                                for (i in 0 until packagesArray.length()) {
+                                    val obj = packagesArray.optJSONObject(i) ?: continue
+                                    parseTopUpPackageObject(obj, i)?.let { parsed.add(it) }
+                                }
+                                if (parsed.isNotEmpty()) {
+                                    return@withContext Result.success(parsed.take(5))
+                                }
                             }
                         }
+                    } catch (_: Exception) {
+                        // Try next candidate URL
                     }
-                    if (json.has("apiKey") && !map.containsKey("openai")) {
-                        val defaultKey = json.optString("apiKey", "").trim()
-                        if (defaultKey.isNotBlank()) {
-                            map["openai"] = defaultKey
+                }
+
+                // Fallback: query TOPUP_PACK_1..5 individually via /api/keys?model=
+                val queriedPackages = mutableListOf<TopUpPackage>()
+                for (i in 0 until 5) {
+                    val param = "TOPUP_PACK_${i + 1}"
+                    val targetUrl = "$rootUrl/api/keys?model=$param"
+                    try {
+                        val request = Request.Builder()
+                            .url(targetUrl)
+                            .header("User-Agent", "ChatAssistant-App/1.0")
+                            .withProxyAuth("Bearer", firebaseToken)
+                            .get()
+                            .build()
+
+                        client.newCall(request).execute().use { response ->
+                            if (!response.isSuccessful) return@use
+                            val bodyStr = response.body?.string().orEmpty().trim()
+                            if (!bodyStr.startsWith("{")) return@use
+                            val json = JSONObject(bodyStr)
+                            parseTopUpPackageObject(json, i)?.let { pkg ->
+                                queriedPackages.add(pkg)
+                            }
                         }
+                    } catch (_: Exception) {
+                        // Continue querying remaining packs
                     }
-                    if (map.isEmpty()) {
-                        Result.failure(Exception("Tidak ada API key ditemukan di response proxy."))
-                    } else {
-                        Result.success(map)
-                    }
+                }
+
+                if (queriedPackages.isNotEmpty()) {
+                    Result.success(queriedPackages.take(5))
+                } else {
+                    Result.failure(Exception("Paket top up dari proxy belum tersedia."))
                 }
             } catch (e: Exception) {
                 Result.failure(e)
             }
+        }
+    }
+
+    private fun extractElevenLabsKeyFromJson(bodyStr: String): String? {
+        if (bodyStr.isBlank()) return null
+        val trimmed = bodyStr.trim()
+        if (!trimmed.startsWith("{")) return null
+        return runCatching {
+            val json = JSONObject(trimmed)
+            val candidateKeys = listOf(
+                "ELEVENLABS_API_KEY",
+                "elevenlabs_api_key",
+                "elevenLabsApiKey",
+                "apiKey",
+                "api_key",
+                "key",
+                "value",
+                "secret",
+                "token"
+            )
+            for (field in candidateKeys) {
+                val value = json.optString(field, "").trim()
+                if (value.isNotBlank() && value != "proxy_active" && !value.equals("null", ignoreCase = true)) {
+                    return@runCatching value
+                }
+            }
+            for (nestedName in listOf("keys", "data", "result", "config")) {
+                val nested = json.optJSONObject(nestedName) ?: continue
+                for (field in candidateKeys) {
+                    val value = nested.optString(field, "").trim()
+                    if (value.isNotBlank() && value != "proxy_active" && !value.equals("null", ignoreCase = true)) {
+                        return@runCatching value
+                    }
+                }
+            }
+            null
+        }.getOrNull()
+    }
+
+    suspend fun fetchElevenLabsApiKeyFromProxy(
+        baseUrl: String = BackendProxyClient.DEFAULT_PROXY_ROOT
+    ): String? {
+        return withContext(Dispatchers.IO) {
+            val rootUrl = BackendProxyClient.normalizeProxyRoot(baseUrl)
+            val firebaseToken = BackendProxyClient.getFirebaseIdToken()
+            val candidateUrls = listOf(
+                "$rootUrl/api/keys?model=ELEVENLABS_API_KEY",
+                "$rootUrl/api/keys?key=ELEVENLABS_API_KEY",
+                "$rootUrl/api/keys"
+            )
+
+            for (targetUrl in candidateUrls) {
+                try {
+                    val request = Request.Builder()
+                        .url(targetUrl)
+                        .header("User-Agent", "ChatAssistant-App/1.0")
+                        .withProxyAuth("Bearer", firebaseToken)
+                        .get()
+                        .build()
+
+                    client.newCall(request).execute().use { response ->
+                        if (response.isSuccessful) {
+                            val bodyStr = response.body?.string().orEmpty()
+                            val extracted = extractElevenLabsKeyFromJson(bodyStr)
+                            if (!extracted.isNullOrBlank()) {
+                                return@withContext extracted
+                            }
+                        }
+                    }
+                } catch (_: Exception) {
+                    // Try next candidate endpoint
+                }
+            }
+            null
+        }
+    }
+
+    suspend fun fetchApiKeysFromProxy(baseUrl: String = BackendProxyClient.DEFAULT_PROXY_ROOT): Result<Map<String, String>> {
+        val (connected, statusMessage) = testProxyConnectivity(baseUrl)
+        return if (connected) {
+            Result.success(emptyMap())
+        } else {
+            Result.failure(Exception(statusMessage))
         }
     }
 
@@ -213,16 +380,8 @@ class ChatRepository {
     ): String {
         return withContext(Dispatchers.IO) {
             val systemText = customSystemInstruction?.ifBlank { null } ?: defaultSystemInstruction
-            val activeKey = providerKeys[provider]?.trim() ?: ""
 
-            val resolvedModel = when (model) {
-                "gpt-5-mini" -> "gpt-5-mini"
-                "gpt5.5", "gpt-5.5" -> "gpt-5.5"
-                "deepseek-chat", "deepseek-flash", "deepseek-v4-flash" -> "deepseek-v4-flash"
-                "deepseek-v4-pro" -> "deepseek-v4-pro"
-                "claude-opus-4-7", "claude-opus-5" -> "claude-opus-5"
-                else -> model
-            }
+            val resolvedModel = model.trim()
 
             // Sanitize conversation history to prevent models from seeing and mimicking 
             // system-level Token Usage or Pemakaian Token status notifications previously written to DB
@@ -232,155 +391,50 @@ class ChatRepository {
                 msg.copy(text = cleanText)
             }
 
-            val defaultProxy = "https://geminiaitools.com/"
+            val normalizedProvider = provider.lowercase().trim()
+            val customUrl = when (normalizedProvider) {
+                "openai" -> providerUrls["OpenAI"] ?: providerUrls["openai"]
+                "deepseek" -> providerUrls["DeepSeek"] ?: providerUrls["Deepseek"] ?: providerUrls["deepseek"]
+                "claude", "anthropic" -> providerUrls["Claude"] ?: providerUrls["Anthropic"] ?: providerUrls["claude"] ?: providerUrls["anthropic"]
+                "xai" -> providerUrls["XAI"] ?: providerUrls["Xai"] ?: providerUrls["xai"]
+                else -> providerUrls[provider] ?: providerUrls[normalizedProvider]
+            }?.trim()?.ifBlank { null }
 
-            when (provider.lowercase().trim()) {
-                "openai" -> {
-                    val fallbackKey = getFallbackKey(activeKey, BuildConfig.OPENAI_API_KEY, "PLACEHOLDER_OPENAI_API_KEY")
-                    val customUrl = (providerUrls["OpenAI"] ?: providerUrls["openai"])?.trim()?.ifBlank { null }
-                    val targetModel = when (resolvedModel) {
-                        "openai", "" -> "gpt-5-mini"
-                        "gpt5.5", "gpt" -> "gpt-5.5"
-                        else -> resolvedModel
-                    }
-                    if (fallbackKey != null) {
-                        val url = if (!customUrl.isNullOrBlank() && !customUrl.contains("eddie-proxy") && !customUrl.contains("geminiaitools")) {
-                            customUrl
-                        } else {
-                            "https://api.openai.com/v1/chat/completions"
-                        }
-                        callOpenAiCompatible(
-                            history = sanitizedHistory,
-                            newPrompt = newPrompt,
-                            model = targetModel,
-                            systemText = systemText,
-                            apiKey = fallbackKey,
-                            baseUrl = url
-                        )
-                    } else {
-                        // Route through proxy (geminiaitools.com)
-                        val proxyUrl = if (!customUrl.isNullOrBlank()) customUrl else defaultProxy
-                        callOpenAiCompatible(
-                            history = sanitizedHistory,
-                            newPrompt = newPrompt,
-                            model = targetModel,
-                            systemText = systemText,
-                            apiKey = "proxy_active",
-                            baseUrl = proxyUrl
-                        )
-                    }
+            val targetModel = when (normalizedProvider) {
+                "openai" -> when (resolvedModel.lowercase()) {
+                    "openai", "" -> "gpt-4o-mini"
+                    "gpt" -> "gpt-4o"
+                    else -> resolvedModel
                 }
-                "deepseek" -> {
-                    val fallbackKey = getFallbackKey(activeKey, BuildConfig.DEEPSEEK_API_KEY, "PLACEHOLDER_DEEPSEEK_API_KEY")
-                    val customUrl = (providerUrls["DeepSeek"] ?: providerUrls["Deepseek"] ?: providerUrls["deepseek"])?.trim()?.ifBlank { null }
-                    val targetModel = if (resolvedModel.isNotBlank() && resolvedModel != "deepseek") resolvedModel else "deepseek-chat"
-                    if (fallbackKey != null && !fallbackKey.contains("PLACEHOLDER") && fallbackKey.isNotBlank()) {
-                        val url = if (!customUrl.isNullOrBlank() && !customUrl.contains("eddie-proxy") && !customUrl.contains("geminiaitools")) {
-                            customUrl
-                        } else {
-                            "https://api.deepseek.com/v1/chat/completions"
-                        }
-                        callOpenAiCompatible(
-                            history = sanitizedHistory,
-                            newPrompt = newPrompt,
-                            model = targetModel,
-                            systemText = systemText,
-                            apiKey = fallbackKey,
-                            baseUrl = url
-                        )
-                    } else {
-                        // Route through proxy (geminiaitools.com)
-                        val proxyUrl = if (!customUrl.isNullOrBlank()) customUrl else defaultProxy
-                        callOpenAiCompatible(
-                            history = sanitizedHistory,
-                            newPrompt = newPrompt,
-                            model = targetModel,
-                            systemText = systemText,
-                            apiKey = "proxy_active",
-                            baseUrl = proxyUrl
-                        )
-                    }
-                }
-                "claude", "anthropic" -> {
-                    val fallbackKey = getFallbackKey(activeKey, BuildConfig.ANTHROPIC_API_KEY, "PLACEHOLDER_ANTHROPIC_API_KEY")
-                    val customUrl = (providerUrls["Claude"] ?: providerUrls["Anthropic"] ?: providerUrls["claude"] ?: providerUrls["anthropic"])?.trim()?.ifBlank { null }
-                    val targetModel = if (resolvedModel.isNotBlank() && resolvedModel != "claude" && resolvedModel != "anthropic") resolvedModel else "claude-sonnet-4-6"
-                    if (fallbackKey != null && !fallbackKey.contains("PLACEHOLDER") && fallbackKey.isNotBlank()) {
-                        val url = if (!customUrl.isNullOrBlank() && !customUrl.contains("eddie-proxy") && !customUrl.contains("geminiaitools")) {
-                            customUrl
-                        } else {
-                            "https://api.anthropic.com/v1/messages"
-                        }
-                        callClaude(sanitizedHistory, newPrompt, targetModel, systemText, fallbackKey, url)
-                    } else {
-                        // Route through proxy (geminiaitools.com)
-                        val proxyUrl = if (!customUrl.isNullOrBlank()) customUrl else defaultProxy
-                        callOpenAiCompatible(
-                            history = sanitizedHistory,
-                            newPrompt = newPrompt,
-                            model = targetModel,
-                            systemText = systemText,
-                            apiKey = "proxy_active",
-                            baseUrl = proxyUrl
-                        )
-                    }
-                }
-                "xai" -> {
-                    val fallbackKey = getFallbackKey(activeKey, BuildConfig.XAI_API_KEY, "PLACEHOLDER_XAI_API_KEY")
-                    val customUrl = (providerUrls["XAI"] ?: providerUrls["Xai"] ?: providerUrls["xai"])?.trim()?.ifBlank { null }
-                    val targetModel = if (resolvedModel.isNotBlank() && resolvedModel != "openai" && resolvedModel != "grok-beta") resolvedModel else "grok-4.3"
-                    if (fallbackKey != null && !fallbackKey.contains("PLACEHOLDER") && fallbackKey.isNotBlank()) {
-                        val url = if (!customUrl.isNullOrBlank() && !customUrl.contains("eddie-proxy") && !customUrl.contains("geminiaitools")) {
-                            customUrl
-                        } else {
-                            "https://api.x.ai/v1/chat/completions"
-                        }
-                        callOpenAiCompatible(
-                            history = sanitizedHistory,
-                            newPrompt = newPrompt,
-                            model = targetModel,
-                            systemText = systemText,
-                            apiKey = fallbackKey,
-                            baseUrl = url
-                        )
-                    } else {
-                        // Route through proxy (geminiaitools.com)
-                        val proxyUrl = if (!customUrl.isNullOrBlank()) customUrl else defaultProxy
-                        callOpenAiCompatible(
-                            history = sanitizedHistory,
-                            newPrompt = newPrompt,
-                            model = targetModel,
-                            systemText = systemText,
-                            apiKey = "proxy_active",
-                            baseUrl = proxyUrl
-                        )
-                    }
-                }
-                else -> {
-                    val proxyUrl = providerUrls[provider]?.trim()?.ifBlank { null } ?: defaultProxy
-                    callOpenAiCompatible(
-                        history = sanitizedHistory,
-                        newPrompt = newPrompt,
-                        model = if (resolvedModel.isNotBlank() && !resolvedModel.contains("gemini")) resolvedModel else "gpt-5-mini",
-                        systemText = systemText,
-                        apiKey = "proxy_active",
-                        baseUrl = proxyUrl
-                    )
-                }
+                "deepseek" -> if (resolvedModel.isNotBlank() && !resolvedModel.equals("deepseek", ignoreCase = true)) resolvedModel else "deepseek-chat"
+                "claude", "anthropic" -> if (resolvedModel.isNotBlank() && !resolvedModel.equals("claude", ignoreCase = true) && !resolvedModel.equals("anthropic", ignoreCase = true)) resolvedModel else "claude-3-7-sonnet-20250219"
+                "xai" -> if (resolvedModel.isNotBlank() && !resolvedModel.equals("openai", ignoreCase = true) && !resolvedModel.equals("xai", ignoreCase = true)) resolvedModel else "grok-beta"
+                else -> if (resolvedModel.isNotBlank() && !resolvedModel.contains("gemini")) resolvedModel else "gpt-4o-mini"
             }
+
+            callOpenAiCompatible(
+                history = sanitizedHistory,
+                newPrompt = newPrompt,
+                model = targetModel,
+                systemText = systemText,
+                baseUrl = BackendProxyClient.normalizeProxyRoot(customUrl),
+                provider = normalizedProvider.ifBlank { "openai" }
+            )
         }
     }
 
-    private fun callOpenAiCompatible(
+    private suspend fun callOpenAiCompatible(
         history: List<ChatMessage>,
         newPrompt: String,
         model: String,
         systemText: String,
-        apiKey: String,
-        baseUrl: String
+        baseUrl: String,
+        provider: String = "openai"
     ): String {
         return try {
+            val firebaseToken = BackendProxyClient.getFirebaseIdToken()
             val jsonBody = JSONObject().apply {
+                put("provider", provider)
                 put("model", model)
                 // Reasoning models (such as GPT-5.5, o1, o3-mini) strictly require temperature = 1.
                 // Explicitly specifying 1 prevents proxy defaults (such as 0.7) from causing HTTP 400.
@@ -408,20 +462,17 @@ class ChatRepository {
                 put("messages", messagesArray)
             }
 
-            val clean = baseUrl.trim()
-            val targetUrl = if (clean.endsWith("/v1/chat/completions") || clean.endsWith("/api/chat")) {
-                clean
-            } else if (clean.endsWith("/")) {
-                "${clean}v1/chat/completions"
-            } else {
-                "$clean/v1/chat/completions"
+            val clean = baseUrl.trim().trimEnd('/')
+            val targetUrl = when {
+                clean.endsWith("/v1/chat/completions", ignoreCase = true) -> clean
+                clean.endsWith("/v1", ignoreCase = true) -> "$clean/chat/completions"
+                else -> BackendProxyClient.resolveEndpoint(clean, "/api/chat")
             }
 
-            val authKey = if (apiKey.isNotBlank() && apiKey != "proxy_active" && !apiKey.contains("PLACEHOLDER")) apiKey else "proxy_active"
             val requestBody = jsonBody.toString().toRequestBody("application/json".toMediaTypeOrNull())
             val request = Request.Builder()
                 .url(targetUrl)
-                .header("Authorization", "Bearer $authKey")
+                .withProxyAuth("Bearer", firebaseToken)
                 .header("Content-Type", "application/json")
                 .post(requestBody)
                 .build()
@@ -453,95 +504,15 @@ class ChatRepository {
                     val errMsg = err?.optString("message") ?: responseJson.optString("error")
                     "API Error: $errMsg"
                 } else {
-                    "Unexpected response: ${resStr.take(200)}"
+                    val directText = listOf("text", "reply", "response", "answer", "content", "output")
+                        .firstNotNullOfOrNull { key ->
+                            responseJson.optString(key, "").trim().takeIf { it.isNotBlank() }
+                        }
+                    directText ?: "Unexpected response: ${resStr.take(200)}"
                 }
             }
         } catch (e: Exception) {
             "Failed to make API request: ${e.localizedMessage}"
-        }
-    }
-
-    private fun callClaude(
-        history: List<ChatMessage>,
-        newPrompt: String,
-        model: String,
-        systemText: String,
-        apiKey: String,
-        baseUrl: String
-    ): String {
-        return try {
-            val jsonBody = JSONObject().apply {
-                put("model", model)
-                put("system", systemText)
-                put("max_tokens", 4096)
-                
-                val messagesArray = JSONArray().apply {
-                    history.forEach { msg ->
-                        put(JSONObject().apply {
-                            put("role", if (msg.role == Role.USER) "user" else "assistant")
-                            put("content", msg.text)
-                        })
-                    }
-                    
-                    put(JSONObject().apply {
-                        put("role", "user")
-                        put("content", newPrompt)
-                    })
-                }
-                
-                put("messages", messagesArray)
-            }
-
-            val requestBody = jsonBody.toString().toRequestBody("application/json".toMediaTypeOrNull())
-            val request = Request.Builder()
-                .url(baseUrl)
-                .header("x-api-key", apiKey)
-                .header("anthropic-version", "2023-06-01")
-                .header("Content-Type", "application/json")
-                .post(requestBody)
-                .build()
-
-            client.newCall(request).execute().use { response ->
-                if (!response.isSuccessful) {
-                    return "HTTP Claude Error ${response.code}: ${response.body?.string() ?: "Failed to connect with Anthropic."}"
-                }
-                val resStr = response.body?.string() ?: return "Empty Claude response."
-                val responseJson = JSONObject(resStr)
-
-                if (responseJson.has("content")) {
-                    val contentArr = responseJson.getJSONArray("content")
-                    val textBuilder = StringBuilder()
-
-                    for (i in 0 until contentArr.length()) {
-                        val block = contentArr.getJSONObject(i)
-                        val type = block.optString("type", "")
-                        if (type == "text") {
-                            val text = block.optString("text", "")
-                            if (text.isNotBlank()) {
-                                if (textBuilder.isNotEmpty()) textBuilder.append("\n\n")
-                                textBuilder.append(text)
-                            }
-                        }
-                    }
-
-                    if (textBuilder.isNotEmpty()) {
-                        textBuilder.toString()
-                    } else if (contentArr.length() > 0) {
-                        // Fallback: check first block text or toString
-                        contentArr.getJSONObject(0).optString("text", "No text content returned.")
-                    } else {
-                        "Empty response content from Claude."
-                    }
-                } else if (responseJson.has("error")) {
-                    val err = responseJson.optJSONObject("error")
-                    val msg = err?.optString("message") ?: responseJson.optString("error")
-                    "Anthropic API Error: $msg"
-                } else {
-                    "Unexpected Claude response: ${resStr.take(200)}"
-                }
-            }
-        } catch (e: Exception) {
-            "Failed to make Claude API request: ${e.localizedMessage}"
         }
     }
 
@@ -554,73 +525,23 @@ class ChatRepository {
         providerUrls: Map<String, String> = emptyMap()
     ): String {
         return withContext(Dispatchers.IO) {
-            val activeKey = providerKeys[provider]?.trim() ?: ""
-            val defaultProxy = "https://geminiaitools.com/"
-            when (provider) {
-                "OpenAI" -> {
-                    val fallbackKey = getFallbackKey(activeKey, BuildConfig.OPENAI_API_KEY, "PLACEHOLDER_OPENAI_API_KEY")
-                    val customUrl = providerUrls["OpenAI"]?.trim()?.ifBlank { null }
-                    val targetModel = when (model) {
-                        "gpt5.5", "gpt-5.5" -> "gpt-5.5"
-                        "openai", "" -> "gpt-5-mini"
-                        else -> model
-                    }
-                    if (fallbackKey != null) {
-                        val url = if (!customUrl.isNullOrBlank() && !customUrl.contains("eddie-proxy") && !customUrl.contains("geminiaitools")) {
-                            customUrl
-                        } else {
-                            "https://api.openai.com/v1/chat/completions"
-                        }
-                        callOpenAiCompatible(
-                            history = emptyList(),
-                            newPrompt = prompt,
-                            model = targetModel,
-                            systemText = systemText,
-                            apiKey = fallbackKey,
-                            baseUrl = url
-                        )
-                    } else {
-                        val proxyUrl = if (!customUrl.isNullOrBlank()) customUrl else defaultProxy
-                        callOpenAiCompatible(
-                            history = emptyList(),
-                            newPrompt = prompt,
-                            model = targetModel,
-                            systemText = systemText,
-                            apiKey = "proxy_active",
-                            baseUrl = proxyUrl
-                        )
-                    }
-                }
-                else -> {
-                    val fallbackKey = getFallbackKey(activeKey, BuildConfig.OPENAI_API_KEY, "PLACEHOLDER_OPENAI_API_KEY")
-                    val customUrl = providerUrls[provider]?.trim()?.ifBlank { null }
-                    if (fallbackKey != null) {
-                        val url = if (!customUrl.isNullOrBlank() && !customUrl.contains("eddie-proxy") && !customUrl.contains("geminiaitools")) {
-                            customUrl
-                        } else {
-                            "https://api.openai.com/v1/chat/completions"
-                        }
-                        callOpenAiCompatible(
-                            history = emptyList(),
-                            newPrompt = prompt,
-                            model = if (model.isBlank()) "gpt-5-mini" else model,
-                            systemText = systemText,
-                            apiKey = fallbackKey,
-                            baseUrl = url
-                        )
-                    } else {
-                        val proxyUrl = if (!customUrl.isNullOrBlank()) customUrl else defaultProxy
-                        callOpenAiCompatible(
-                            history = emptyList(),
-                            newPrompt = prompt,
-                            model = if (model.isBlank()) "gpt-5-mini" else model,
-                            systemText = systemText,
-                            apiKey = "proxy_active",
-                            baseUrl = proxyUrl
-                        )
-                    }
-                }
+            val normalizedProvider = provider.lowercase().trim()
+            val customUrl = providerUrls[provider]?.trim()?.ifBlank { null }
+                ?: providerUrls["OpenAI"]?.trim()?.ifBlank { null }
+                ?: BackendProxyClient.DEFAULT_PROXY_ROOT
+            val targetModel = when (model) {
+                "gpt5.5", "gpt-5.5" -> "gpt-5.5"
+                "openai", "" -> "gpt-5-mini"
+                else -> model
             }
+            callOpenAiCompatible(
+                history = emptyList(),
+                newPrompt = prompt,
+                model = targetModel,
+                systemText = systemText,
+                baseUrl = BackendProxyClient.normalizeProxyRoot(customUrl),
+                provider = normalizedProvider.ifBlank { "openai" }
+            )
         }
     }
 
@@ -638,16 +559,18 @@ class ChatRepository {
             bitmap.compress(android.graphics.Bitmap.CompressFormat.JPEG, 80, outputStream)
             val base64Data = android.util.Base64.encodeToString(outputStream.toByteArray(), android.util.Base64.NO_WRAP)
 
-            val activeKey = providerKeys["OpenAI"]?.trim() ?: ""
-            val keyToUse = getFallbackKey(activeKey, BuildConfig.OPENAI_API_KEY, "PLACEHOLDER_OPENAI_API_KEY")
-            if (keyToUse == null) {
-                return@withContext "API Key OpenAI is missing. Please set your OpenAI API Key in Settings."
+            val customUrl = (providerUrls[provider] ?: providerUrls["OpenAI"])?.trim().orEmpty().trimEnd('/')
+            val resolvedUrl = when {
+                customUrl.endsWith("/v1/chat/completions", ignoreCase = true) -> customUrl
+                customUrl.endsWith("/v1", ignoreCase = true) -> "$customUrl/chat/completions"
+                else -> BackendProxyClient.resolveEndpoint(customUrl.ifBlank { null }, "/api/chat")
             }
-            val baseUrl = providerUrls["OpenAI"]?.trim()?.ifBlank { null } ?: "https://api.openai.com/v1/chat/completions"
+            val firebaseToken = BackendProxyClient.getFirebaseIdToken()
             val resolvedModel = if (model.isBlank()) "gpt-4o-mini" else model
 
             try {
                 val jsonBody = JSONObject().apply {
+                    put("provider", provider.lowercase().trim().ifBlank { "openai" })
                     put("model", resolvedModel)
                     val messagesArray = JSONArray().apply {
                         put(JSONObject().apply {
@@ -676,25 +599,48 @@ class ChatRepository {
 
                 val requestBody = jsonBody.toString().toRequestBody("application/json".toMediaTypeOrNull())
                 val request = Request.Builder()
-                    .url(baseUrl)
-                    .header("Authorization", "Bearer $keyToUse")
+                    .url(resolvedUrl)
+                    .withProxyAuth("Bearer", firebaseToken)
                     .header("Content-Type", "application/json")
                     .post(requestBody)
                     .build()
 
                 client.newCall(request).execute().use { response ->
                     if (!response.isSuccessful) {
-                        return@withContext "HTTP Error ${response.code}: ${response.body?.string() ?: "Failed to connect to OpenAI API."}"
+                        return@withContext "HTTP Error ${response.code}: ${response.body?.string() ?: "Failed to connect to proxy server."}"
                     }
-                    val resStr = response.body?.string() ?: return@withContext "Empty response from OpenAI."
+                    val resStr = response.body?.string() ?: return@withContext "Empty response from proxy server."
                     val responseJson = JSONObject(resStr)
-                    responseJson.getJSONArray("choices")
-                        .getJSONObject(0)
-                        .getJSONObject("message")
-                        .getString("content")
+                    if (responseJson.has("choices")) {
+                        val choices = responseJson.getJSONArray("choices")
+                        if (choices.length() > 0) {
+                            choices.getJSONObject(0).getJSONObject("message").getString("content")
+                        } else {
+                            "Empty choices returned from proxy server."
+                        }
+                    } else if (responseJson.has("candidates")) {
+                        val parts = responseJson.optJSONArray("candidates")
+                            ?.optJSONObject(0)
+                            ?.optJSONObject("content")
+                            ?.optJSONArray("parts")
+                        if (parts != null && parts.length() > 0) {
+                            parts.getJSONObject(0).optString("text", "No response text generated.")
+                        } else {
+                            "Empty response from proxy server."
+                        }
+                    } else if (responseJson.has("error")) {
+                        val err = responseJson.optJSONObject("error")
+                        val errMsg = err?.optString("message") ?: responseJson.optString("error")
+                        "API Error: $errMsg"
+                    } else {
+                        listOf("text", "reply", "response", "answer", "content", "output")
+                            .firstNotNullOfOrNull { key ->
+                                responseJson.optString(key, "").trim().takeIf { it.isNotBlank() }
+                            } ?: "Unexpected response: ${resStr.take(200)}"
+                    }
                 }
             } catch (e: Exception) {
-                "Error OpenAI Vision API: ${e.localizedMessage}"
+                "Error Vision Proxy API: ${e.localizedMessage}"
             }
         }
     }
@@ -708,12 +654,8 @@ class ChatRepository {
         customBaseUrl: String? = null
     ): String {
         return withContext(Dispatchers.IO) {
-            val keyToUse = if (!customApiKey.isNullOrBlank()) customApiKey.trim() else BuildConfig.OPENAI_API_KEY
-            if (keyToUse.isBlank() || keyToUse.contains("PLACEHOLDER")) {
-                throw IllegalStateException("OpenAI API key is not configured. Please add your OpenAI API key in the API Key Settings.")
-            }
-
-            val baseUrl = customBaseUrl?.trim()?.ifBlank { null } ?: "https://api.openai.com/v1/"
+            val firebaseToken = BackendProxyClient.getFirebaseIdToken()
+            val resolvedUrl = BackendProxyClient.resolveEndpoint(customBaseUrl, "/v1/images/generations")
             val actualModelName = model.trim()
 
             val resolvedSize = if (actualModelName.lowercase().contains("gpt-image-2")) {
@@ -727,6 +669,7 @@ class ChatRepository {
             }
 
             val jsonBody = JSONObject().apply {
+                put("provider", "openai")
                 put("model", actualModelName)
                 put("prompt", prompt)
                 put("n", 1)
@@ -734,18 +677,10 @@ class ChatRepository {
             }
 
             val requestBody = jsonBody.toString().toRequestBody("application/json".toMediaTypeOrNull())
-            
-            val resolvedUrl = if (baseUrl.endsWith("images/generations")) {
-                baseUrl
-            } else if (baseUrl.endsWith("/")) {
-                "${baseUrl}images/generations"
-            } else {
-                "${baseUrl}/images/generations"
-            }
 
             val request = Request.Builder()
                 .url(resolvedUrl)
-                .header("Authorization", "Bearer $keyToUse")
+                .withProxyAuth("Bearer", firebaseToken)
                 .header("Content-Type", "application/json")
                 .post(requestBody)
                 .build()
@@ -901,48 +836,8 @@ class ChatRepository {
         onLogMessage: (String) -> Unit = {}
     ): String {
         return withContext(Dispatchers.IO) {
-            val keyToUse = if (!customApiKey.isNullOrBlank()) customApiKey.trim() else BuildConfig.OPENAI_API_KEY
-            if (keyToUse.isBlank() || keyToUse.contains("PLACEHOLDER")) {
-                throw IllegalStateException("OpenAI API key is not configured. Please add your OpenAI API key in the API Key Settings.")
-            }
-
-            var cleanBaseUrl = (customBaseUrl?.trim()?.ifBlank { null } ?: "https://api.openai.com/v1/").trim()
-            
-            // Clean common suffix misconfigurations from the base URL input
-            val suffixesToRemove = listOf(
-                "chat/completions",
-                "videos/generations",
-                "video/generations",
-                "video/generation",
-                "video/generate",
-                "videos/generate",
-                "images/generations",
-                "image/generations",
-                "videos",
-                "video"
-            )
-            for (suffix in suffixesToRemove) {
-                val isShortSuffix = suffix == "videos" || suffix == "video"
-                if (cleanBaseUrl.endsWith(suffix, ignoreCase = true)) {
-                    if (!isShortSuffix || cleanBaseUrl.endsWith("/$suffix", ignoreCase = true)) {
-                        cleanBaseUrl = cleanBaseUrl.substring(0, cleanBaseUrl.length - suffix.length).trim()
-                    }
-                }
-                val suffixWithSlash = "$suffix/"
-                if (cleanBaseUrl.endsWith(suffixWithSlash, ignoreCase = true)) {
-                    if (!isShortSuffix || cleanBaseUrl.endsWith("/$suffixWithSlash", ignoreCase = true)) {
-                        cleanBaseUrl = cleanBaseUrl.substring(0, cleanBaseUrl.length - suffixWithSlash.length).trim()
-                    }
-                }
-            }
-            if (!cleanBaseUrl.endsWith("/")) {
-                cleanBaseUrl = "$cleanBaseUrl/"
-            }
-
-            // Auto-fallback helper for raw openai domain without /v1/
-            if (cleanBaseUrl.contains("api.openai.com", ignoreCase = true) && !cleanBaseUrl.contains("/v1/", ignoreCase = true)) {
-                cleanBaseUrl = "https://api.openai.com/v1/"
-            }
+            val firebaseToken = BackendProxyClient.getFirebaseIdToken()
+            val resolvedUrl = BackendProxyClient.resolveEndpoint(customBaseUrl, "/v1/videos")
 
             val actualModelName = when (model.trim().lowercase()) {
                 "sora 2", "sora-2" -> "sora-2"
@@ -982,8 +877,8 @@ class ChatRepository {
                 else -> "1024x576"
             }
 
-            val resolvedUrl = "${cleanBaseUrl}videos"
             val postBody = JSONObject().apply {
+                put("provider", "openai")
                 put("model", actualModelName)
                 put("prompt", finalPrompt)
                 put("seconds", secondsParam)
@@ -994,12 +889,12 @@ class ChatRepository {
                 }
             }.toString()
             
-            onLogMessage("> Starting generation...\n> Sending POST request to: $resolvedUrl\n")
+            onLogMessage("> Starting generation via secure backend proxy...\n> Sending POST request to: $resolvedUrl\n")
 
             val requestBody = postBody.toRequestBody("application/json".toMediaTypeOrNull())
             val request = Request.Builder()
                 .url(resolvedUrl)
-                .header("Authorization", "Bearer $keyToUse")
+                .withProxyAuth("Bearer", firebaseToken)
                 .header("Content-Type", "application/json")
                 .post(requestBody)
                 .build()
@@ -1037,7 +932,7 @@ class ChatRepository {
             var completed = false
             var elapsedSeconds = 0
             val maxWaitSeconds = 600 // 10 minutes timeout
-            val pollUrl = "${cleanBaseUrl}videos/$videoId"
+            val pollUrl = "$resolvedUrl/$videoId"
             
             while (!completed && elapsedSeconds < maxWaitSeconds) {
                 delay(10000L) // Poll every 10 seconds as requested
@@ -1047,7 +942,7 @@ class ChatRepository {
                 
                 val pollRequest = Request.Builder()
                     .url(pollUrl)
-                    .header("Authorization", "Bearer $keyToUse")
+                    .withProxyAuth("Bearer", firebaseToken)
                     .header("Content-Type", "application/json")
                     .get()
                     .build()
@@ -1082,13 +977,13 @@ class ChatRepository {
                 throw IllegalStateException("Video generation timed out after 600 seconds.")
             }
 
-            val contentUrl = "${cleanBaseUrl}videos/$videoId/content"
+            val contentUrl = "$resolvedUrl/$videoId/content"
             onLogMessage("> Video completed! Calling content endpoint: GET /v1/videos/$videoId/content\n")
             onLogMessage("> Downloading MP4...\n")
             
             val contentRequest = Request.Builder()
                 .url(contentUrl)
-                .header("Authorization", "Bearer $keyToUse")
+                .withProxyAuth("Bearer", firebaseToken)
                 .get()
                 .build()
                 
@@ -1139,15 +1034,21 @@ class ChatRepository {
 
     suspend fun generateFalImage(
         prompt: String,
-        endpointUrl: String = "https://queue.fal.run/fal-ai/flux/schnell",
+        endpointUrl: String = "fal-ai/flux/schnell",
         aspectRatio: String = "1:1",
-        customApiKey: String? = null
+        customApiKey: String? = null,
+        customBaseUrl: String? = null
     ): String {
         return withContext(Dispatchers.IO) {
-            val keyToUse = if (!customApiKey.isNullOrBlank()) customApiKey.trim() else BuildConfig.FAL_API_KEY
-            if (keyToUse.isBlank() || keyToUse.contains("PLACEHOLDER")) {
-                throw IllegalStateException("Fal.ai API key is not configured. Please add your FAL_API_KEY in the Secrets panel.")
-            }
+            val firebaseToken = BackendProxyClient.getFirebaseIdToken()
+            val resolvedProxyUrl = BackendProxyClient.resolveEndpoint(customBaseUrl, "/api/image")
+
+            val modelPath = endpointUrl.trim()
+                .removePrefix("https://queue.fal.run/")
+                .removePrefix("https://fal.run/")
+                .substringBefore("?")
+                .trim('/')
+                .ifBlank { "fal-ai/flux/schnell" }
 
             val resolvedImageSize = when (aspectRatio.trim()) {
                 "16:9" -> "16:9"
@@ -1161,17 +1062,18 @@ class ChatRepository {
             }
 
             val jsonBody = JSONObject().apply {
+                put("provider", "fal")
+                put("model", modelPath)
                 put("prompt", prompt)
                 put("image_size", resolvedImageSize)
                 put("sync_mode", true)
             }
 
             val requestBody = jsonBody.toString().toRequestBody("application/json".toMediaTypeOrNull())
-            val resolvedUrl = if (endpointUrl.contains("?")) endpointUrl else "$endpointUrl?sync_mode=true"
-            
+
             val request = Request.Builder()
-                .url(resolvedUrl)
-                .header("Authorization", "Key $keyToUse")
+                .url(resolvedProxyUrl)
+                .withProxyAuth("Key", firebaseToken)
                 .header("Content-Type", "application/json")
                 .post(requestBody)
                 .build()
@@ -1179,35 +1081,40 @@ class ChatRepository {
             client.newCall(request).execute().use { response ->
                 val bodyStr = response.body?.string() ?: ""
                 if (!response.isSuccessful) {
-                    throw IllegalStateException("Fal.ai Error ${response.code}: $bodyStr")
+                    throw IllegalStateException("Fal.ai Proxy Error ${response.code}: $bodyStr")
                 }
                 val responseJson = JSONObject(bodyStr)
-                
+
                 // If the response yielded immediate image data, return it
                 val imagesArray = responseJson.optJSONArray("images")
                 if (imagesArray != null && imagesArray.length() > 0) {
                     return@withContext imagesArray.getJSONObject(0).getString("url")
                 }
+                val directUrl = responseJson.optString("url").ifBlank { responseJson.optString("image_url") }
+                if (directUrl.isNotBlank()) {
+                    return@withContext directUrl
+                }
 
-                // If immediate results are not present but queue details are provided, poll the queue status_url
+                // If immediate results are not present but queue details are provided, poll via backend proxy
                 val statusUrl = responseJson.optString("status_url")
                 val responseUrl = responseJson.optString("response_url")
-                
-                if (!statusUrl.isNullOrBlank() && !responseUrl.isNullOrBlank()) {
+
+                if (statusUrl.isNotBlank() && responseUrl.isNotBlank()) {
                     var completed = false
                     var attempts = 0
                     val maxAttempts = 60 // Wait up to 60 seconds
-                    
+
                     while (!completed && attempts < maxAttempts) {
                         delay(1000)
                         attempts++
-                        
+
+                        val pollStatusUrl = "$resolvedProxyUrl?statusUrl=" + java.net.URLEncoder.encode(statusUrl, "UTF-8")
                         val statusRequest = Request.Builder()
-                            .url(statusUrl)
-                            .header("Authorization", "Key $keyToUse")
+                            .url(pollStatusUrl)
+                            .withProxyAuth("Key", firebaseToken)
                             .get()
                             .build()
-                        
+
                         client.newCall(statusRequest).execute().use { statusResponse ->
                             if (statusResponse.isSuccessful) {
                                 val statusBody = statusResponse.body?.string() ?: ""
@@ -1221,14 +1128,15 @@ class ChatRepository {
                             }
                         }
                     }
-                    
+
                     if (completed) {
+                        val pollResultUrl = "$resolvedProxyUrl?statusUrl=" + java.net.URLEncoder.encode(responseUrl, "UTF-8")
                         val resultRequest = Request.Builder()
-                            .url(responseUrl)
-                            .header("Authorization", "Key $keyToUse")
+                            .url(pollResultUrl)
+                            .withProxyAuth("Key", firebaseToken)
                             .get()
                             .build()
-                        
+
                         client.newCall(resultRequest).execute().use { resultResponse ->
                             val resultBody = resultResponse.body?.string() ?: ""
                             if (!resultResponse.isSuccessful) {
@@ -1256,13 +1164,12 @@ class ChatRepository {
         prompt: String,
         model: String = "core",
         aspectRatio: String = "1024:1024",
-        customApiKey: String? = null
+        customApiKey: String? = null,
+        customBaseUrl: String? = null
     ): String {
         return withContext(Dispatchers.IO) {
-            val keyToUse = if (!customApiKey.isNullOrBlank()) customApiKey.trim() else BuildConfig.STABILITY_API_KEY
-            if (keyToUse.isBlank() || keyToUse.contains("PLACEHOLDER")) {
-                throw IllegalStateException("Stability AI API key is not configured. Please add your STABILITY_API_KEY in the Secrets panel.")
-            }
+            val firebaseToken = BackendProxyClient.getFirebaseIdToken()
+            val resolvedProxyUrl = BackendProxyClient.resolveEndpoint(customBaseUrl, "/api/image")
 
             // Resolve endpoint based on model selection
             val modelLower = model.lowercase()
@@ -1271,7 +1178,6 @@ class ChatRepository {
                 modelLower == "ultra" -> "ultra"
                 else -> "core"
             }
-            val resolvedUrl = "https://api.stability.ai/v2beta/stable-image/generate/$endpointPath"
 
             // Map aspect ratio string to Stability AI expected values ("1:1", "16:9", "21:9", "3:2", "2:3", "4:5", "5:4", "9:16", "9:21")
             val resolvedAspectRatio = when (aspectRatio.trim()) {
@@ -1302,16 +1208,8 @@ class ChatRepository {
                 }
             }
 
-            val builder = okhttp3.MultipartBody.Builder()
-                .setType(okhttp3.MultipartBody.FORM)
-                .addFormDataPart("prompt", prompt)
-                .addFormDataPart("output_format", "png")
-                .addFormDataPart("aspect_ratio", resolvedAspectRatio)
-
-            // For SD3, check if we need to add other parameters
-            if (endpointPath == "sd3") {
-                builder.addFormDataPart("mode", "text-to-image")
-                val stabilityModel = when {
+            val stabilityModel = if (endpointPath == "sd3") {
+                when {
                     modelLower.contains("sd3-turbo") -> "sd3-turbo"
                     modelLower.contains("sd3-medium") -> "sd3-medium"
                     modelLower.contains("sd3-large-turbo") -> "sd3-large-turbo"
@@ -1321,36 +1219,74 @@ class ChatRepository {
                     modelLower.contains("sd3.5-medium") -> "sd3.5-medium"
                     else -> "sd3-large"
                 }
-                builder.addFormDataPart("model", stabilityModel)
+            } else {
+                endpointPath
             }
 
-            val requestBody = builder.build()
+            val jsonBody = JSONObject().apply {
+                put("provider", "stability")
+                put("endpoint", endpointPath)
+                put("model", stabilityModel)
+                put("prompt", prompt)
+                put("output_format", "png")
+                put("aspect_ratio", resolvedAspectRatio)
+                if (endpointPath == "sd3") {
+                    put("mode", "text-to-image")
+                }
+            }
+
+            val requestBody = jsonBody.toString().toRequestBody("application/json".toMediaTypeOrNull())
 
             val request = Request.Builder()
-                .url(resolvedUrl)
-                .header("Authorization", "Bearer $keyToUse")
+                .url(resolvedProxyUrl)
+                .withProxyAuth("Bearer", firebaseToken)
+                .header("Content-Type", "application/json")
                 .header("Accept", "application/json")
                 .post(requestBody)
                 .build()
 
             client.newCall(request).execute().use { response ->
-                val bodyStr = response.body?.string() ?: ""
+                val contentType = response.header("Content-Type").orEmpty().lowercase()
                 if (!response.isSuccessful) {
-                    throw IllegalStateException("Stability AI Error ${response.code}: $bodyStr")
+                    val bodyStr = response.body?.string() ?: ""
+                    throw IllegalStateException("Stability AI Proxy Error ${response.code}: $bodyStr")
                 }
-                val responseJson = JSONObject(bodyStr)
-                val base64ImageBytes = responseJson.optString("image", "")
-                if (base64ImageBytes.isNotBlank()) {
-                    val bytes = android.util.Base64.decode(base64ImageBytes, android.util.Base64.DEFAULT)
+
+                if (contentType.startsWith("image/")) {
+                    val bytes = response.body?.bytes()
+                        ?: throw IllegalStateException("Stability AI returned an empty image body.")
                     val cacheDir = com.example.AppContextProvider.context.cacheDir
                     val file = java.io.File(cacheDir, "stability_img_${System.currentTimeMillis()}_${java.util.UUID.randomUUID()}.png")
                     java.io.FileOutputStream(file).use { out ->
                         out.write(bytes)
                     }
-                    "file://${file.absolutePath}"
-                } else {
-                    throw IllegalStateException("No image returned by Stability AI. Response: $bodyStr")
+                    return@withContext "file://${file.absolutePath}"
                 }
+
+                val bodyStr = response.body?.string() ?: ""
+                val responseJson = JSONObject(bodyStr)
+                val base64ImageBytes = responseJson.optString("image", "")
+                    .ifBlank { responseJson.optString("b64_json", "") }
+                if (base64ImageBytes.isNotBlank()) {
+                    val cleanB64 = base64ImageBytes.substringAfter("base64,", base64ImageBytes)
+                    val bytes = android.util.Base64.decode(cleanB64, android.util.Base64.DEFAULT)
+                    val cacheDir = com.example.AppContextProvider.context.cacheDir
+                    val file = java.io.File(cacheDir, "stability_img_${System.currentTimeMillis()}_${java.util.UUID.randomUUID()}.png")
+                    java.io.FileOutputStream(file).use { out ->
+                        out.write(bytes)
+                    }
+                    return@withContext "file://${file.absolutePath}"
+                }
+
+                val directUrl = responseJson.optString("url")
+                    .ifBlank { responseJson.optString("image_url") }
+                    .ifBlank { responseJson.optJSONArray("images")?.optJSONObject(0)?.optString("url").orEmpty() }
+                    .ifBlank { responseJson.optJSONArray("data")?.optJSONObject(0)?.optString("url").orEmpty() }
+                if (directUrl.isNotBlank()) {
+                    return@withContext directUrl
+                }
+
+                throw IllegalStateException("No image returned by Stability AI. Response: $bodyStr")
             }
         }
     }
@@ -1444,25 +1380,13 @@ class ChatRepository {
         onLogMessage: (String) -> Unit = {}
     ): String {
         return withContext(Dispatchers.IO) {
-            val isProxy = !customBaseUrl.isNullOrBlank() && (customBaseUrl.contains("api/video") || customBaseUrl.contains("aitools") || customBaseUrl.contains("vercel") || customBaseUrl.contains("workers.dev"))
-            val resolvedProxyUrl = if (isProxy) {
-                val p = customBaseUrl!!.trim()
-                if (p.endsWith("/api/video")) p
-                else if (p.endsWith("/")) "${p}api/video"
-                else "$p/api/video"
-            } else null
-
-            val keyToUse = if (!customApiKey.isNullOrBlank()) customApiKey.trim() else BuildConfig.FAL_API_KEY
-            if (resolvedProxyUrl == null && (keyToUse.isBlank() || keyToUse.contains("PLACEHOLDER"))) {
-                throw IllegalStateException("Fal.ai API key is not configured. Please add your FAL_API_KEY in the Secrets panel or configure a Video Proxy in Settings.")
-            }
-            val effectiveKey = if (resolvedProxyUrl != null && (keyToUse.isBlank() || keyToUse.contains("PLACEHOLDER"))) "proxy_active" else keyToUse
+            val firebaseToken = BackendProxyClient.getFirebaseIdToken()
+            val resolvedProxyUrl = BackendProxyClient.resolveEndpoint(customBaseUrl, "/api/video")
 
             val actualModel = if (model.lowercase().trim().startsWith("fal-ai/")) {
                 model.trim()
             } else {
                 when (model.lowercase().trim()) {
-                    "veo2" -> "fal-ai/veo2"
                     "veo3" -> "fal-ai/veo3"
                     "veo3-fast" -> "fal-ai/veo3/fast"
                     "veo3.1" -> "fal-ai/veo3.1"
@@ -1510,7 +1434,7 @@ class ChatRepository {
                     resolution = resolution,
                     generateAudio = generateAudio,
                     model = actualModel,
-                    customApiKey = customApiKey,
+                    customApiKey = null,
                     seed = seed,
                     autoFix = autoFix,
                     enhancePrompt = enhancePrompt,
@@ -1518,24 +1442,6 @@ class ChatRepository {
                     safetyTolerance = safetyTolerance,
                     proxyUrl = resolvedProxyUrl,
                     onLog = onLogMessage
-                )
-            }
-
-            if (actualModel == "fal-ai/veo2" || actualModel.contains("veo2")) {
-                val client = FalVeo2QueueClient()
-                return@withContext client.generateVideoAsync(
-                    prompt = prompt,
-                    imageUrl = imageUrl,
-                    mode = mode,
-                    aspectRatio = aspectRatio,
-                    duration = duration,
-                    customApiKey = customApiKey,
-                    seed = seed,
-                    enhancePrompt = enhancePrompt,
-                    autoFix = autoFix,
-                    negativePrompt = negativePrompt,
-                    proxyUrl = resolvedProxyUrl,
-                    onLogMessage = onLogMessage
                 )
             }
 
@@ -1548,7 +1454,7 @@ class ChatRepository {
                     aspectRatio = aspectRatio,
                     duration = duration,
                     modelId = actualModel,
-                    customApiKey = customApiKey,
+                    customApiKey = null,
                     negativePrompt = negativePrompt,
                     cfgScale = cfgScale,
                     generateAudio = generateAudio,
@@ -1564,47 +1470,21 @@ class ChatRepository {
             }
 
             val isImageToVideo = mode == "Image to Video" && (!imageUrl.isNullOrBlank() || !alibabaVideoUrl.isNullOrBlank())
-            val cleanedModel = if (actualModel.startsWith("fal-ai/")) {
-                actualModel.removePrefix("fal-ai/")
-            } else {
-                actualModel
-            }
-            var endpointUrl = if (actualModel.startsWith("fal-ai/")) {
-                "https://queue.fal.run/$actualModel"
-            } else {
-                "https://queue.fal.run/$cleanedModel"
-            }
-            if (actualModel.lowercase().trim().contains("happy-horse")) {
-                endpointUrl = if (isImageToVideo) "https://queue.fal.run/alibaba/happy-horse/image-to-video" else "https://queue.fal.run/alibaba/happy-horse/text-to-video"
-            } else if (actualModel.lowercase().trim().contains("wan/v2.7")) {
-                endpointUrl = if (isImageToVideo) "https://queue.fal.run/fal-ai/wan/v2.7/image-to-video" else "https://queue.fal.run/fal-ai/wan/v2.7/text-to-video"
-            } else if (actualModel.lowercase().trim().contains("wan/v2.6")) {
-                endpointUrl = if (isImageToVideo) "https://queue.fal.run/fal-ai/wan/v2.6/image-to-video" else "https://queue.fal.run/fal-ai/wan/v2.6/text-to-video"
-            } else if (actualModel.lowercase().trim().contains("wan/v2.5") || actualModel.lowercase().trim().contains("wan-25-preview")) {
-                endpointUrl = if (isImageToVideo) "https://queue.fal.run/fal-ai/wan-25-preview/image-to-video" else "https://queue.fal.run/fal-ai/wan-25-preview/text-to-video"
-            } else if (actualModel.lowercase().trim().contains("sora-2-pro")) {
-                endpointUrl = if (isImageToVideo) "https://queue.fal.run/fal-ai/sora-2/image-to-video/pro" else "https://queue.fal.run/fal-ai/sora-2/text-to-video/pro"
-            } else if (actualModel.lowercase().trim().contains("sora-2")) {
-                endpointUrl = if (isImageToVideo) "https://queue.fal.run/fal-ai/sora-2/image-to-video" else "https://queue.fal.run/fal-ai/sora-2/text-to-video"
-            }
-            if (actualModel.contains("pixverse")) {
-                if (isImageToVideo) {
-                    if (actualModel == "fal-ai/pixverse/v6/image-to-video" || cleanedModel == "pixverse/v6/image-to-video") {
-                        endpointUrl = "https://queue.fal.run/fal-ai/pixverse/v6/image-to-video"
-                    } else if (actualModel == "fal-ai/pixverse/v5.6/image-to-video" || cleanedModel == "pixverse/v5.6/image-to-video") {
-                        endpointUrl = "https://queue.fal.run/fal-ai/pixverse/v5.6/image-to-video"
-                    } else if (actualModel == "fal-ai/pixverse/c1/image-to-video" || cleanedModel == "pixverse/c1/image-to-video") {
-                        endpointUrl = "https://queue.fal.run/fal-ai/pixverse/c1/image-to-video"
-                    }
-                } else {
-                    if (actualModel == "fal-ai/pixverse/v6/text-to-video" || cleanedModel == "pixverse/v6/text-to-video") {
-                        endpointUrl = "https://queue.fal.run/fal-ai/pixverse/v6/text-to-video"
-                    } else if (actualModel == "fal-ai/pixverse/v5.6/text-to-video" || cleanedModel == "pixverse/v5.6/text-to-video") {
-                        endpointUrl = "https://queue.fal.run/fal-ai/pixverse/v5.6/text-to-video"
-                    } else if (actualModel == "fal-ai/pixverse/v5.5/text-to-video" || cleanedModel == "pixverse/v5.5/text-to-video") {
-                        endpointUrl = "https://queue.fal.run/fal-ai/pixverse/v5.5/text-to-video"
-                    }
-                }
+            val resolvedFalModelId = when {
+                actualModel.lowercase().trim().contains("happy-horse") ->
+                    if (isImageToVideo) "alibaba/happy-horse/image-to-video" else "alibaba/happy-horse/text-to-video"
+                actualModel.lowercase().trim().contains("wan/v2.7") ->
+                    if (isImageToVideo) "fal-ai/wan/v2.7/image-to-video" else "fal-ai/wan/v2.7/text-to-video"
+                actualModel.lowercase().trim().contains("wan/v2.6") ->
+                    if (isImageToVideo) "fal-ai/wan/v2.6/image-to-video" else "fal-ai/wan/v2.6/text-to-video"
+                actualModel.lowercase().trim().contains("wan/v2.5") || actualModel.lowercase().trim().contains("wan-25-preview") ->
+                    if (isImageToVideo) "fal-ai/wan-25-preview/image-to-video" else "fal-ai/wan-25-preview/text-to-video"
+                actualModel.lowercase().trim().contains("sora-2-pro") ->
+                    if (isImageToVideo) "fal-ai/sora-2/image-to-video/pro" else "fal-ai/sora-2/text-to-video/pro"
+                actualModel.lowercase().trim().contains("sora-2") ->
+                    if (isImageToVideo) "fal-ai/sora-2/image-to-video" else "fal-ai/sora-2/text-to-video"
+                actualModel.contains("pixverse") -> actualModel
+                else -> actualModel
             }
 
             onLogMessage("> Preparing FalAI request body...\n")
@@ -2029,17 +1909,15 @@ class ChatRepository {
                 }
             }
 
-            val targetSubmitUrl = resolvedProxyUrl ?: endpointUrl
-            if (resolvedProxyUrl != null) {
-                jsonBody.put("model", actualModel)
-            }
+            jsonBody.put("provider", "fal")
+            jsonBody.put("model", resolvedFalModelId)
 
-            onLogMessage("> Connecting to video pipeline ($targetSubmitUrl)...\n")
+            onLogMessage("> Connecting to secure video proxy ($resolvedProxyUrl) for model $resolvedFalModelId...\n")
             val requestBody = jsonBody.toString().toRequestBody("application/json".toMediaTypeOrNull())
             
             val request = Request.Builder()
-                .url(targetSubmitUrl)
-                .header("Authorization", "Key $effectiveKey")
+                .url(resolvedProxyUrl)
+                .withProxyAuth("Key", firebaseToken)
                 .header("Content-Type", "application/json")
                 .post(requestBody)
                 .build()
@@ -2054,10 +1932,10 @@ class ChatRepository {
                 val statusUrl = responseJson.optString("status_url")
                 val responseUrl = responseJson.optString("response_url")
                 
-                if (!statusUrl.isNullOrBlank() && !responseUrl.isNullOrBlank()) {
+                if (statusUrl.isNotBlank() && responseUrl.isNotBlank()) {
                     onLogMessage("> Submission successful! Request ID: ${responseJson.optString("request_id")}\n")
                     onLogMessage("> Active queue position: ${responseJson.optInt("queue_position", 0)}\n")
-                    onLogMessage("> Starting client-side polling...\n")
+                    onLogMessage("> Starting proxy-routed polling...\n")
                     
                     var completed = false
                     var attempts = 0
@@ -2067,15 +1945,11 @@ class ChatRepository {
                         delay(2000) // Poll every 2 seconds to not spam
                         attempts++
                         
-                        val pollStatusUrl = if (resolvedProxyUrl != null) {
-                            "$resolvedProxyUrl?statusUrl=" + java.net.URLEncoder.encode(statusUrl, "UTF-8")
-                        } else {
-                            statusUrl
-                        }
+                        val pollStatusUrl = "$resolvedProxyUrl?statusUrl=" + java.net.URLEncoder.encode(statusUrl, "UTF-8")
 
                         val statusRequest = Request.Builder()
                             .url(pollStatusUrl)
-                            .header("Authorization", "Key $effectiveKey")
+                            .withProxyAuth("Key", firebaseToken)
                             .get()
                             .build()
                         
@@ -2102,15 +1976,11 @@ class ChatRepository {
                     
                     if (completed) {
                         onLogMessage("> Fetching completed video outputs...\n")
-                        val pollResultUrl = if (resolvedProxyUrl != null) {
-                            "$resolvedProxyUrl?statusUrl=" + java.net.URLEncoder.encode(responseUrl, "UTF-8")
-                        } else {
-                            responseUrl
-                        }
+                        val pollResultUrl = "$resolvedProxyUrl?statusUrl=" + java.net.URLEncoder.encode(responseUrl, "UTF-8")
 
                         val resultRequest = Request.Builder()
                             .url(pollResultUrl)
-                            .header("Authorization", "Key $effectiveKey")
+                            .withProxyAuth("Key", firebaseToken)
                             .get()
                             .build()
                         
@@ -2125,14 +1995,14 @@ class ChatRepository {
                             val videoObj = resultJson.optJSONObject("video")
                             if (videoObj != null) {
                                 val url = videoObj.optString("url")
-                                if (!url.isNullOrBlank()) {
+                                if (url.isNotBlank()) {
                                     return@withContext url
                                 }
                             }
                             
                             // Let's check "video_url" or "url" keys directly
                             val directUrl = resultJson.optString("video_url").ifBlank { resultJson.optString("url") }
-                            if (!directUrl.isNullOrBlank()) {
+                            if (directUrl.isNotBlank()) {
                                 return@withContext directUrl
                             }
                             
@@ -2142,16 +2012,197 @@ class ChatRepository {
                         throw IllegalStateException("Fal.ai video generation timed out after 5 minutes.")
                     }
                 } else {
-                    // Try direct video output if sync mode was used (though we submit to async)
+                    // Try direct video output if sync mode was used
                     val videoObj = responseJson.optJSONObject("video")
                     if (videoObj != null) {
                         val url = videoObj.optString("url")
-                        if (!url.isNullOrBlank()) {
+                        if (url.isNotBlank()) {
                             return@withContext url
                         }
                     }
+                    val directUrl = responseJson.optString("video_url").ifBlank { responseJson.optString("url") }
+                    if (directUrl.isNotBlank()) {
+                        return@withContext directUrl
+                    }
                     throw IllegalStateException("Failed to parse async status/response URLs from Fal.ai: $bodyStr")
                 }
+            }
+        }
+    }
+
+    suspend fun generateElevenLabsMusic(
+        prompt: String,
+        genre: String,
+        duration: String,
+        tempo: String,
+        model: String = "music_v2_5",
+        customApiKey: String? = null,
+        customBaseUrl: String? = null,
+        onLogMessage: (String) -> Unit = {}
+    ): String {
+        return withContext(Dispatchers.IO) {
+            val rootProxyUrl = BackendProxyClient.normalizeProxyRoot(customBaseUrl)
+            val firebaseToken = BackendProxyClient.getFirebaseIdToken()
+            val resolvedProxyUrl = BackendProxyClient.resolveEndpoint(rootProxyUrl, "/api/music")
+
+            val resolvedModelId = when (model.trim()) {
+                "Eleven Music v1", "music_v1" -> "music_v1"
+                "Eleven Music v2", "music_v2" -> "music_v2"
+                "Eleven Music v2.5", "music_v2_5" -> "music_v2_5"
+                else -> "music_v2_5"
+            }
+
+            val resolvedApiKey = customApiKey?.trim()?.takeIf { it.isNotBlank() && it != "proxy_active" }
+
+            val parsedSeconds = duration.lowercase().replace("s", "").trim().toIntOrNull() ?: 15
+            val musicLengthMs = (parsedSeconds * 1000).coerceIn(3000, 600000)
+
+            val fullPrompt = buildString {
+                append(prompt.trim())
+                if (genre.isNotBlank()) append(". Genre: $genre")
+                if (tempo.isNotBlank()) append(". Tempo: $tempo")
+            }.take(4100)
+
+            val useDirectElevenLabs = !resolvedApiKey.isNullOrBlank()
+            val targetUrl = if (useDirectElevenLabs) {
+                "https://api.elevenlabs.io/v1/music?output_format=auto"
+            } else {
+                resolvedProxyUrl
+            }
+
+            onLogMessage(
+                if (useDirectElevenLabs) {
+                    "> ELEVENLABS_API_KEY resolved.\n" +
+                        "> Endpoint: POST https://api.elevenlabs.io/v1/music?output_format=auto\n"
+                } else {
+                    "> Proxy key kept server-side; routing via $resolvedProxyUrl (provider: elevenlabs)\n"
+                }
+            )
+            onLogMessage("> Model ID: $resolvedModelId | Length: ${musicLengthMs}ms\n")
+
+            val jsonBody = JSONObject().apply {
+                if (!useDirectElevenLabs) {
+                    put("provider", "elevenlabs")
+                }
+                put("model_id", resolvedModelId)
+                put("prompt", fullPrompt)
+                put("music_length_ms", musicLengthMs)
+            }
+
+            val requestBody = jsonBody.toString().toRequestBody("application/json".toMediaTypeOrNull())
+            val requestBuilder = Request.Builder()
+                .url(targetUrl)
+                .header("Content-Type", "application/json")
+                .header("Accept", "audio/mpeg, application/json")
+                .post(requestBody)
+
+            if (useDirectElevenLabs) {
+                requestBuilder.header("xi-api-key", resolvedApiKey!!)
+            } else {
+                requestBuilder.withProxyAuth("Bearer", firebaseToken)
+            }
+            val request = requestBuilder.build()
+
+            val musicClient = client.newBuilder()
+                .readTimeout(180, TimeUnit.SECONDS)
+                .writeTimeout(60, TimeUnit.SECONDS)
+                .build()
+
+            onLogMessage("> Sending music composition request ($resolvedModelId)...\n")
+
+            fun extractElevenLabsError(rawBody: String, fallback: String): String {
+                return try {
+                    val errJson = JSONObject(rawBody)
+                    val detail = errJson.opt("detail")
+                    when (detail) {
+                        is JSONObject -> {
+                            val status = detail.optString("status", "")
+                            val msg = detail.optString("message", "")
+                            listOf(status, msg).filter { it.isNotBlank() }.joinToString(": ")
+                                .ifBlank { rawBody }
+                        }
+                        is org.json.JSONArray -> detail.toString()
+                        is String -> detail
+                        else -> errJson.optString("message", errJson.optString("error", rawBody))
+                    }.ifBlank { fallback }
+                } catch (_: Exception) {
+                    rawBody.ifBlank { fallback }
+                }
+            }
+
+            musicClient.newCall(request).execute().use { response ->
+                val contentType = response.header("Content-Type").orEmpty().lowercase()
+                if (!response.isSuccessful) {
+                    val errorBody = response.body?.string().orEmpty()
+                    val parsedMsg = extractElevenLabsError(errorBody, response.message)
+                    val hint = when (response.code) {
+                        404 -> " (Endpoint POST /api/music belum aktif di proxy atau URL tidak ditemukan)"
+                        422 -> " (Parameter ditolak ElevenLabs — pastikan proxy hanya meneruskan model_id, prompt, music_length_ms & menghapus field 'provider')"
+                        401, 403 -> " (API key ElevenLabs tidak valid atau akun ElevenLabs belum berlangganan Music API)"
+                        else -> ""
+                    }
+                    throw IllegalStateException("ElevenLabs Error HTTP ${response.code}: $parsedMsg$hint")
+                }
+
+                val body = response.body ?: throw IllegalStateException("Backend proxy returned an empty response body.")
+                val rawBytes = body.bytes()
+
+                if (contentType.contains("application/json") || (rawBytes.isNotEmpty() && rawBytes[0] == '{'.code.toByte())) {
+                    val jsonStr = runCatching { String(rawBytes) }.getOrDefault("")
+                    val json = JSONObject(jsonStr)
+                    val remoteUrl = json.optString("url")
+                        .ifBlank { json.optString("audioUrl") }
+                        .ifBlank { json.optString("audio_url") }
+                    if (remoteUrl.isNotBlank()) {
+                        onLogMessage("> Received music URL from proxy.\n")
+                        return@withContext remoteUrl
+                    }
+
+                    val audioBase64 = json.optString("audio_base64")
+                        .ifBlank { json.optString("audio") }
+                        .ifBlank { json.optString("b64_json") }
+                    if (audioBase64.isNotBlank()) {
+                        val cleanB64 = audioBase64.substringAfter("base64,", audioBase64)
+                        val decodedBytes = android.util.Base64.decode(cleanB64, android.util.Base64.DEFAULT)
+                        val musicDir = java.io.File(com.example.AppContextProvider.context.filesDir, "generated_music")
+                        if (!musicDir.exists()) musicDir.mkdirs()
+                        val outFile = java.io.File(
+                            musicDir,
+                            "elevenlabs_${System.currentTimeMillis()}_${java.util.UUID.randomUUID()}.mp3"
+                        )
+                        java.io.FileOutputStream(outFile).use { out ->
+                            out.write(decodedBytes)
+                        }
+                        onLogMessage("> Saved ${decodedBytes.size} bytes of decoded audio/mpeg.\n")
+                        return@withContext "file://${outFile.absolutePath}"
+                    }
+
+                    if (json.has("detail") || json.has("error") || json.optBoolean("success", true).not()) {
+                        val errMsg = extractElevenLabsError(jsonStr, "Unknown music proxy error")
+                        throw IllegalStateException("ElevenLabs Proxy Error: $errMsg")
+                    }
+
+                    throw IllegalStateException("Unexpected JSON response from music proxy: ${jsonStr.take(300)}")
+                }
+
+                if (rawBytes.size < 128) {
+                    val previewText = runCatching { String(rawBytes) }.getOrDefault("")
+                    throw IllegalStateException("Invalid audio payload from ElevenLabs proxy (${rawBytes.size} bytes): $previewText")
+                }
+
+                val musicDir = java.io.File(com.example.AppContextProvider.context.filesDir, "generated_music")
+                if (!musicDir.exists()) {
+                    musicDir.mkdirs()
+                }
+                val outFile = java.io.File(
+                    musicDir,
+                    "elevenlabs_${System.currentTimeMillis()}_${java.util.UUID.randomUUID()}.mp3"
+                )
+                java.io.FileOutputStream(outFile).use { out ->
+                    out.write(rawBytes)
+                }
+                onLogMessage("> Received ${rawBytes.size} bytes of audio/mpeg via backend proxy.\n")
+                "file://${outFile.absolutePath}"
             }
         }
     }

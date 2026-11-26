@@ -8,8 +8,11 @@ import android.widget.Toast
 import android.net.Uri
 import android.graphics.BitmapFactory
 import java.util.UUID
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -87,8 +90,10 @@ import com.example.data.ChatMessage
 import com.example.data.Role
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.ui.theme.*
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.withContext
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.items
@@ -133,7 +138,8 @@ data class KlingV3ComboElementInput(
 @OptIn(ExperimentalMaterial3Api::class, androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
 fun ChatScreen(
-    viewModel: ChatViewModel = viewModel()
+    viewModel: ChatViewModel = viewModel(),
+    onSignOut: () -> Unit = { viewModel.signOut() }
 ) {
     val vm = viewModel
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -147,11 +153,12 @@ fun ChatScreen(
     // Dialog state controllers
     var showInstructionDialog by remember { mutableStateOf(false) }
     var showHelpDialog by remember { mutableStateOf(false) }
+    var showAgenticGuideDialog by remember { mutableStateOf(false) }
     var showAuthDialog by remember { mutableStateOf(false) }
     var showBookmarksDialog by remember { mutableStateOf(false) }
     var showSubscriptionDialog by remember { mutableStateOf(false) }
+    var showTopUpDialog by remember { mutableStateOf(false) }
     var showMemoriesDialog by remember { mutableStateOf(false) }
-    var showApiKeySettingsDialog by remember { mutableStateOf(false) }
     var showThemeDialog by remember { mutableStateOf(false) }
     var showAddModelDialog by remember { mutableStateOf(false) }
     var historyPage by remember { mutableStateOf(0) }
@@ -263,6 +270,52 @@ fun ChatScreen(
         }
     }
 
+    // Main chat '+' attachment launchers: Camera, Gallery (Android Photo Picker), Files (SAF)
+    val chatCameraLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.TakePicturePreview()
+    ) { bitmap ->
+        if (bitmap != null) {
+            val resized = try {
+                resizeBitmapToMax(bitmap, 1024)
+            } catch (e: Exception) {
+                bitmap
+            }
+            viewModel.attachImageToChat(resized, "Camera photo")
+        }
+    }
+
+    val chatGalleryLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.PickVisualMedia()
+    ) { uri: Uri? ->
+        if (uri != null) {
+            val fileName = getFileName(context, uri)
+            val bitmap = decodeSampledBitmapFromUri(context, uri, 1024, 1024)
+            if (bitmap != null) {
+                viewModel.attachImageToChat(bitmap, fileName)
+            } else {
+                Toast.makeText(context, "Failed to load selected image.", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
+    val chatFilesLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument()
+    ) { uri: Uri? ->
+        if (uri != null) {
+            val fileName = getFileName(context, uri)
+            scope.launch(Dispatchers.IO) {
+                val extracted = try {
+                    extractDocumentText(context, uri, fileName)
+                } catch (e: Exception) {
+                    "Attached file: $fileName"
+                }
+                withContext(Dispatchers.Main) {
+                    viewModel.attachFileToChat(fileName, extracted)
+                }
+            }
+        }
+    }
+
     // Auto scroll bottom triggers
     LaunchedEffect(uiState.messages.size, uiState.isLoading) {
         if (uiState.messages.isNotEmpty()) {
@@ -292,916 +345,112 @@ fun ChatScreen(
         }
     }
 
+    BackHandler(enabled = drawerState.isOpen) {
+        scope.launch { drawerState.close() }
+    }
+    BackHandler(enabled = !drawerState.isOpen && activeTab != "chat") {
+        activeTab = "chat"
+    }
+
     ModalNavigationDrawer(
         drawerState = drawerState,
         drawerContent = {
-            ModalDrawerSheet(
-                modifier = Modifier.fillMaxHeight().width(320.dp),
-                drawerContainerColor = MaterialTheme.colorScheme.surface
-            ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .background(MaterialTheme.colorScheme.surfaceVariant)
-                        .padding(horizontal = 24.dp, vertical = 28.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Face,
-                        contentDescription = "Logo",
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(36.dp)
-                    )
-                    Spacer(modifier = Modifier.height(12.dp))
-                    Text(
-                        text = "Prof Eddie",
-                        style = MaterialTheme.typography.titleLarge.copy(
-                            fontWeight = FontWeight.Bold,
-                            letterSpacing = (-0.5).sp
-                        ),
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Box(
-                        modifier = Modifier
-                            .background(
-                                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f),
-                                shape = RoundedCornerShape(6.dp)
-                            )
-                            .padding(horizontal = 6.dp, vertical = 2.dp)
-                    ) {
-                        Text(
-                            text = "🪙 ${uiState.getFormattedConsumedTokens()} Spent",
-                            style = MaterialTheme.typography.labelSmall.copy(
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.primary,
-                                fontSize = 10.sp
-                            )
-                        )
-                    }
-                    Spacer(modifier = Modifier.height(6.dp))
-                    Text(
-                        text = "The Ultimate All-in-One Slogan",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-
-                Column(
-                    modifier = Modifier
-                        .weight(1f)
-                        .verticalScroll(rememberScrollState())
-                        .padding(12.dp),
-                    verticalArrangement = Arrangement.spacedBy(4.dp)
-                ) {
-                    NavigationDrawerItem(
-                        icon = { Icon(Icons.Default.Add, contentDescription = null) },
-                        label = { Text("New Conversation", fontWeight = FontWeight.SemiBold) },
-                        selected = false,
-                        onClick = {
-                            activeTab = "chat"
-                            historyPage = 0
-                            viewModel.startNewChat()
-                            scope.launch { drawerState.close() }
-                        },
-                        colors = NavigationDrawerItemDefaults.colors(
-                            unselectedContainerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.2f),
-                            unselectedIconColor = MaterialTheme.colorScheme.primary,
-                            unselectedTextColor = MaterialTheme.colorScheme.primary
-                        )
-                    )
-
-                    Spacer(modifier = Modifier.height(12.dp))
-                    Text(
-                        text = "MAIN NAVIGATION",
-                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold, letterSpacing = 1.sp),
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
-                    )
-
-                    NavigationDrawerItem(
-                        icon = { Text("💬", style = TextStyle(fontSize = 16.sp)) },
-                        label = { Text("Chat Assistant", fontWeight = FontWeight.SemiBold) },
-                        selected = activeTab == "chat",
-                        onClick = {
-                            activeTab = "chat"
-                            scope.launch { drawerState.close() }
-                        }
-                    )
-
-                    NavigationDrawerItem(
-                        icon = { Text("🎨", style = TextStyle(fontSize = 16.sp)) },
-                        label = { Text("AI Image Studio", fontWeight = FontWeight.SemiBold) },
-                        selected = activeTab == "image_gen",
-                        onClick = {
-                            activeTab = "image_gen"
-                            scope.launch { drawerState.close() }
-                        }
-                    )
-
-                    NavigationDrawerItem(
-                        icon = { Text("🎬", style = TextStyle(fontSize = 16.sp)) },
-                        label = { Text("AI Video Studio", fontWeight = FontWeight.SemiBold) },
-                        selected = activeTab == "video_gen",
-                        onClick = {
-                            activeTab = "video_gen"
-                            scope.launch { drawerState.close() }
-                        }
-                    )
-
-                    NavigationDrawerItem(
-                        icon = { Text("💻", style = TextStyle(fontSize = 16.sp)) },
-                        label = { Text("AI Code Studio", fontWeight = FontWeight.SemiBold) },
-                        selected = activeTab == "ai_code",
-                        onClick = {
-                            activeTab = "ai_code"
-                            scope.launch { drawerState.close() }
-                        }
-                    )
-
-                    NavigationDrawerItem(
-                        icon = { Text("🎵", style = TextStyle(fontSize = 16.sp)) },
-                        label = { Text("AI Music Studio", fontWeight = FontWeight.SemiBold) },
-                        selected = activeTab == "music_gen",
-                        onClick = {
-                            activeTab = "music_gen"
-                            scope.launch { drawerState.close() }
-                        }
-                    )
-
-                    Spacer(modifier = Modifier.height(12.dp))
-                    Text(
-                        text = "INTELLIGENCE & MULTIMODAL",
-                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold, letterSpacing = 1.sp),
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
-                    )
-
-                    NavigationDrawerItem(
-                        icon = { Text("🎙️", style = TextStyle(fontSize = 16.sp)) },
-                        label = { Text("AI Voice Assistant", fontWeight = FontWeight.SemiBold) },
-                        selected = activeTab == "voice_ai",
-                        onClick = {
-                            activeTab = "voice_ai"
-                            scope.launch { drawerState.close() }
-                        }
-                    )
-
-                    NavigationDrawerItem(
-                        icon = { Text("📸", style = TextStyle(fontSize = 16.sp)) },
-                        label = { Text("AI Vision Analyzer", fontWeight = FontWeight.SemiBold) },
-                        selected = activeTab == "ai_vision",
-                        onClick = {
-                            activeTab = "ai_vision"
-                            scope.launch { drawerState.close() }
-                        }
-                    )
-
-                    NavigationDrawerItem(
-                        icon = { Text("📄", style = TextStyle(fontSize = 16.sp)) },
-                        label = { Text("AI Document & PDF Summary", fontWeight = FontWeight.SemiBold) },
-                        selected = activeTab == "doc_intelligence",
-                        onClick = {
-                            activeTab = "doc_intelligence"
-                            scope.launch { drawerState.close() }
-                        }
-                    )
-
-                    NavigationDrawerItem(
-                        icon = { Text("📐", style = TextStyle(fontSize = 16.sp)) },
-                        label = { Text("AI Math & Science Solver", fontWeight = FontWeight.SemiBold) },
-                        selected = activeTab == "math_tutor",
-                        onClick = {
-                            activeTab = "math_tutor"
-                            scope.launch { drawerState.close() }
-                        }
-                    )
-
-
-
-
-
-                    Spacer(modifier = Modifier.height(12.dp))
-                    Text(
-                        text = "ADVANCED AI RESEARCH LABS",
-                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold, letterSpacing = 1.sp),
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
-                    )
-
-                    NavigationDrawerItem(
-                        icon = { Text("🌐", style = TextStyle(fontSize = 16.sp)) },
-                        label = { Text("AI Deep Web Researcher", fontWeight = FontWeight.SemiBold) },
-                        selected = activeTab == "web_researcher",
-                        onClick = {
-                            activeTab = "web_researcher"
-                            scope.launch { drawerState.close() }
-                        }
-                    )
-
-                    NavigationDrawerItem(
-                        icon = { Text("✍️", style = TextStyle(fontSize = 16.sp)) },
-                        label = { Text("AI Copywriter & Text Gen", fontWeight = FontWeight.SemiBold) },
-                        selected = activeTab == "ai_writer",
-                        onClick = {
-                            activeTab = "ai_writer"
-                            scope.launch { drawerState.close() }
-                        }
-                    )
-
-                    NavigationDrawerItem(
-                        icon = { Text("📢", style = TextStyle(fontSize = 16.sp)) },
-                        label = { Text("AI Social Studio", fontWeight = FontWeight.SemiBold) },
-                        selected = activeTab == "social_gen",
-                        onClick = {
-                            activeTab = "social_gen"
-                            scope.launch { drawerState.close() }
-                        }
-                    )
-
-                    Spacer(modifier = Modifier.height(16.dp))
-                    val historyPageSize = 10
-                    val totalHistoryCount = uiState.sessions.size
-                    val totalHistoryPages = ((totalHistoryCount + historyPageSize - 1) / historyPageSize).coerceAtLeast(1)
-                    val currentHistoryPage = historyPage.coerceIn(0, totalHistoryPages - 1)
-
-                    LaunchedEffect(totalHistoryPages) {
-                        if (historyPage >= totalHistoryPages) {
-                            historyPage = (totalHistoryPages - 1).coerceAtLeast(0)
-                        }
-                    }
-
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 12.dp, vertical = 4.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = "CHAT HISTORY",
-                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold, letterSpacing = 1.sp),
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        if (totalHistoryCount > 0) {
-                            val startIdx = currentHistoryPage * historyPageSize + 1
-                            val endIdx = ((currentHistoryPage + 1) * historyPageSize).coerceAtMost(totalHistoryCount)
-                            Surface(
-                                color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.45f),
-                                shape = RoundedCornerShape(8.dp)
-                            ) {
-                                Text(
-                                    text = "$startIdx–$endIdx / $totalHistoryCount",
-                                    style = MaterialTheme.typography.labelSmall.copy(
-                                        fontWeight = FontWeight.SemiBold,
-                                        fontSize = 10.sp
-                                    ),
-                                    color = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                                )
-                            }
-                        }
-                    }
-
-                    if (uiState.sessions.isEmpty()) {
-                        Text(
-                            text = "No conversations yet",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
-                        )
-                    } else {
-                        val startIndex = currentHistoryPage * historyPageSize
-                        val endIndex = (startIndex + historyPageSize).coerceAtMost(totalHistoryCount)
-                        val pagedSessions = uiState.sessions.subList(startIndex, endIndex)
-
-                        pagedSessions.forEach { session ->
-                            val isSelected = session.id == uiState.currentSessionId
-                            NavigationDrawerItem(
-                                icon = { Icon(Icons.Default.Edit, contentDescription = null) },
-                                label = {
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.SpaceBetween,
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Text(
-                                            text = session.title,
-                                            maxLines = 1,
-                                            overflow = TextOverflow.Ellipsis,
-                                            modifier = Modifier.weight(1f)
-                                        )
-                                        IconButton(
-                                            onClick = { viewModel.deleteSession(session.id) },
-                                            modifier = Modifier
-                                                .size(24.dp)
-                                                .testTag("delete_session_${session.id}")
-                                        ) {
-                                            Text("🗑️", fontSize = 14.sp)
-                                        }
-                                    }
-                                },
-                                selected = isSelected,
-                                onClick = {
-                                    activeTab = "chat"
-                                    viewModel.selectSession(session.id)
-                                    scope.launch { drawerState.close() }
-                                },
-                                modifier = Modifier.testTag("history_session_item_${session.id}")
-                            )
-                        }
-
-                        if (totalHistoryPages > 1) {
-                            Surface(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = 8.dp, vertical = 6.dp),
-                                shape = RoundedCornerShape(12.dp),
-                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
-                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
-                            ) {
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(horizontal = 4.dp, vertical = 2.dp),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    IconButton(
-                                        onClick = {
-                                            if (currentHistoryPage > 0) {
-                                                historyPage = currentHistoryPage - 1
-                                            }
-                                        },
-                                        enabled = currentHistoryPage > 0,
-                                        modifier = Modifier
-                                            .size(48.dp)
-                                            .testTag("history_prev_page_button")
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                                            contentDescription = "Halaman Sebelumnya",
-                                            tint = if (currentHistoryPage > 0) {
-                                                MaterialTheme.colorScheme.primary
-                                            } else {
-                                                MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.35f)
-                                            },
-                                            modifier = Modifier.size(18.dp)
-                                        )
-                                    }
-
-                                    Column(
-                                        horizontalAlignment = Alignment.CenterHorizontally,
-                                        modifier = Modifier.weight(1f)
-                                    ) {
-                                        Text(
-                                            text = "Halaman ${currentHistoryPage + 1} / $totalHistoryPages",
-                                            style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
-                                            color = MaterialTheme.colorScheme.onSurface
-                                        )
-                                        Text(
-                                            text = "10 item per halaman",
-                                            style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                                        )
-                                    }
-
-                                    IconButton(
-                                        onClick = {
-                                            if (currentHistoryPage < totalHistoryPages - 1) {
-                                                historyPage = currentHistoryPage + 1
-                                            }
-                                        },
-                                        enabled = currentHistoryPage < totalHistoryPages - 1,
-                                        modifier = Modifier
-                                            .size(48.dp)
-                                            .testTag("history_next_page_button")
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.AutoMirrored.Filled.ArrowForward,
-                                            contentDescription = "Halaman Berikutnya",
-                                            tint = if (currentHistoryPage < totalHistoryPages - 1) {
-                                                MaterialTheme.colorScheme.primary
-                                            } else {
-                                                MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.35f)
-                                            },
-                                            modifier = Modifier.size(18.dp)
-                                        )
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Text(
-                        text = "CUSTOMIZATION & SETTINGS",
-                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold, letterSpacing = 1.sp),
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
-                    )
-
-                    NavigationDrawerItem(
-                        icon = { Text("🤖", style = TextStyle(fontSize = 16.sp)) },
-                        label = { Text("System Instructions (Custom)") },
-                        selected = false,
-                        onClick = {
-                            showInstructionDialog = true
-                            scope.launch { drawerState.close() }
-                        }
-                    )
-
-                    NavigationDrawerItem(
-                        icon = { Text("🧠", style = TextStyle(fontSize = 16.sp)) },
-                        label = { Text("Smart Memory") },
-                        selected = false,
-                        onClick = {
-                            showMemoriesDialog = true
-                            scope.launch { drawerState.close() }
-                        }
-                    )
-
-                    NavigationDrawerItem(
-                        icon = { Text("❤️", style = TextStyle(fontSize = 16.sp)) },
-                        label = { Text("Saved Messages (Bookmarks)") },
-                        selected = false,
-                        onClick = {
-                            showBookmarksDialog = true
-                            scope.launch { drawerState.close() }
-                        }
-                    )
-
-                    NavigationDrawerItem(
-                        icon = { Text("🪙", style = TextStyle(fontSize = 16.sp)) },
-                        label = { Text("Token Price History", fontWeight = FontWeight.SemiBold) },
-                        selected = activeTab == "token_history",
-                        onClick = {
-                            activeTab = "token_history"
-                            scope.launch { drawerState.close() }
-                        }
-                    )
-
-                    NavigationDrawerItem(
-                        icon = { Text("👑", style = TextStyle(fontSize = 16.sp)) },
-                        label = {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text(
-                                    text = if (uiState.isSubscribed) "Manage Premium" else "Subscribe Premium",
-                                    fontWeight = FontWeight.Bold,
-                                    color = if (uiState.isSubscribed) MaterialTheme.colorScheme.primary else Color(0xFFFFB100)
-                                )
-                                if (uiState.isSubscribed) {
-                                    Surface(
-                                        color = MaterialTheme.colorScheme.primary,
-                                        shape = RoundedCornerShape(4.dp)
-                                    ) {
-                                        Text(
-                                            text = "PRO",
-                                            color = MaterialTheme.colorScheme.onPrimary,
-                                            style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp, fontWeight = FontWeight.Bold),
-                                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
-                                        )
-                                    }
-                                }
-                            }
-                        },
-                        selected = false,
-                        onClick = {
-                            showSubscriptionDialog = true
-                            scope.launch { drawerState.close() }
-                        }
-                    )
-
-                    if (uiState.isSubscribed) {
-                        NavigationDrawerItem(
-                            icon = { Text("❌", style = TextStyle(fontSize = 16.sp)) },
-                            label = {
-                                Text(
-                                    text = "Cancel Subscription",
-                                    color = MaterialTheme.colorScheme.error,
-                                    fontWeight = FontWeight.Bold
-                                )
-                            },
-                            selected = false,
-                            onClick = {
-                                scope.launch { drawerState.close() }
-                                viewModel.cancelSubscription()
-                                Toast.makeText(context, "Successfully canceled subscription. Your status has returned to a Free Trial.", Toast.LENGTH_LONG).show()
-                            }
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Text(
-                        text = "OTHERS",
-                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold, letterSpacing = 1.sp),
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
-                    )
-
-                    NavigationDrawerItem(
-                        icon = { Text("🎨", style = TextStyle(fontSize = 16.sp)) },
-                        label = { Text("Tema Skin") },
-                        selected = false,
-                        onClick = {
-                            showThemeDialog = true
-                            scope.launch { drawerState.close() }
-                        }
-                    )
-
-                    NavigationDrawerItem(
-                        icon = { Text("ℹ️", style = TextStyle(fontSize = 16.sp)) },
-                        label = { Text("Help & Info") },
-                        selected = false,
-                        onClick = {
-                            showHelpDialog = true
-                            scope.launch { drawerState.close() }
-                        }
-                    )
-
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Text(
-                        text = "MY ACCOUNT",
-                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold, letterSpacing = 1.sp),
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
-                    )
-
-                    val user = uiState.currentUserProfile
-                    if (user == null) {
-                        Card(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 4.dp, vertical = 8.dp),
-                            colors = CardDefaults.cardColors(
-                                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-                            ),
-                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
-                        ) {
-                            Column(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(12.dp)
-                            ) {
-                                Text(
-                                    text = "Unlock Full Features",
-                                    style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
-                                    color = MaterialTheme.colorScheme.primary
-                                )
-                                Spacer(modifier = Modifier.height(4.dp))
-                                Text(
-                                    text = "Sign in or sign up to personalize your smart assistant, save sessions, and customize instructions.",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    lineHeight = 14.sp
-                                )
-                                Spacer(modifier = Modifier.height(12.dp))
-                                Button(
-                                    onClick = {
-                                        showAuthDialog = true
-                                        scope.launch { drawerState.close() }
-                                    },
-                                    modifier = Modifier.fillMaxWidth().height(36.dp),
-                                    contentPadding = PaddingValues(vertical = 4.dp)
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.Person,
-                                        contentDescription = null,
-                                        modifier = Modifier.size(16.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(6.dp))
-                                    Text("Sign In / Sign Up", style = MaterialTheme.typography.labelMedium)
-                                }
-                            }
-                        }
-                    } else {
-                        Card(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 4.dp, vertical = 8.dp),
-                            colors = CardDefaults.cardColors(
-                                containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.15f)
-                            ),
-                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.2f))
-                        ) {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(12.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(40.dp)
-                                        .clip(CircleShape)
-                                        .background(MaterialTheme.colorScheme.primary),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Text(
-                                        text = user.username.take(1).uppercase(),
-                                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                                        color = MaterialTheme.colorScheme.onPrimary
-                                    )
-                                }
-                                Spacer(modifier = Modifier.width(12.dp))
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text(
-                                        text = user.username,
-                                        style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
-                                        color = MaterialTheme.colorScheme.onSurface
-                                    )
-                                    Text(
-                                        text = user.email,
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis
-                                    )
-                                }
-                                IconButton(
-                                    onClick = { viewModel.signOut() },
-                                    colors = IconButtonDefaults.iconButtonColors(
-                                        contentColor = MaterialTheme.colorScheme.error
-                                    )
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.AutoMirrored.Filled.ExitToApp,
-                                        contentDescription = "Sign Out Account",
-                                        modifier = Modifier.size(20.dp)
-                                    )
-                                }
-                            }
-                        }
-                    }
-                }
-            }
+            ChatGptSidebar(
+                uiState = uiState,
+                activeTab = activeTab,
+                historyPage = historyPage,
+                onHistoryPageChange = { historyPage = it },
+                onSelectTab = { activeTab = it },
+                onNewChat = {
+                    activeTab = "chat"
+                    historyPage = 0
+                    viewModel.startNewChat()
+                },
+                onSelectSession = { sessionId ->
+                    viewModel.selectSession(sessionId)
+                },
+                onDeleteSession = { sessionId ->
+                    viewModel.deleteSession(sessionId)
+                },
+                onOpenInstructions = { showInstructionDialog = true },
+                onOpenMemories = { showMemoriesDialog = true },
+                onOpenBookmarks = { showBookmarksDialog = true },
+                onOpenSubscription = { showSubscriptionDialog = true },
+                onOpenTopUp = {
+                    viewModel.fetchTopUpPackagesFromProxy()
+                    showTopUpDialog = true
+                },
+                onCancelSubscription = {
+                    viewModel.cancelSubscription()
+                    Toast.makeText(
+                        context,
+                        "Successfully canceled subscription. Your status has returned to Free Tier.",
+                        Toast.LENGTH_LONG
+                    ).show()
+                },
+                onOpenThemeDialog = { showThemeDialog = true },
+                onOpenAgenticGuide = { showAgenticGuideDialog = true },
+                onOpenHelp = { showHelpDialog = true },
+                onOpenAuth = { showAuthDialog = true },
+                onSignOut = onSignOut,
+                onCloseDrawer = { scope.launch { drawerState.close() } }
+            )
         }
     ) {
         Scaffold(
             containerColor = MaterialTheme.colorScheme.background,
+            contentWindowInsets = WindowInsets(0, 0, 0, 0),
             topBar = {
-                Column {
-                    TopAppBar(
-                        navigationIcon = {
-                            IconButton(
-                                onClick = { scope.launch { drawerState.open() } },
-                                modifier = Modifier.padding(start = 4.dp)
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Menu,
-                                    contentDescription = "Open Navigation Drawer"
-                                )
-                            }
-                        },
-                        title = {
-                            if (activeTab == "token_history") {
-                                Column {
-                                    Text(
-                                        text = "Token Price History",
-                                        style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
-                                        color = MaterialTheme.colorScheme.onSurface
-                                    )
-                                    Text(
-                                        text = "Consumption logs & rates",
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = MaterialTheme.colorScheme.primary
-                                    )
-                                }
-                            } else {
-                                var dropdownExpanded by remember { mutableStateOf(false) }
-                                Box {
-                                    Row(
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        modifier = Modifier
-                                            .clip(RoundedCornerShape(8.dp))
-                                            .clickable { dropdownExpanded = true }
-                                            .padding(horizontal = 8.dp, vertical = 4.dp)
-                                    ) {
-                                        Column {
-                                            Text(
-                                                text = "Prof Eddie Chat",
-                                                style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
-                                                color = MaterialTheme.colorScheme.onSurface
-                                            )
-                                            Text(
-                                                text = "${uiState.selectedModel.provider} • ${uiState.selectedModel.displayName}",
-                                                style = MaterialTheme.typography.labelSmall,
-                                                color = MaterialTheme.colorScheme.primary
-                                            )
-                                        }
-                                        Spacer(modifier = Modifier.width(4.dp))
-                                        Icon(
-                                            imageVector = Icons.Default.ArrowDropDown,
-                                            contentDescription = "Select Provider & Model",
-                                            tint = MaterialTheme.colorScheme.primary,
-                                            modifier = Modifier.size(18.dp)
-                                        )
-                                    }
-                                    
-                                    DropdownMenu(
-                                        expanded = dropdownExpanded,
-                                        onDismissRequest = { dropdownExpanded = false },
-                                        modifier = Modifier
-                                            .width(320.dp)
-                                            .background(MaterialTheme.colorScheme.surface)
-                                    ) {
-                                        val allModels = availableModels + uiState.customModels
-                                        val groupedModels = allModels.groupBy { it.provider }
-                                        groupedModels.forEach { (provider, models) ->
-                                            Text(
-                                                text = provider.uppercase(),
-                                                style = MaterialTheme.typography.labelSmall.copy(
-                                                    fontWeight = FontWeight.Bold,
-                                                    letterSpacing = 1.sp
-                                                ),
-                                                color = MaterialTheme.colorScheme.primary,
-                                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)
-                                            )
-                                            models.forEach { model ->
-                                                val isSelected = model.apiValue == uiState.selectedModel.apiValue
-                                                val isCustom = uiState.customModels.any { it.apiValue == model.apiValue }
-                                                DropdownMenuItem(
-                                                    text = {
-                                                        Row(
-                                                            verticalAlignment = Alignment.CenterVertically,
-                                                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                                            modifier = Modifier.fillMaxWidth()
-                                                        ) {
-                                                            Column(modifier = Modifier.weight(1f)) {
-                                                                Text(
-                                                                    text = model.displayName,
-                                                                    style = MaterialTheme.typography.bodyMedium.copy(
-                                                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.SemiBold
-                                                                    ),
-                                                                    color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
-                                                                )
-                                                                Text(
-                                                                    text = model.subtitle.ifBlank { model.apiValue },
-                                                                    style = MaterialTheme.typography.labelSmall,
-                                                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
-                                                                )
-                                                            }
-                                                            if (isCustom) {
-                                                                IconButton(
-                                                                    onClick = {
-                                                                        viewModel.deleteCustomModel(model.apiValue)
-                                                                    },
-                                                                    modifier = Modifier.size(28.dp)
-                                                                ) {
-                                                                    Icon(
-                                                                        imageVector = Icons.Default.Delete,
-                                                                        contentDescription = "Hapus Model",
-                                                                        tint = MaterialTheme.colorScheme.error.copy(alpha = 0.7f),
-                                                                        modifier = Modifier.size(16.dp)
-                                                                    )
-                                                                }
-                                                            }
-                                                        }
-                                                    },
-                                                    onClick = {
-                                                        dropdownExpanded = false
-                                                        viewModel.selectModel(model)
-                                                    },
-                                                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 6.dp)
-                                                )
-                                            }
-                                            HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
-                                        }
-
-                                        HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
-
-                                        DropdownMenuItem(
-                                            text = {
-                                                Row(
-                                                    verticalAlignment = Alignment.CenterVertically,
-                                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                                ) {
-                                                    Icon(
-                                                        imageVector = Icons.Default.Add,
-                                                        contentDescription = null,
-                                                        tint = MaterialTheme.colorScheme.primary,
-                                                        modifier = Modifier.size(18.dp)
-                                                    )
-                                                    Text(
-                                                        text = "Tambah Model AI Baru",
-                                                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
-                                                        color = MaterialTheme.colorScheme.primary
-                                                    )
-                                                }
-                                            },
-                                            onClick = {
-                                                dropdownExpanded = false
-                                                showAddModelDialog = true
-                                            },
-                                            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 10.dp)
-                                        )
-
-                                        if (uiState.customModels.isNotEmpty()) {
-                                            DropdownMenuItem(
-                                                text = {
-                                                    Row(
-                                                        verticalAlignment = Alignment.CenterVertically,
-                                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                                    ) {
-                                                        Icon(
-                                                            imageVector = Icons.Default.Delete,
-                                                            contentDescription = null,
-                                                            tint = MaterialTheme.colorScheme.error,
-                                                            modifier = Modifier.size(18.dp)
-                                                        )
-                                                        Text(
-                                                            text = "Hapus Semua Model",
-                                                            style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Medium),
-                                                            color = MaterialTheme.colorScheme.error
-                                                        )
-                                                    }
-                                                },
-                                                onClick = {
-                                                    dropdownExpanded = false
-                                                    viewModel.deleteAllCustomModels()
-                                                },
-                                                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
-                                            )
-                                        }
-                                    }
-                                }
-                            }
-                        },
-                        actions = {
-                            IconButton(onClick = { showThemeDialog = true }) {
-                                Text("🎨", fontSize = 18.sp)
-                            }
-                            IconButton(onClick = { viewModel.resetAgenticTooltip() }) {
-                                Icon(
-                                    imageVector = Icons.Default.Info,
-                                    contentDescription = "Panduan Agen Cerdas",
-                                    tint = MaterialTheme.colorScheme.primary
-                                )
-                            }
-                        },
-                        colors = TopAppBarDefaults.topAppBarColors(
-                            containerColor = Color.Transparent,
-                            titleContentColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    )
-                    HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f))
-                }
+                ChatGptTopBar(
+                    activeTab = activeTab,
+                    selectedModel = uiState.selectedModel,
+                    availableModels = availableModels,
+                    customModels = uiState.customModels,
+                    onOpenDrawer = { scope.launch { drawerState.open() } },
+                    onNewChatClick = {
+                        activeTab = "chat"
+                        historyPage = 0
+                        viewModel.startNewChat()
+                        Toast.makeText(context, "New conversation started", Toast.LENGTH_SHORT).show()
+                    },
+                    onSelectModel = { model -> viewModel.selectModel(model) },
+                    onDeleteCustomModel = { apiVal -> viewModel.deleteCustomModel(apiVal) },
+                    onDeleteAllCustomModels = { viewModel.deleteAllCustomModels() },
+                    onOpenAddModelDialog = { showAddModelDialog = true },
+                    onBackToChat = { activeTab = "chat" }
+                )
             }
         ) { paddingValues ->
             if (activeTab == "chat") {
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
-                        .padding(paddingValues)
+                        .padding(top = paddingValues.calculateTopPadding())
                 ) {
-                    val isKeyboardVisible = androidx.compose.foundation.layout.WindowInsets.isImeVisible
-                    if (uiState.showAgenticTooltip && inputText.isEmpty() && !isKeyboardVisible) {
-                        AgenticTooltipBanner(
-                            onDismiss = { viewModel.dismissAgenticTooltip() },
+                    if (uiState.messages.isEmpty()) {
+                        ChatGptEmptyState(
+                            showAgenticTooltip = uiState.showAgenticTooltip && inputText.isEmpty() && !isKeyboardVisible,
+                            onDismissTooltip = { viewModel.dismissAgenticTooltip() },
+                            onCreateImageClick = {
+                                viewModel.setWebSearchEnabled(false)
+                                val clean = inputText
+                                    .removePrefix("/draw")
+                                    .removePrefix("/image")
+                                    .removePrefix("/generate")
+                                    .trim()
+                                inputText = "/draw $clean"
+                            },
+                            onWriteOrEditClick = {
+                                inputText = "Write or edit: "
+                            },
+                            onCodeAndSolveClick = {
+                                inputText = "Help me debug or solve: "
+                            },
                             onSelectPreset = { presetText ->
                                 inputText = presetText
-                            }
+                            },
+                            modifier = Modifier.weight(1f)
                         )
-                    }
-
-                    if (uiState.messages.isEmpty()) {
-                        Box(
-                            modifier = Modifier
-                                .weight(1f)
-                                .fillMaxWidth()
-                                .verticalScroll(rememberScrollState())
-                                .padding(24.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Column(
-                                horizontalAlignment = Alignment.CenterHorizontally,
-                                verticalArrangement = Arrangement.Center
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Face,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.4f),
-                                    modifier = Modifier.size(64.dp)
-                                )
-                                Spacer(modifier = Modifier.height(16.dp))
-                                Text(
-                                    text = "Start a New Conversation",
-                                    style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
-                                    color = MaterialTheme.colorScheme.onSurface
-                                )
-                                Spacer(modifier = Modifier.height(8.dp))
-                                Text(
-                                    text = "Type a message below to start a smart conversation with the AI assistant.",
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.widthIn(max = 280.dp),
-                                    textAlign = TextAlign.Center
-                                )
-                            }
-                        }
                     } else {
                         LazyColumn(
                             state = listState,
@@ -1209,12 +458,14 @@ fun ChatScreen(
                                 .weight(1f)
                                 .fillMaxWidth()
                                 .padding(horizontal = 16.dp),
-                            contentPadding = PaddingValues(vertical = 16.dp),
-                            verticalArrangement = Arrangement.spacedBy(16.dp)
+                            contentPadding = PaddingValues(vertical = 12.dp),
+                            verticalArrangement = Arrangement.spacedBy(18.dp)
                         ) {
                             items(uiState.messages) { message ->
                                 ChatMessageBubble(
                                     message = message,
+                                    isSpeaking = currentlySpeakingMessageId == message.id,
+                                    onSpeakClick = { speakText(message.id, message.text) },
                                     onCopyClick = { copyToClipboard(message.text) },
                                     onShareClick = { shareMessage(message.text) },
                                     onBookmarkClick = {
@@ -1386,7 +637,7 @@ fun ChatScreen(
                         }
                     }
 
-                    ChatInputBar(
+                    ChatGptComposer(
                         inputText = inputText,
                         onTextChange = { inputText = it },
                         onSend = {
@@ -1394,6 +645,7 @@ fun ChatScreen(
                             inputText = ""
                         },
                         onMicClick = startSpeechToText,
+                        onVoiceModeClick = { activeTab = "voice_ai" },
                         isLoading = uiState.isLoading,
                         isWebSearchEnabled = uiState.isWebSearchEnabled,
                         onWebSearchToggle = { viewModel.setWebSearchEnabled(it) },
@@ -1401,100 +653,168 @@ fun ChatScreen(
                         selectedImageModel = uiState.selectedImageModel,
                         onEngineSelected = { provider, model ->
                             viewModel.selectImageEngine(provider, model)
+                        },
+                        attachedImageBitmap = uiState.pendingAttachmentBitmap,
+                        attachedImageLabel = uiState.pendingAttachmentLabel,
+                        attachedFileName = uiState.pendingAttachmentFileName,
+                        onClearAttachment = { viewModel.clearChatAttachment() },
+                        onCameraClick = {
+                            try {
+                                chatCameraLauncher.launch(null)
+                            } catch (e: Exception) {
+                                Toast.makeText(context, "Camera is unavailable on this device.", Toast.LENGTH_SHORT).show()
+                            }
+                        },
+                        onGalleryClick = {
+                            chatGalleryLauncher.launch(
+                                PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                            )
+                        },
+                        onFilesClick = {
+                            chatFilesLauncher.launch(
+                                arrayOf(
+                                    "application/pdf",
+                                    "text/*",
+                                    "application/json",
+                                    "application/msword",
+                                    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                                    "*/*"
+                                )
+                            )
                         }
                     )
                 }
             } else if (activeTab == "image_gen") {
-                EddieImageGeneratorView(
-                    uiState = uiState,
-                    paddingValues = paddingValues,
-                    onGenerate = { prompt, style, ratio, provider, model, numImages, background ->
-                        viewModel.generateImage(prompt, style, ratio, provider, model, numImages, background, onSubscriptionRequired = {
-                            showSubscriptionDialog = true
-                            Toast.makeText(context, "Free limit reached or Eddie Premium is required for premium configurations!", Toast.LENGTH_LONG).show()
-                        })
-                    },
-                    onDeleteImage = { id ->
-                        viewModel.deleteGeneratedImage(id)
-                        Toast.makeText(context, "Artwork successfully removed from collection.", Toast.LENGTH_SHORT).show()
-                    },
-                    onSaveEditedImage = { originalId, prompt, style, ratio, editedUrl ->
-                        viewModel.saveEditedImage(originalId, prompt, style, ratio, editedUrl)
-                    },
-                    onProviderChange = { provider ->
-                        viewModel.selectImageProvider(provider)
-                    },
-                    onModelChange = { model ->
-                        viewModel.selectImageModel(model)
-                    },
-                    onClearLog = {
-                        viewModel.clearImageGenLog()
-                    }
-                )
-            } else if (activeTab == "video_gen") {
-                EddieVideoGeneratorView(
-                    uiState = uiState,
-                    paddingValues = paddingValues,
-                    chatViewModel = vm,
-                    onGenerateVideo = { prompt, style, ratio, res, dur, audio, personGen, negPrompt, sampleCount, imageUrl, cfgScale, shotType, multiPrompt, seed, enhancePrompt, autoFix, tolerance, endImg, elemJson, vControl, voiceIds, startImgUrl, bitrateMode, endUserId, pixverseMultiClip, pixverseThinkingType, lumaLoop, lumaHdr, lumaExrExport, alibAudioUrl, alibMultiShots, alibVideoUrl, hunySteps, hunyFrames ->
-                        viewModel.generateVideo(
-                            prompt = prompt,
-                            style = style,
-                            aspectRatio = ratio,
-                            resolution = res,
-                            duration = dur,
-                            generateAudio = audio,
-                            personGeneration = personGen,
-                            negativePrompt = negPrompt,
-                            sampleCount = sampleCount,
-                            imageUrl = imageUrl,
-                            cfgScale = cfgScale,
-                            shotType = shotType,
-                            multiPromptJson = multiPrompt,
-                            seed = seed,
-                            enhancePrompt = enhancePrompt,
-                            autoFix = autoFix,
-                            safetyTolerance = tolerance,
-                            endImageUrl = endImg,
-                            elementsJson = elemJson,
-                            voiceControl = vControl ?: false,
-                            voiceIds = voiceIds,
-                            startImageUrl = startImgUrl,
-                            bitrateMode = bitrateMode,
-                            endUserId = endUserId,
-                            pixverseMultiClip = pixverseMultiClip ?: false,
-                            pixverseThinkingType = pixverseThinkingType ?: "auto",
-                            lumaLoop = lumaLoop ?: false,
-                            lumaHdr = lumaHdr ?: false,
-                            lumaExrExport = lumaExrExport ?: false,
-                            alibabaAudioUrl = alibAudioUrl,
-                            alibabaMultiShots = alibMultiShots,
-                            alibabaVideoUrl = alibVideoUrl,
-                            hunyuanInferenceSteps = hunySteps,
-                            hunyuanFrames = hunyFrames,
-                            onSubscriptionRequired = {
+                if (!uiState.isSubscribed) {
+                    ProStudioGateScreen(
+                        paddingValues = paddingValues,
+                        emoji = "🎨",
+                        title = "Eddie AI Image Studio",
+                        description = "Image Studio is exclusively available for Eddie Pro subscribers. Upgrade to unlock OpenAI GPT Image, Fal.ai Flux, Imagen, Ideogram, Stability AI, all Pro styles, HD ratios, and your Artwork Collection.",
+                        features = listOf(
+                            "Multi-provider AI image engines (OpenAI, Fal.ai, Stability AI)",
+                            "All Pro artistic styles & HD aspect ratios",
+                            "Multi-variant generation & in-app image editor",
+                            "Cloud-synced Premium Artwork Collection"
+                        ),
+                        onUpgradeClick = { showSubscriptionDialog = true },
+                        onBackToChat = { activeTab = "chat" }
+                    )
+                } else {
+                    EddieImageGeneratorView(
+                        uiState = uiState,
+                        paddingValues = paddingValues,
+                        onGenerate = { prompt, style, ratio, provider, model, numImages, background ->
+                            viewModel.generateImage(prompt, style, ratio, provider, model, numImages, background, onSubscriptionRequired = {
                                 showSubscriptionDialog = true
-                                Toast.makeText(context, "Free limit reached (max 2) or Eddie Premium is required for this duration, resolution, or aspect ratio!", Toast.LENGTH_LONG).show()
-                            }
-                        )
-                    },
-                    onDeleteVideo = { id ->
-                        viewModel.deleteGeneratedVideo(id)
-                        Toast.makeText(context, "Video successfully removed from local collection.", Toast.LENGTH_SHORT).show()
-                    },
-                    onSaveEditedVideo = { originalId, prompt, style, ratio, res, dur, editedUrl, model ->
-                        viewModel.saveEditedVideo(originalId, prompt, style, ratio, res, dur, editedUrl, model)
-                    },
-                    onModeChange = { mode ->
-                        viewModel.selectVideoMode(mode)
-                    },
-                    onProviderChange = { provider ->
-                        viewModel.selectVideoProvider(provider)
-                    },
-                    onModelChange = { model ->
-                        viewModel.selectVideoModel(model)
-                    }
-                )
+                                Toast.makeText(context, "Eddie Premium subscription and sufficient tokens are required for Image Studio!", Toast.LENGTH_LONG).show()
+                            })
+                        },
+                        onDeleteImage = { id ->
+                            viewModel.deleteGeneratedImage(id)
+                            Toast.makeText(context, "Artwork successfully removed from collection.", Toast.LENGTH_SHORT).show()
+                        },
+                        onSaveEditedImage = { originalId, prompt, style, ratio, editedUrl ->
+                            viewModel.saveEditedImage(originalId, prompt, style, ratio, editedUrl)
+                        },
+                        onProviderChange = { provider ->
+                            viewModel.selectImageProvider(provider)
+                        },
+                        onModelChange = { model ->
+                            viewModel.selectImageModel(model)
+                        },
+                        onClearLog = {
+                            viewModel.clearImageGenLog()
+                        },
+                        onOpenSubscription = {
+                            showSubscriptionDialog = true
+                        }
+                    )
+                }
+            } else if (activeTab == "video_gen") {
+                if (!uiState.isSubscribed) {
+                    ProStudioGateScreen(
+                        paddingValues = paddingValues,
+                        emoji = "🎬",
+                        title = "Eddie AI Video Studio",
+                        description = "Video Studio is exclusively available for Eddie Pro subscribers. Upgrade to unlock Veo, Kling, OpenAI Sora, Luma, PixVerse, ByteDance, Alibaba Wan, 1080p/4K rendering, and your Video Collection.",
+                        features = listOf(
+                            "Text-to-Video & Image-to-Video multi-provider pipeline",
+                            "Veo, Kling, Sora, Luma, PixVerse, ByteDance & Alibaba Wan",
+                            "Up to 1080p / 4K resolution, 10s–30s duration & audio sync",
+                            "Cloud-synced AI Video Collection & offline caching"
+                        ),
+                        onUpgradeClick = { showSubscriptionDialog = true },
+                        onBackToChat = { activeTab = "chat" }
+                    )
+                } else {
+                    EddieVideoGeneratorView(
+                        uiState = uiState,
+                        paddingValues = paddingValues,
+                        chatViewModel = vm,
+                        onGenerateVideo = { prompt, style, ratio, res, dur, audio, personGen, negPrompt, sampleCount, imageUrl, cfgScale, shotType, multiPrompt, seed, enhancePrompt, autoFix, tolerance, endImg, elemJson, vControl, voiceIds, startImgUrl, bitrateMode, endUserId, pixverseMultiClip, pixverseThinkingType, lumaLoop, lumaHdr, lumaExrExport, alibAudioUrl, alibMultiShots, alibVideoUrl, hunySteps, hunyFrames ->
+                            viewModel.generateVideo(
+                                prompt = prompt,
+                                style = style,
+                                aspectRatio = ratio,
+                                resolution = res,
+                                duration = dur,
+                                generateAudio = audio,
+                                personGeneration = personGen,
+                                negativePrompt = negPrompt,
+                                sampleCount = sampleCount,
+                                imageUrl = imageUrl,
+                                cfgScale = cfgScale,
+                                shotType = shotType,
+                                multiPromptJson = multiPrompt,
+                                seed = seed,
+                                enhancePrompt = enhancePrompt,
+                                autoFix = autoFix,
+                                safetyTolerance = tolerance,
+                                endImageUrl = endImg,
+                                elementsJson = elemJson,
+                                voiceControl = vControl ?: false,
+                                voiceIds = voiceIds,
+                                startImageUrl = startImgUrl,
+                                bitrateMode = bitrateMode,
+                                endUserId = endUserId,
+                                pixverseMultiClip = pixverseMultiClip ?: false,
+                                pixverseThinkingType = pixverseThinkingType ?: "auto",
+                                lumaLoop = lumaLoop ?: false,
+                                lumaHdr = lumaHdr ?: false,
+                                lumaExrExport = lumaExrExport ?: false,
+                                alibabaAudioUrl = alibAudioUrl,
+                                alibabaMultiShots = alibMultiShots,
+                                alibabaVideoUrl = alibVideoUrl,
+                                hunyuanInferenceSteps = hunySteps,
+                                hunyuanFrames = hunyFrames,
+                                onSubscriptionRequired = {
+                                    showSubscriptionDialog = true
+                                    Toast.makeText(context, "Eddie Premium subscription and sufficient tokens are required for Video Studio!", Toast.LENGTH_LONG).show()
+                                }
+                            )
+                        },
+                        onDeleteVideo = { id ->
+                            viewModel.deleteGeneratedVideo(id)
+                            Toast.makeText(context, "Video successfully removed from local collection.", Toast.LENGTH_SHORT).show()
+                        },
+                        onSaveEditedVideo = { originalId, prompt, style, ratio, res, dur, editedUrl, model ->
+                            viewModel.saveEditedVideo(originalId, prompt, style, ratio, res, dur, editedUrl, model)
+                        },
+                        onModeChange = { mode ->
+                            viewModel.selectVideoMode(mode)
+                        },
+                        onProviderChange = { provider ->
+                            viewModel.selectVideoProvider(provider)
+                        },
+                        onModelChange = { model ->
+                            viewModel.selectVideoModel(model)
+                        },
+                        onOpenSubscription = {
+                            showSubscriptionDialog = true
+                        }
+                    )
+                }
             } else if (activeTab == "ai_code") {
                 EddieAiCodeStudioView(
                     uiState = uiState,
@@ -1535,6 +855,12 @@ fun ChatScreen(
                     },
                     onModelChange = { model ->
                         viewModel.selectMusicModel(model)
+                    },
+                    onClearLog = {
+                        viewModel.clearMusicGenLog()
+                    },
+                    onOpenSubscription = {
+                        showSubscriptionDialog = true
                     }
                 )
             } else if (activeTab == "voice_ai") {
@@ -1578,21 +904,6 @@ fun ChatScreen(
                     onSetTtsSpeaking = { speaking ->
                         viewModel.setArTtsSpeaking(speaking)
                     }
-                )
-            } else if (activeTab == "culinary_assistant") {
-                CulinaryAssistantView(
-                    uiState = uiState,
-                    paddingValues = paddingValues,
-                    onFilterChange = { filter -> viewModel.selectCulinaryDietaryFilter(filter) },
-                    onSelectRecipe = { recipe -> viewModel.selectCulinaryRecipe(recipe, ttsUser) },
-                    onStepIndexChange = { index -> viewModel.setCulinaryStepIndex(index, ttsUser) },
-                    onAddShoppingListItem = { item -> viewModel.addIngredientToShoppingList(item) },
-                    onRemoveShoppingListItem = { item -> viewModel.removeIngredientFromShoppingList(item) },
-                    onClearShoppingList = { viewModel.clearShoppingList() },
-                    onImageSelected = { bitmap, uri -> viewModel.setCulinarySelectedImage(bitmap, uri) },
-                    onAnalyzeImage = { bitmap -> viewModel.analyzeFridgeImage(bitmap, ttsUser) },
-                    onSpeakStep = { text -> viewModel.speakCulinaryStep(text, ttsUser) },
-                    onStopSpeak = { viewModel.stopCulinarySpeaker(ttsUser) }
                 )
             } else if (activeTab == "doc_intelligence") {
                 EddieDocumentIntelligenceView(
@@ -1670,7 +981,11 @@ fun ChatScreen(
                 TokenUsageHistoryView(
                     uiState = uiState,
                     paddingValues = paddingValues,
-                    onClearHistory = { viewModel.clearTokenUsageHistory() }
+                    onClearHistory = { viewModel.clearTokenUsageHistory() },
+                    onOpenTopUp = {
+                        viewModel.fetchTopUpPackagesFromProxy()
+                        showTopUpDialog = true
+                    }
                 )
             }
         }
@@ -1945,7 +1260,7 @@ fun ChatScreen(
                         Text(
                             text = "• Clean State on App Launch: The Chat Assistant automatically opens to a fresh, clean window on every launch while preserving past conversations in the drawer.\n" +
                                    "• Ergonomic Input Layout: Document Intelligence and Vision Analyzer now position the prompt input box at the bottom with results prominently displayed on top.\n" +
-                                   "• Streamlined Tools: Creative modules (Storyteller, Coloring Book, Photo Tourism AR, SFX) start cleanly without unwanted pre-filled content.\n" +
+                                   "• Streamlined Tools: Creative modules (Image Studio, Video Studio, Music Studio, Voice Assistant) start cleanly without unwanted pre-filled content.\n" +
                                    "• Enhanced Reliability: Optimized high-performance image decoding and memory management across all vision tools.",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -1964,9 +1279,26 @@ fun ChatScreen(
                             text = "• Chat Assistant: Natural conversations with speech input, real-time audio playback, and multi-model intelligence.\n" +
                                    "• AI Document & PDF Analyzer: In-depth document inspection, multi-page summarization, and key insight extraction.\n" +
                                    "• AI Vision Analyzer: Visual question answering, image inspection, and optical intelligence.\n" +
-                                   "• Smart Fridge & Culinary Assistant: Instant ingredient recognition from photos with step-by-step interactive cooking recipes.\n" +
-                                   "• Photo Tourism AR: Landmark exploration, live historical facts, interactive AR hotspots, and immersive audio guides.\n" +
-                                   "• Creative Studio: AI Writer, Image Generator, SFX Creator, Coloring Book, and Kids Storyteller.",
+                                   "• Creative Studio: Image Studio, Video Studio, Code Studio, Music Studio, Copywriter, and Social Studio.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+
+                    // Agentic Capabilities Section
+                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Text(
+                            text = "⚡ Agentic Capabilities:",
+                            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                        Text(
+                            text = "• Auto Web Search: Automatically searches real-time web results when queries involve news, weather, stocks, or search keywords.\n" +
+                                   "• Smart Long-Term Memory: Extracts and remembers your preferences automatically across conversations (manage anytime via Memory in the sidebar).\n" +
+                                   "• Action Automation (Email & WhatsApp): Detects email or WhatsApp drafting requests and surfaces quick one-tap send/draft actions.\n" +
+                                   "• Inline Commands & Attachments: Use /draw <prompt> to generate images inline, or tap + for Camera, Gallery, and Files.",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -1982,7 +1314,7 @@ fun ChatScreen(
                         )
                         Text(
                             text = "• On-Device Room Database: Chat histories, saved images, and bookmarked messages are stored securely on your device.\n" +
-                                   "• Custom Personas & Keys: Configure custom system instructions and API keys under the Settings menu.",
+                                   "• Custom Personas & Pre-Configured Proxy: Personalize system instructions anytime; AI requests use the pre-configured proxy and API keys automatically.",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -1996,6 +1328,16 @@ fun ChatScreen(
                     )
                 }
             },
+            dismissButton = {
+                TextButton(
+                    onClick = {
+                        showHelpDialog = false
+                        showAgenticGuideDialog = true
+                    }
+                ) {
+                    Text("⚡ Agentic Guide")
+                }
+            },
             confirmButton = {
                 Button(
                     onClick = { showHelpDialog = false },
@@ -2004,6 +1346,16 @@ fun ChatScreen(
                     Text("Close")
                 }
             }
+        )
+    }
+
+    if (showAgenticGuideDialog) {
+        AgenticGuideDialog(
+            onTryPrompt = { sample ->
+                activeTab = "chat"
+                inputText = sample
+            },
+            onDismiss = { showAgenticGuideDialog = false }
         )
     }
 
@@ -2017,22 +1369,14 @@ fun ChatScreen(
         )
     }
 
-    // 4. Dialog Sign In & Sign Up (AuthDialog)
+    // 4. Dialog Google Sign In (AuthDialog)
     if (showAuthDialog) {
-        var isRegisterMode by remember { mutableStateOf(false) }
-        var emailInput by remember { mutableStateOf("") }
-        var usernameInput by remember { mutableStateOf("") }
-        var passwordInput by remember { mutableStateOf("") }
-        var passwordVisible by remember { mutableStateOf(false) }
-
         var authErrorMessage by remember { mutableStateOf<String?>(null) }
-        var authSuccessMessage by remember { mutableStateOf<String?>(null) }
 
         AlertDialog(
             onDismissRequest = {
                 showAuthDialog = false
                 authErrorMessage = null
-                authSuccessMessage = null
             },
             title = {
                 Column(
@@ -2043,68 +1387,25 @@ fun ChatScreen(
                         imageVector = Icons.Default.Person,
                         contentDescription = null,
                         tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(40.dp)
+                        modifier = Modifier.size(36.dp)
                     )
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
-                        text = if (isRegisterMode) "Register New Account" else "Sign In to Your Account",
+                        text = "Akun Google & Cloud Sync",
                         style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold)
                     )
                 }
             },
             text = {
                 Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .verticalScroll(rememberScrollState()),
+                    modifier = Modifier.fillMaxWidth(),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(8.dp))
-                            .padding(4.dp),
-                        horizontalArrangement = Arrangement.spacedBy(4.dp)
-                    ) {
-                        Button(
-                            onClick = {
-                                isRegisterMode = false
-                                authErrorMessage = null
-                                authSuccessMessage = null
-                            },
-                            modifier = Modifier.weight(1f),
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = if (!isRegisterMode) MaterialTheme.colorScheme.surface else Color.Transparent,
-                                contentColor = if (!isRegisterMode) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant
-                            ),
-                            elevation = ButtonDefaults.buttonElevation(defaultElevation = if (!isRegisterMode) 2.dp else 0.dp),
-                            contentPadding = PaddingValues(vertical = 8.dp),
-                            shape = RoundedCornerShape(6.dp)
-                        ) {
-                            Text("Sign In", style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold))
-                        }
-
-                        Button(
-                            onClick = {
-                                isRegisterMode = true
-                                authErrorMessage = null
-                                authSuccessMessage = null
-                            },
-                            modifier = Modifier.weight(1f),
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = if (isRegisterMode) MaterialTheme.colorScheme.surface else Color.Transparent,
-                                contentColor = if (isRegisterMode) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant
-                            ),
-                            elevation = ButtonDefaults.buttonElevation(defaultElevation = if (isRegisterMode) 2.dp else 0.dp),
-                            contentPadding = PaddingValues(vertical = 8.dp),
-                            shape = RoundedCornerShape(6.dp)
-                        ) {
-                            Text("Register", style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold))
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(4.dp))
-
+                    Text(
+                        text = "Masuk dengan akun Google untuk menyimpan profil dan menyinkronkan seluruh riwayat secara permanen di Cloud Firestore.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                     if (authErrorMessage != null) {
                         Surface(
                             color = MaterialTheme.colorScheme.errorContainer,
@@ -2119,172 +1420,27 @@ fun ChatScreen(
                             )
                         }
                     }
-
-                    if (authSuccessMessage != null) {
-                        Surface(
-                            color = MaterialTheme.colorScheme.primaryContainer,
-                            shape = RoundedCornerShape(8.dp),
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Row(
-                                modifier = Modifier.padding(12.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.CheckCircle,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.size(16.dp)
-                                )
-                                Text(
-                                    text = authSuccessMessage ?: "",
-                                    color = MaterialTheme.colorScheme.onPrimaryContainer,
-                                    style = MaterialTheme.typography.bodySmall
-                                )
-                            }
-                        }
-                    }
-
-                    if (isRegisterMode) {
-                        OutlinedTextField(
-                            value = usernameInput,
-                            onValueChange = {
-                                usernameInput = it
-                                authErrorMessage = null
-                            },
-                            label = { Text("Username") },
-                            leadingIcon = {
-                                Icon(Icons.Default.Person, contentDescription = null, modifier = Modifier.size(20.dp))
-                            },
-                            singleLine = true,
-                            modifier = Modifier.fillMaxWidth(),
-                            textStyle = MaterialTheme.typography.bodyMedium
-                        )
-                    }
-
-                    OutlinedTextField(
-                        value = emailInput,
-                        onValueChange = {
-                            emailInput = it
+                    com.example.ui.auth.GoogleSignInButton(
+                        onAuthSuccess = {
                             authErrorMessage = null
+                            showAuthDialog = false
                         },
-                        label = { Text("Email Address") },
-                        leadingIcon = {
-                            Icon(Icons.Default.Email, contentDescription = null, modifier = Modifier.size(20.dp))
-                        },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth(),
-                        textStyle = MaterialTheme.typography.bodyMedium
-                    )
-
-                    OutlinedTextField(
-                        value = passwordInput,
-                        onValueChange = {
-                            passwordInput = it
-                            authErrorMessage = null
-                        },
-                        label = { Text("Password") },
-                        leadingIcon = {
-                            Icon(Icons.Default.Lock, contentDescription = null, modifier = Modifier.size(20.dp))
-                        },
-                        trailingIcon = {
-                            TextButton(
-                                onClick = { passwordVisible = !passwordVisible },
-                                contentPadding = PaddingValues(horizontal = 8.dp)
-                            ) {
-                                Text(
-                                    text = if (passwordVisible) "HIDE" else "SHOW",
-                                    style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold)
-                                )
-                            }
-                        },
-                        visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth(),
-                        textStyle = MaterialTheme.typography.bodyMedium
-                    )
-
-                    if (!isRegisterMode) {
-                        Box(
-                            modifier = Modifier.fillMaxWidth(),
-                            contentAlignment = Alignment.CenterEnd
-                        ) {
-                            TextButton(
-                                onClick = {
-                                    val emailClean = emailInput.trim()
-                                    if (emailClean.isBlank()) {
-                                        authErrorMessage = "Please type your email address first so we know where to send the reset link."
-                                    } else if (!emailClean.contains("@")) {
-                                        authErrorMessage = "Invalid email address format."
-                                    } else {
-                                        authErrorMessage = null
-                                        authSuccessMessage = "Reset link successfully sent to $emailClean! Please check your inbox."
-                                    }
-                                },
-                                contentPadding = PaddingValues(0.dp)
-                            ) {
-                                Text(
-                                    text = "Forgot Password?",
-                                    style = MaterialTheme.typography.labelLarge.copy(
-                                        fontWeight = FontWeight.Bold,
-                                        color = MaterialTheme.colorScheme.primary
-                                    )
-                                )
-                            }
+                        onAuthError = { err ->
+                            authErrorMessage = err
                         }
-                    }
+                    )
                 }
             },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        if (isRegisterMode) {
-                            val err = viewModel.signUp(emailInput, passwordInput, usernameInput)
-                            if (err != null) {
-                                authErrorMessage = err
-                            } else {
-                                authSuccessMessage = "Account registered successfully! Welcome."
-                                scope.launch {
-                                    kotlinx.coroutines.delay(1200)
-                                    showAuthDialog = false
-                                    authSuccessMessage = null
-                                    emailInput = ""
-                                    passwordInput = ""
-                                    usernameInput = ""
-                                }
-                            }
-                        } else {
-                            val err = viewModel.signIn(emailInput, passwordInput)
-                            if (err != null) {
-                                authErrorMessage = err
-                            } else {
-                                authSuccessMessage = "Successfully signed in!"
-                                scope.launch {
-                                    kotlinx.coroutines.delay(1200)
-                                    showAuthDialog = false
-                                    authSuccessMessage = null
-                                    emailInput = ""
-                                    passwordInput = ""
-                                }
-                            }
-                        }
-                    },
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text(if (isRegisterMode) "Sign Up" else "Sign In")
-                }
-            },
+            confirmButton = {},
             dismissButton = {
                 TextButton(
                     onClick = {
                         showAuthDialog = false
                         authErrorMessage = null
-                        authSuccessMessage = null
                     },
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Text("Cancel")
+                    Text("Tutup")
                 }
             }
         )
@@ -2398,15 +1554,25 @@ fun ChatScreen(
             onRequireAuth = {
                 showSubscriptionDialog = false
                 showAuthDialog = true
+            },
+            onOpenTopUp = {
+                showSubscriptionDialog = false
+                viewModel.fetchTopUpPackagesFromProxy()
+                showTopUpDialog = true
             }
         )
     }
 
-    if (showApiKeySettingsDialog) {
-        ApiKeySettingsDialog(
+    if (showTopUpDialog) {
+        TopUpTokenDialog(
             uiState = uiState,
-            viewModel = viewModel,
-            onDismiss = { showApiKeySettingsDialog = false }
+            onDismiss = { showTopUpDialog = false },
+            onRefreshPackages = { viewModel.fetchTopUpPackagesFromProxy() },
+            onTopUpSuccess = { pkg, method -> viewModel.topUpTokens(pkg, method) },
+            onRequireAuth = {
+                showTopUpDialog = false
+                showAuthDialog = true
+            }
         )
     }
 
@@ -2510,20 +1676,11 @@ fun ChatMessageBubble(
     onBookmarkClick: () -> Unit
 ) {
     val isUser = message.role == Role.USER
-    val isDark = MaterialTheme.colorScheme.background == DarkBackground
-    
-    val formattedTime = remember(message.timestamp) {
-        try {
-            val sdf = java.text.SimpleDateFormat("HH:mm", java.util.Locale.getDefault())
-            sdf.format(java.util.Date(message.timestamp))
-        } catch (e: Exception) {
-            ""
-        }
-    }
+    val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
 
     val formattedDateTime = remember(message.timestamp) {
         try {
-            val sdf = java.text.SimpleDateFormat("MMM dd, yyyy • hh:mm a", java.util.Locale.getDefault())
+            val sdf = java.text.SimpleDateFormat("MMM dd, hh:mm a", java.util.Locale.getDefault())
             sdf.format(java.util.Date(message.timestamp))
         } catch (e: Exception) {
             ""
@@ -2531,22 +1688,17 @@ fun ChatMessageBubble(
     }
 
     val backgroundColor = if (isUser) {
-        if (isDark) DarkUserBubbleBg else LightUserBubbleBg
+        if (isDark) Color(0xFF2F2F2F) else MaterialTheme.colorScheme.surfaceVariant
     } else {
         Color.Transparent
     }
 
-    val contentColor = if (isUser) {
-        if (isDark) DarkUserBubbleText else LightUserBubbleText
-    } else {
-        MaterialTheme.colorScheme.onBackground
-    }
+    val contentColor = MaterialTheme.colorScheme.onSurface
 
-    val alignment = if (isUser) Alignment.CenterEnd else Alignment.CenterStart
     val shape = if (isUser) {
-        RoundedCornerShape(16.dp, 16.dp, 4.dp, 16.dp)
+        RoundedCornerShape(22.dp)
     } else {
-        RoundedCornerShape(16.dp, 16.dp, 16.dp, 4.dp)
+        RoundedCornerShape(16.dp)
     }
 
     val animAlpha = remember { Animatable(0f) }
@@ -2556,7 +1708,7 @@ fun ChatMessageBubble(
             animAlpha.animateTo(
                 targetValue = 1f,
                 animationSpec = tween(
-                    durationMillis = 350,
+                    durationMillis = 280,
                     easing = FastOutSlowInEasing
                 )
             )
@@ -2565,7 +1717,7 @@ fun ChatMessageBubble(
             animOffsetY.animateTo(
                 targetValue = 0f,
                 animationSpec = tween(
-                    durationMillis = 300,
+                    durationMillis = 240,
                     easing = EaseOutQuad
                 )
             )
@@ -2580,11 +1732,46 @@ fun ChatMessageBubble(
                 translationY = animOffsetY.value
             )
             .padding(
-                start = if (isUser) 48.dp else 4.dp,
-                end = if (isUser) 4.dp else 4.dp
+                start = if (isUser) 44.dp else 0.dp,
+                end = if (isUser) 0.dp else 0.dp
             ),
         horizontalAlignment = if (isUser) Alignment.End else Alignment.Start
     ) {
+        if (!isUser) {
+            Row(
+                modifier = Modifier.padding(bottom = 4.dp, start = 2.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Surface(
+                    shape = CircleShape,
+                    color = MaterialTheme.colorScheme.surfaceVariant,
+                    border = BorderStroke(0.75.dp, MaterialTheme.colorScheme.outline),
+                    modifier = Modifier.size(22.dp)
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Text(
+                            text = "✦",
+                            fontSize = 11.sp,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
+                }
+                Text(
+                    text = "Prof Eddie",
+                    style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.SemiBold),
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                if (formattedDateTime.isNotEmpty()) {
+                    Text(
+                        text = formattedDateTime,
+                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                    )
+                }
+            }
+        }
+
         Surface(
             color = backgroundColor,
             contentColor = contentColor,
@@ -2696,116 +1883,87 @@ fun ChatMessageBubble(
         }
 
         if (isUser) {
-            if (formattedDateTime.isNotEmpty()) {
-                Row(
-                    modifier = Modifier.padding(top = 4.dp, end = 4.dp),
-                    horizontalArrangement = Arrangement.spacedBy(4.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = formattedDateTime,
-                        style = MaterialTheme.typography.bodySmall.copy(
-                            fontSize = 10.sp,
-                            fontWeight = FontWeight.Normal
-                        ),
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.62f)
-                    )
-                    Icon(
-                        imageVector = Icons.Default.CheckCircle,
-                        contentDescription = "Sent",
-                        modifier = Modifier.size(11.dp),
-                        tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.65f)
-                    )
-                }
-            }
-
-            // Action Toolbar for User Input Prompt
             Row(
-                modifier = Modifier
-                    .padding(top = 2.dp, end = 2.dp),
-                horizontalArrangement = Arrangement.spacedBy(2.dp),
+                modifier = Modifier.padding(top = 4.dp, end = 4.dp),
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 TextButton(
                     onClick = onCopyClick,
-                    contentPadding = PaddingValues(horizontal = 4.dp, vertical = 2.dp),
+                    contentPadding = PaddingValues(horizontal = 6.dp, vertical = 2.dp),
                     modifier = Modifier.height(28.dp)
                 ) {
                     Text(
-                        text = "📋 COPY",
-                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold)
+                        text = "Copy",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
-
                 TextButton(
                     onClick = onShareClick,
-                    contentPadding = PaddingValues(horizontal = 4.dp, vertical = 2.dp),
+                    contentPadding = PaddingValues(horizontal = 6.dp, vertical = 2.dp),
                     modifier = Modifier.height(28.dp)
                 ) {
                     Text(
-                        text = "📤 SHARE",
-                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold)
+                        text = "Share",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
             }
-        }
-
-        if (!isUser && formattedDateTime.isNotEmpty()) {
-            Row(
-                modifier = Modifier.padding(top = 4.dp, start = 8.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = formattedDateTime,
-                    style = MaterialTheme.typography.bodySmall.copy(
-                        fontSize = 10.sp,
-                        fontWeight = FontWeight.Normal
-                    ),
-                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
-                )
-            }
-        }
-
-        // Action Toolbar (Copy, Share, Bookmark option for assistant responses)
-        if (!isUser) {
+        } else {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(top = 4.dp, start = 4.dp, end = 4.dp),
+                    .padding(top = 2.dp, start = 2.dp),
                 horizontalArrangement = Arrangement.spacedBy(2.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 TextButton(
                     onClick = onCopyClick,
-                    contentPadding = PaddingValues(horizontal = 4.dp, vertical = 2.dp),
-                    modifier = Modifier.height(28.dp)
+                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
+                    modifier = Modifier.height(30.dp)
                 ) {
                     Text(
-                        text = "📋 COPY",
-                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold)
+                        text = "📋 Copy",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
 
                 TextButton(
-                    onClick = onShareClick,
-                    contentPadding = PaddingValues(horizontal = 4.dp, vertical = 2.dp),
-                    modifier = Modifier.height(28.dp)
+                    onClick = onSpeakClick,
+                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
+                    modifier = Modifier.height(30.dp)
                 ) {
                     Text(
-                        text = "📤 SHARE",
-                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold)
+                        text = if (isSpeaking) "⏹ Stop" else "🔊 Read",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = if (isSpeaking) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
 
                 TextButton(
                     onClick = onBookmarkClick,
-                    contentPadding = PaddingValues(horizontal = 4.dp, vertical = 2.dp),
-                    modifier = Modifier.height(28.dp)
+                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
+                    modifier = Modifier.height(30.dp)
                 ) {
                     Text(
-                        text = if (message.isBookmarked) "❤️ SAVED" else "🤍 SAVE",
-                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-                        color = if (message.isBookmarked) Color.Red else MaterialTheme.colorScheme.onSurfaceVariant
+                        text = if (message.isBookmarked) "❤️ Saved" else "🤍 Save",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = if (message.isBookmarked) Color(0xFFEF4444) else MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+
+                TextButton(
+                    onClick = onShareClick,
+                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
+                    modifier = Modifier.height(30.dp)
+                ) {
+                    Text(
+                        text = "↗ Share",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
             }
@@ -3624,6 +2782,149 @@ fun MarkdownText(
     )
 }
 
+@Composable
+fun ProStudioGateScreen(
+    paddingValues: PaddingValues,
+    emoji: String,
+    title: String,
+    description: String,
+    features: List<String>,
+    onUpgradeClick: () -> Unit,
+    onBackToChat: () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(paddingValues)
+            .navigationBarsPadding()
+            .verticalScroll(rememberScrollState())
+            .padding(20.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .widthIn(max = 520.dp),
+            shape = RoundedCornerShape(24.dp),
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.surface
+            ),
+            border = BorderStroke(1.5.dp, Color(0xFFFFB100).copy(alpha = 0.65f))
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(14.dp)
+            ) {
+                Surface(
+                    shape = CircleShape,
+                    color = Color(0xFFFFB100).copy(alpha = 0.16f),
+                    modifier = Modifier.size(64.dp)
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Text(text = emoji, fontSize = 30.sp)
+                    }
+                }
+
+                Surface(
+                    shape = RoundedCornerShape(12.dp),
+                    color = Color(0xFFFFB100).copy(alpha = 0.2f),
+                    border = BorderStroke(1.dp, Color(0xFFFFB100).copy(alpha = 0.6f))
+                ) {
+                    Text(
+                        text = "👑 PRO SUBSCRIBERS ONLY",
+                        style = MaterialTheme.typography.labelSmall.copy(
+                            fontWeight = FontWeight.Bold,
+                            letterSpacing = 0.5.sp
+                        ),
+                        color = Color(0xFFD48200),
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 5.dp)
+                    )
+                }
+
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
+                    color = MaterialTheme.colorScheme.onSurface,
+                    textAlign = TextAlign.Center
+                )
+
+                Text(
+                    text = description,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center
+                )
+
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(14.dp),
+                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)
+                ) {
+                    Column(
+                        modifier = Modifier.padding(14.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        features.forEach { item ->
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Text(
+                                    text = "✓",
+                                    style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold),
+                                    color = Color(0xFFD48200)
+                                )
+                                Text(
+                                    text = item,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                            }
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(4.dp))
+
+                Button(
+                    onClick = onUpgradeClick,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(48.dp)
+                        .testTag("pro_gate_upgrade_button"),
+                    shape = RoundedCornerShape(14.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFFFFB100),
+                        contentColor = Color.Black
+                    )
+                ) {
+                    Text(
+                        text = "👑 Subscribe to Unlock PRO",
+                        style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold)
+                    )
+                }
+
+                OutlinedButton(
+                    onClick = onBackToChat,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(48.dp)
+                        .testTag("pro_gate_back_to_chat_button"),
+                    shape = RoundedCornerShape(14.dp)
+                ) {
+                    Text(
+                        text = "Back to Chat",
+                        style = MaterialTheme.typography.labelLarge
+                    )
+                }
+            }
+        }
+    }
+}
+
 @OptIn(
     androidx.compose.material3.ExperimentalMaterial3Api::class,
     androidx.compose.foundation.layout.ExperimentalLayoutApi::class
@@ -3637,7 +2938,8 @@ fun EddieImageGeneratorView(
     onSaveEditedImage: (String, String, String, String, String) -> Unit,
     onProviderChange: (String) -> Unit,
     onModelChange: (String) -> Unit,
-    onClearLog: () -> Unit
+    onClearLog: () -> Unit,
+    onOpenSubscription: () -> Unit = {}
 ) {
     val context = LocalContext.current
     var prompt by remember { mutableStateOf("") }
@@ -3723,6 +3025,7 @@ fun EddieImageGeneratorView(
         modifier = Modifier
             .fillMaxSize()
             .padding(paddingValues)
+            .navigationBarsPadding()
             .imePadding()
     ) {
         // Scrollable content underneath
@@ -3745,8 +3048,8 @@ fun EddieImageGeneratorView(
                     style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Bold),
                     color = MaterialTheme.colorScheme.primary
                 )
+                Spacer(modifier = Modifier.height(4.dp))
                 if (uiState.isSubscribed) {
-                    Spacer(modifier = Modifier.height(4.dp))
                     Surface(
                         color = Color(0xFFFFB100).copy(alpha = 0.15f),
                         border = BorderStroke(1.dp, Color(0xFFFFB100)),
@@ -3757,6 +3060,20 @@ fun EddieImageGeneratorView(
                             modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
                             style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold, fontSize = 10.sp),
                             color = Color(0xFFFFB100)
+                        )
+                    }
+                } else {
+                    Surface(
+                        onClick = onOpenSubscription,
+                        color = Color(0xFFFFB100).copy(alpha = 0.12f),
+                        border = BorderStroke(1.dp, Color(0xFFFFB100).copy(alpha = 0.6f)),
+                        shape = RoundedCornerShape(6.dp)
+                    ) {
+                        Text(
+                            text = "⚡ Free Tier (Max 3 Artworks) • Upgrade PRO",
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold, fontSize = 10.sp),
+                            color = Color(0xFFD48200)
                         )
                     }
                 }
@@ -4400,7 +3717,7 @@ fun EddieImageGeneratorView(
 
         // Image Studio Debug Window
         StudioDebugToggleBar(
-            title = "🛠️ Jendela Debug (Image Studio)",
+            title = "🛠️ Debug Window (Image Studio)",
             isOpen = showDebugWindow,
             onToggle = { showDebugWindow = !showDebugWindow },
             hasLogs = uiState.imageGenLog.isNotBlank(),
@@ -4450,53 +3767,77 @@ fun EddieImageGeneratorView(
             }
         }
 
-        Row(
+        Column(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
+            verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = "Your Premium Artwork Collection",
-                    style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-                if (userImages.isNotEmpty()) {
-                    val startNum = (imageCurrentPage - 1) * imagesPerPage + 1
-                    val endNum = minOf(imageCurrentPage * imagesPerPage, userImages.size)
-                    Text(
-                        text = "Showing $startNum–$endNum of ${userImages.size} artworks • Page $imageCurrentPage of $totalImagePages",
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            }
-
-            if (userImages.size > 4) {
+            Text(
+                text = "Your Premium Artwork Collection",
+                style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            if (userImages.isNotEmpty()) {
+                val startNum = (imageCurrentPage - 1) * imagesPerPage + 1
+                val endNum = minOf(imageCurrentPage * imagesPerPage, userImages.size)
                 Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    listOf(4, 8, 12).forEach { count ->
-                        FilterChip(
-                            selected = imagesPerPage == count,
-                            onClick = {
-                                imagesPerPage = count
-                                imageCurrentPage = 1
-                            },
-                            label = {
-                                Text(
-                                    text = "$count/p",
-                                    style = MaterialTheme.typography.labelSmall.copy(
-                                        fontSize = 10.sp,
-                                        fontWeight = if (imagesPerPage == count) FontWeight.Bold else FontWeight.Normal
+                    Text(
+                        text = "Showing $startNum–$endNum of ${userImages.size} • Page $imageCurrentPage/$totalImagePages",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.weight(1f),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+
+                    if (userImages.size > 4) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            listOf(4, 8, 12).forEach { count ->
+                                val isSelected = imagesPerPage == count
+                                Surface(
+                                    onClick = {
+                                        imagesPerPage = count
+                                        imageCurrentPage = 1
+                                    },
+                                    shape = RoundedCornerShape(8.dp),
+                                    color = if (isSelected) {
+                                        MaterialTheme.colorScheme.primary
+                                    } else {
+                                        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
+                                    },
+                                    border = BorderStroke(
+                                        1.dp,
+                                        if (isSelected) {
+                                            MaterialTheme.colorScheme.primary
+                                        } else {
+                                            MaterialTheme.colorScheme.outline.copy(alpha = 0.25f)
+                                        }
+                                    ),
+                                    modifier = Modifier.testTag("image_items_per_page_$count")
+                                ) {
+                                    Text(
+                                        text = "$count/p",
+                                        style = MaterialTheme.typography.labelSmall.copy(
+                                            fontSize = 11.sp,
+                                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
+                                        ),
+                                        color = if (isSelected) {
+                                            MaterialTheme.colorScheme.onPrimary
+                                        } else {
+                                            MaterialTheme.colorScheme.onSurfaceVariant
+                                        },
+                                        maxLines = 1,
+                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp)
                                     )
-                                )
-                            },
-                            modifier = Modifier
-                                .height(28.dp)
-                                .testTag("image_items_per_page_$count")
-                        )
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -4678,14 +4019,14 @@ fun EddieImageGeneratorView(
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(horizontal = 12.dp, vertical = 8.dp),
+                                .padding(horizontal = 10.dp, vertical = 8.dp),
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             OutlinedButton(
                                 onClick = { if (imageCurrentPage > 1) imageCurrentPage-- },
                                 enabled = imageCurrentPage > 1,
-                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp),
                                 shape = RoundedCornerShape(8.dp),
                                 modifier = Modifier
                                     .minimumInteractiveComponentSize()
@@ -4697,46 +4038,74 @@ fun EddieImageGeneratorView(
                                     modifier = Modifier.size(16.dp)
                                 )
                                 Spacer(modifier = Modifier.width(4.dp))
-                                Text("Prev", style = MaterialTheme.typography.labelMedium)
+                                Text("Prev", style = MaterialTheme.typography.labelMedium, maxLines = 1, softWrap = false)
                             }
 
-                            Row(
+                            Box(
                                 modifier = Modifier
-                                    .weight(1f, fill = false)
-                                    .horizontalScroll(rememberScrollState())
+                                    .weight(1f)
                                     .padding(horizontal = 6.dp),
-                                horizontalArrangement = Arrangement.spacedBy(4.dp),
-                                verticalAlignment = Alignment.CenterVertically
+                                contentAlignment = Alignment.Center
                             ) {
-                                (1..totalImagePages).forEach { p ->
-                                    FilterChip(
-                                        selected = p == imageCurrentPage,
-                                        onClick = { imageCurrentPage = p },
-                                        label = {
-                                            Text(
-                                                text = "$p",
-                                                style = MaterialTheme.typography.labelMedium.copy(
-                                                    fontWeight = if (p == imageCurrentPage) FontWeight.Bold else FontWeight.Normal
+                                Row(
+                                    modifier = Modifier.horizontalScroll(rememberScrollState()),
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    (1..totalImagePages).forEach { p ->
+                                        val isCurrent = p == imageCurrentPage
+                                        Surface(
+                                            onClick = { imageCurrentPage = p },
+                                            shape = RoundedCornerShape(8.dp),
+                                            color = if (isCurrent) {
+                                                MaterialTheme.colorScheme.primary
+                                            } else {
+                                                MaterialTheme.colorScheme.surface
+                                            },
+                                            border = BorderStroke(
+                                                1.dp,
+                                                if (isCurrent) {
+                                                    MaterialTheme.colorScheme.primary
+                                                } else {
+                                                    MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)
+                                                }
+                                            ),
+                                            modifier = Modifier
+                                                .defaultMinSize(minWidth = 34.dp, minHeight = 34.dp)
+                                                .testTag("image_page_chip_$p")
+                                        ) {
+                                            Box(
+                                                contentAlignment = Alignment.Center,
+                                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp)
+                                            ) {
+                                                Text(
+                                                    text = "$p",
+                                                    style = MaterialTheme.typography.labelMedium.copy(
+                                                        fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.Medium
+                                                    ),
+                                                    color = if (isCurrent) {
+                                                        MaterialTheme.colorScheme.onPrimary
+                                                    } else {
+                                                        MaterialTheme.colorScheme.onSurface
+                                                    },
+                                                    maxLines = 1
                                                 )
-                                            )
-                                        },
-                                        modifier = Modifier
-                                            .height(32.dp)
-                                            .testTag("image_page_chip_$p")
-                                    )
+                                            }
+                                        }
+                                    }
                                 }
                             }
 
                             OutlinedButton(
                                 onClick = { if (imageCurrentPage < totalImagePages) imageCurrentPage++ },
                                 enabled = imageCurrentPage < totalImagePages,
-                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp),
                                 shape = RoundedCornerShape(8.dp),
                                 modifier = Modifier
                                     .minimumInteractiveComponentSize()
                                     .testTag("image_next_page_button")
                             ) {
-                                Text("Next", style = MaterialTheme.typography.labelMedium)
+                                Text("Next", style = MaterialTheme.typography.labelMedium, maxLines = 1, softWrap = false)
                                 Spacer(modifier = Modifier.width(4.dp))
                                 Icon(
                                     imageVector = Icons.AutoMirrored.Filled.ArrowForward,
@@ -4749,6 +4118,8 @@ fun EddieImageGeneratorView(
                 }
             }
         }
+
+        Spacer(modifier = Modifier.height(48.dp))
     }
 
     selectedImageForZoom?.let { imageItem ->
@@ -4763,18 +4134,41 @@ fun EddieImageGeneratorView(
                 ) {
                     Text(
                         text = "Your AI Artwork Details",
-                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
+                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                        modifier = Modifier.weight(1f),
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis
                     )
-                    if (zoomIdx != -1 && allArtwork.size > 1) {
-                        Surface(
-                            shape = RoundedCornerShape(12.dp),
-                            color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        if (zoomIdx != -1 && allArtwork.size > 1) {
+                            Surface(
+                                shape = RoundedCornerShape(12.dp),
+                                color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
+                            ) {
+                                Text(
+                                    text = "${zoomIdx + 1} of ${allArtwork.size}",
+                                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                                    color = MaterialTheme.colorScheme.primary,
+                                    maxLines = 1,
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                                )
+                            }
+                        }
+                        IconButton(
+                            onClick = { selectedImageForZoom = null },
+                            modifier = Modifier
+                                .size(36.dp)
+                                .minimumInteractiveComponentSize()
+                                .testTag("artwork_details_close_button")
                         ) {
-                            Text(
-                                text = "${zoomIdx + 1} of ${allArtwork.size}",
-                                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-                                color = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                            Icon(
+                                imageVector = Icons.Default.Close,
+                                contentDescription = "Close",
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(20.dp)
                             )
                         }
                     }
@@ -4782,7 +4176,9 @@ fun EddieImageGeneratorView(
             },
             text = {
                 Column(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .verticalScroll(rememberScrollState()),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     Box(
@@ -4824,17 +4220,19 @@ fun EddieImageGeneratorView(
                                         selectedImageForZoom = allArtwork[zoomIdx - 1]
                                     }
                                 },
-                                enabled = zoomIdx > 0
+                                enabled = zoomIdx > 0,
+                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
                             ) {
                                 Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Previous Image", modifier = Modifier.size(16.dp))
                                 Spacer(Modifier.width(4.dp))
-                                Text("Previous", style = MaterialTheme.typography.labelMedium)
+                                Text("Prev", style = MaterialTheme.typography.labelMedium, maxLines = 1, softWrap = false)
                             }
 
                             Text(
-                                text = "Artwork ${zoomIdx + 1}/${allArtwork.size}",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                text = "${zoomIdx + 1} / ${allArtwork.size}",
+                                style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold),
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 1
                             )
 
                             TextButton(
@@ -4843,9 +4241,10 @@ fun EddieImageGeneratorView(
                                         selectedImageForZoom = allArtwork[zoomIdx + 1]
                                     }
                                 },
-                                enabled = zoomIdx < allArtwork.size - 1
+                                enabled = zoomIdx < allArtwork.size - 1,
+                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
                             ) {
-                                Text("Next", style = MaterialTheme.typography.labelMedium)
+                                Text("Next", style = MaterialTheme.typography.labelMedium, maxLines = 1, softWrap = false)
                                 Spacer(Modifier.width(4.dp))
                                 Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = "Next Image", modifier = Modifier.size(16.dp))
                             }
@@ -6473,7 +5872,8 @@ fun EddieVideoGeneratorView(
     onSaveEditedVideo: (String, String, String, String, String, String, String, String) -> Unit,
     onModeChange: (String) -> Unit,
     onProviderChange: (String) -> Unit,
-    onModelChange: (String) -> Unit
+    onModelChange: (String) -> Unit,
+    onOpenSubscription: () -> Unit = {}
 ) {
     val context = LocalContext.current
     var prompt by remember { mutableStateOf("") }
@@ -6578,13 +5978,6 @@ fun EddieVideoGeneratorView(
         }
     }
 
-    val isVeo2 = remember(uiState.selectedVideoModel, uiState.selectedVideoProvider) {
-        val modelLower = uiState.selectedVideoModel.lowercase().trim()
-        (uiState.selectedVideoProvider == "Veo" || uiState.selectedVideoProvider == "FalAI") && (
-            modelLower == "veo2" || modelLower.contains("veo-2.0")
-        )
-    }
-
     val isOpenAiSora2 = remember(uiState.selectedVideoModel, uiState.selectedVideoProvider) {
         val modelLower = uiState.selectedVideoModel.lowercase().trim()
         uiState.selectedVideoProvider == "OpenAI" && modelLower == "sora 2"
@@ -6605,13 +5998,6 @@ fun EddieVideoGeneratorView(
     val isOpenAiSora2Pro = remember(uiState.selectedVideoModel, uiState.selectedVideoProvider) {
         val modelLower = uiState.selectedVideoModel.lowercase().trim()
         uiState.selectedVideoProvider == "OpenAI" && modelLower == "sora 2 pro"
-    }
-
-    LaunchedEffect(isVeo2) {
-        if (isVeo2) {
-            selectedDuration = "5s"
-            selectedAudioOption = "Off"
-        }
     }
 
     LaunchedEffect(uiState.selectedVideoModel, uiState.selectedVideoProvider, uiState.selectedVideoMode) {
@@ -6907,7 +6293,7 @@ fun EddieVideoGeneratorView(
         }
     }
 
-    val aspectRatios = remember(uiState.selectedVideoProvider, uiState.selectedVideoModel, uiState.selectedVideoMode, isFalVeo3, isFalVeo3FastModel, isVeo2, isGrokImagineVideo, isLumaRayVideo, isSora2ImageToVideo, isSora2ProImageToVideo, isAlibabaVideo, isHunyuan15Video) {
+    val aspectRatios = remember(uiState.selectedVideoProvider, uiState.selectedVideoModel, uiState.selectedVideoMode, isFalVeo3, isFalVeo3FastModel, isGrokImagineVideo, isLumaRayVideo, isSora2ImageToVideo, isSora2ProImageToVideo, isAlibabaVideo, isHunyuan15Video) {
         val modelLower = uiState.selectedVideoModel.lowercase().trim()
         if (isHunyuan15Video) {
             listOf(
@@ -6968,12 +6354,6 @@ fun EddieVideoGeneratorView(
                 "3:4" to false to "Portrait",
                 "9:16" to true to "Shorts/TikTok"
             )
-        } else if (isVeo2) {
-            listOf(
-                "16:9" to false to "Landscape",
-                "1:1" to false to "Square",
-                "9:16" to true to "Shorts/TikTok"
-            )
         } else if (uiState.selectedVideoProvider == "Kling") {
             listOf(
                 "16:9" to false to "Landscape",
@@ -7028,7 +6408,7 @@ fun EddieVideoGeneratorView(
         }
     }
 
-    val resolutions = remember(uiState.selectedVideoProvider, uiState.selectedVideoModel, uiState.selectedVideoMode, isFalVeo3, isFalVeo3FastModel, isFalVeo3OnlyFast, isFalVeo3Only, isFalVeo3_1Lite, isVeo2, isOpenAiSora2, isOpenAiSora2Pro, isGrokImagineVideo, isLumaRayVideo, isSora2ImageToVideo, isSora2ProImageToVideo, isAlibabaVideo, isHunyuan15Video) {
+    val resolutions = remember(uiState.selectedVideoProvider, uiState.selectedVideoModel, uiState.selectedVideoMode, isFalVeo3, isFalVeo3FastModel, isFalVeo3OnlyFast, isFalVeo3Only, isFalVeo3_1Lite, isOpenAiSora2, isOpenAiSora2Pro, isGrokImagineVideo, isLumaRayVideo, isSora2ImageToVideo, isSora2ProImageToVideo, isAlibabaVideo, isHunyuan15Video) {
         if (isHunyuan15Video) {
             listOf(
                 "480p" to false to "Standard (480p)",
@@ -7152,12 +6532,6 @@ fun EddieVideoGeneratorView(
                     "4K" to false to "Ultra HD"
                 )
             }
-        } else if (isVeo2) {
-            listOf(
-                "480p" to false to "Standard SD",
-                "720p" to false to "High HD",
-                "1080p" to true to "Full HD Pro"
-            )
         } else if (uiState.selectedVideoProvider == "PixVerse" || uiState.selectedVideoModel.lowercase().contains("pixverse")) {
             listOf(
                 "360p" to false to "Low SD",
@@ -7194,7 +6568,7 @@ fun EddieVideoGeneratorView(
         }
     }
 
-    val durations = remember(uiState.selectedVideoProvider, uiState.selectedVideoModel, uiState.selectedVideoMode, isFalVeo3, isFalVeo3FastModel, isFalVeo3_1, isFalVeo3_1Lite, isFalVeo3Only, isFalVeo3_1Fast, isFalVeo3OnlyFast, isVeo2, selectedAudioOption, selectedResolution, isKlingV3Standard, isKlingV3Pro, isKlingV3TurboPro, isKlingV3TurboStandard, isKlingO3_4k, isKlingO3Standard, isKlingO3Pro, isKlingV3_4k, isOpenAiSora2Pro, selectedOpenAiSize, klingVoiceControl, isKlingV26Pro, pixverseMultiClip, isGrokImagineVideo, isLumaRayVideo, lumaHdr, lumaExrExport, isHunyuan15Video, hunyuanFrames) {
+    val durations = remember(uiState.selectedVideoProvider, uiState.selectedVideoModel, uiState.selectedVideoMode, isFalVeo3, isFalVeo3FastModel, isFalVeo3_1, isFalVeo3_1Lite, isFalVeo3Only, isFalVeo3_1Fast, isFalVeo3OnlyFast, selectedAudioOption, selectedResolution, isKlingV3Standard, isKlingV3Pro, isKlingV3TurboPro, isKlingV3TurboStandard, isKlingO3_4k, isKlingO3Standard, isKlingO3Pro, isKlingV3_4k, isOpenAiSora2Pro, selectedOpenAiSize, klingVoiceControl, isKlingV26Pro, pixverseMultiClip, isGrokImagineVideo, isLumaRayVideo, lumaHdr, lumaExrExport, isHunyuan15Video, hunyuanFrames) {
         if (uiState.selectedVideoModel == "fal-ai/minimax/hailuo-2.3/pro/image-to-video" || uiState.selectedVideoModel == "fal-ai/minimax/hailuo-2.3/pro/text-to-video") {
             emptyList()
         } else if (isHunyuan15Video) {
@@ -7480,13 +6854,6 @@ fun EddieVideoGeneratorView(
                 "4s" to false to "🪙 ${4 * rate} Token",
                 "6s" to false to "🪙 ${6 * rate} Token",
                 "8s" to false to "🪙 ${8 * rate} Token"
-            )
-        } else if (isVeo2) {
-            listOf(
-                "5s" to false to "🪙 650 Token",
-                "6s" to false to "🪙 800 Token",
-                "7s" to false to "🪙 950 Token",
-                "8s" to false to "🪙 1100 Token"
             )
         } else if (isSora2ImageToVideo || isSora2ProImageToVideo) {
             val pricePerSecond = if (isSora2ImageToVideo) {
@@ -7841,6 +7208,7 @@ fun EddieVideoGeneratorView(
         modifier = Modifier
             .fillMaxSize()
             .padding(paddingValues)
+            .navigationBarsPadding()
             .imePadding()
     ) {
         // Scrollable content underneath
@@ -7863,8 +7231,8 @@ fun EddieVideoGeneratorView(
                     style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Bold),
                     color = MaterialTheme.colorScheme.primary
                 )
+                Spacer(modifier = Modifier.height(4.dp))
                 if (uiState.isSubscribed) {
-                    Spacer(modifier = Modifier.height(4.dp))
                     Surface(
                         color = Color(0xFFFFB100).copy(alpha = 0.15f),
                         border = BorderStroke(1.dp, Color(0xFFFFB100)),
@@ -7875,6 +7243,20 @@ fun EddieVideoGeneratorView(
                             modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
                             style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold, fontSize = 10.sp),
                             color = Color(0xFFFFB100)
+                        )
+                    }
+                } else {
+                    Surface(
+                        onClick = onOpenSubscription,
+                        color = Color(0xFFFFB100).copy(alpha = 0.12f),
+                        border = BorderStroke(1.dp, Color(0xFFFFB100).copy(alpha = 0.6f)),
+                        shape = RoundedCornerShape(6.dp)
+                    ) {
+                        Text(
+                            text = "⚡ Free Tier (Max 2 Videos) • Upgrade PRO",
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold, fontSize = 10.sp),
+                            color = Color(0xFFD48200)
                         )
                     }
                 }
@@ -8028,7 +7410,6 @@ fun EddieVideoGeneratorView(
                         "Text to Video" -> {
                             when (uiState.selectedVideoProvider) {
                                 "Veo" -> listOf(
-                                    Triple("Veo 2", "veo2", 625.0),
                                     Triple("Veo 3", "veo3", 800.0),
                                     Triple("Veo 3 Fast", "veo3-fast", 300.0),
                                     Triple("Veo 3.1", "fal-ai/veo3.1", 800.0),
@@ -8232,7 +7613,6 @@ fun EddieVideoGeneratorView(
                             "fal-ai/veo3.1" -> "Veo 3.1 is the latest state-of-the art video generation model from Google DeepMind"
                             "fal-ai/veo3.1/lite" -> "Veo 3.1 Lite balances practical utility with professional capabilities, supporting Text-to-Video and Image-to-Video"
                             "fal-ai/veo3.1/fast" -> "Generate videos from your image prompts using Veo 3.1 fast."
-                            "veo2" -> "Veo 2 creates videos with realistic motion and high quality output. Explore different styles and find your own with extensive camera controls."
                             "veo3" -> "Veo 3 by Google, the most advanced AI video generation model in the world. With sound on!"
                             "veo3-fast" -> "Faster and more cost effective version of Google's Veo 3.1!"
                             else -> null
@@ -8251,7 +7631,6 @@ fun EddieVideoGeneratorView(
                             "fal-ai/veo3.1" -> "Veo 3.1 is the latest state-of-the art video generation model from Google DeepMind"
                             "fal-ai/veo3.1/lite" -> "Veo 3.1 Lite balances practical utility with professional capabilities, supporting Text-to-Video and Image-to-Video"
                             "fal-ai/veo3.1/fast" -> "Generate videos from your image prompts using Veo 3.1 fast."
-                            "veo2" -> "Veo 2 creates videos with realistic motion and high quality output. Explore different styles and find your own with extensive camera controls."
                             "veo3" -> "Veo 3 by Google, the most advanced AI video generation model in the world. With sound on!"
                             "veo3-fast" -> "Faster and more cost effective version of Google's Veo 3.1!"
                             "veed" -> "Highly creative, artistic short-video synthesis model on Fal.Ai with customizable canvas style and high visual clarity."
@@ -8799,7 +8178,7 @@ fun EddieVideoGeneratorView(
             }
         }
 
-        if (resolutions.isNotEmpty() && !isVeo2 && uiState.selectedVideoProvider != "OpenAI") {
+        if (resolutions.isNotEmpty() && uiState.selectedVideoProvider != "OpenAI") {
             Column {
                 Text(
                     text = "Video Resolution",
@@ -9022,7 +8401,7 @@ fun EddieVideoGeneratorView(
                 }
             }
 
-            if (isVeo2 || isFalVeo3 || isFalVeo3FastModel || isOpenAiSora2 || isOpenAiSora2Pro) {
+            if (isFalVeo3 || isFalVeo3FastModel || isOpenAiSora2 || isOpenAiSora2Pro) {
                 Spacer(modifier = Modifier.height(8.dp))
                 Card(
                     modifier = Modifier
@@ -9049,7 +8428,6 @@ fun EddieVideoGeneratorView(
                             text = getVeoSoraVideoCostHint(
                                 isOpenAiSora2 = isOpenAiSora2,
                                 isOpenAiSora2Pro = isOpenAiSora2Pro,
-                                isVeo2 = isVeo2,
                                 isFalVeo3_1Lite = isFalVeo3_1Lite,
                                 isFalVeo3_1 = isFalVeo3_1,
                                 isFalVeo3Only = isFalVeo3Only,
@@ -9240,7 +8618,7 @@ fun EddieVideoGeneratorView(
             }
         }
 
-    if ((isFalVeo3 || isFalVeo3FastModel || isVeo2 || isKlingV26Pro || isKlingV3Standard || isKlingV3Pro || isKlingO3_4k || isKlingO3Standard || isKlingO3Pro || isKlingV3_4k || isBytedance || uiState.selectedVideoProvider == "PixVerse") && !isVeo2) {
+    if (isFalVeo3 || isFalVeo3FastModel || isKlingV26Pro || isKlingV3Standard || isKlingV3Pro || isKlingO3_4k || isKlingO3Standard || isKlingO3Pro || isKlingV3_4k || isBytedance || uiState.selectedVideoProvider == "PixVerse") {
             Column {
                 Text(
                     text = "Generate Audio",
@@ -9359,9 +8737,8 @@ fun EddieVideoGeneratorView(
             }
         }
 
-        if (isVeo2 || isFalVeo3 || isFalVeo3FastModel) {
+        if (isFalVeo3 || isFalVeo3FastModel) {
             VeoEngineParametersCard(
-                isVeo2 = isVeo2,
                 isFalVeo3 = isFalVeo3,
                 isFalVeo3FastModel = isFalVeo3FastModel,
                 negativePromptText = negativePromptText,
@@ -9748,7 +9125,7 @@ fun EddieVideoGeneratorView(
 
         // Video Studio Debug Window
         StudioDebugToggleBar(
-            title = "🛠️ Jendela Debug (Video Studio)",
+            title = "🛠️ Debug Window (Video Studio)",
             isOpen = showVideoDebugWindow,
             onToggle = { showVideoDebugWindow = !showVideoDebugWindow },
             hasLogs = uiState.videoGenLog.isNotBlank(),
@@ -9957,17 +9334,24 @@ fun EddieVideoGeneratorView(
                                     verticalAlignment = Alignment.CenterVertically,
                                     horizontalArrangement = Arrangement.spacedBy(2.dp)
                                 ) {
-                                    IconButton(
-                                        onClick = { selectedVideoForPlay = video },
-                                        modifier = Modifier.size(28.dp)
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.Default.PlayArrow,
-                                            contentDescription = "Play Video",
-                                            tint = MaterialTheme.colorScheme.primary,
-                                            modifier = Modifier.size(18.dp)
-                                        )
-                                    }
+                                    DownloadIconButton(
+                                        onClick = {
+                                            Toast.makeText(context, "Downloading video...", Toast.LENGTH_SHORT).show()
+                                            downloadAndroidVideo(context, video.videoUrl, video.id) { path ->
+                                                if (path != null) {
+                                                    if (path.contains("System background download started")) {
+                                                        Toast.makeText(context, "Background download started! Check notifications 📥", Toast.LENGTH_LONG).show()
+                                                    } else {
+                                                        Toast.makeText(context, "Saved video to $path 📥", Toast.LENGTH_LONG).show()
+                                                    }
+                                                } else {
+                                                    Toast.makeText(context, "Failed to download video", Toast.LENGTH_SHORT).show()
+                                                }
+                                            }
+                                        },
+                                        size = 28.dp,
+                                        modifier = Modifier.testTag("video_download_button_${video.id}")
+                                    )
                                     IconButton(
                                         onClick = { editingVideoItem = video },
                                         modifier = Modifier.size(28.dp)
@@ -10008,15 +9392,16 @@ fun EddieVideoGeneratorView(
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(horizontal = 12.dp, vertical = 8.dp),
+                                .padding(horizontal = 10.dp, vertical = 8.dp),
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             OutlinedButton(
                                 onClick = { if (videoCurrentPage > 1) videoCurrentPage-- },
                                 enabled = videoCurrentPage > 1,
-                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
-                                shape = RoundedCornerShape(8.dp)
+                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp),
+                                shape = RoundedCornerShape(8.dp),
+                                modifier = Modifier.minimumInteractiveComponentSize()
                             ) {
                                 Icon(
                                     imageVector = Icons.AutoMirrored.Filled.ArrowBack,
@@ -10024,37 +9409,70 @@ fun EddieVideoGeneratorView(
                                     modifier = Modifier.size(16.dp)
                                 )
                                 Spacer(modifier = Modifier.width(4.dp))
-                                Text("Prev", style = MaterialTheme.typography.labelMedium)
+                                Text("Prev", style = MaterialTheme.typography.labelMedium, maxLines = 1, softWrap = false)
                             }
 
-                            Row(
-                                horizontalArrangement = Arrangement.spacedBy(4.dp),
-                                verticalAlignment = Alignment.CenterVertically
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .padding(horizontal = 6.dp),
+                                contentAlignment = Alignment.Center
                             ) {
-                                (1..totalVideoPages).forEach { p ->
-                                    FilterChip(
-                                        selected = p == videoCurrentPage,
-                                        onClick = { videoCurrentPage = p },
-                                        label = {
-                                            Text(
-                                                text = "$p",
-                                                style = MaterialTheme.typography.labelMedium.copy(
-                                                    fontWeight = if (p == videoCurrentPage) FontWeight.Bold else FontWeight.Normal
+                                Row(
+                                    modifier = Modifier.horizontalScroll(rememberScrollState()),
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    (1..totalVideoPages).forEach { p ->
+                                        val isCurrent = p == videoCurrentPage
+                                        Surface(
+                                            onClick = { videoCurrentPage = p },
+                                            shape = RoundedCornerShape(8.dp),
+                                            color = if (isCurrent) {
+                                                MaterialTheme.colorScheme.primary
+                                            } else {
+                                                MaterialTheme.colorScheme.surface
+                                            },
+                                            border = BorderStroke(
+                                                1.dp,
+                                                if (isCurrent) {
+                                                    MaterialTheme.colorScheme.primary
+                                                } else {
+                                                    MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)
+                                                }
+                                            ),
+                                            modifier = Modifier.defaultMinSize(minWidth = 34.dp, minHeight = 34.dp)
+                                        ) {
+                                            Box(
+                                                contentAlignment = Alignment.Center,
+                                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp)
+                                            ) {
+                                                Text(
+                                                    text = "$p",
+                                                    style = MaterialTheme.typography.labelMedium.copy(
+                                                        fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.Medium
+                                                    ),
+                                                    color = if (isCurrent) {
+                                                        MaterialTheme.colorScheme.onPrimary
+                                                    } else {
+                                                        MaterialTheme.colorScheme.onSurface
+                                                    },
+                                                    maxLines = 1
                                                 )
-                                            )
-                                        },
-                                        modifier = Modifier.height(32.dp)
-                                    )
+                                            }
+                                        }
+                                    }
                                 }
                             }
 
                             OutlinedButton(
                                 onClick = { if (videoCurrentPage < totalVideoPages) videoCurrentPage++ },
                                 enabled = videoCurrentPage < totalVideoPages,
-                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
-                                shape = RoundedCornerShape(8.dp)
+                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp),
+                                shape = RoundedCornerShape(8.dp),
+                                modifier = Modifier.minimumInteractiveComponentSize()
                             ) {
-                                Text("Next", style = MaterialTheme.typography.labelMedium)
+                                Text("Next", style = MaterialTheme.typography.labelMedium, maxLines = 1, softWrap = false)
                                 Spacer(modifier = Modifier.width(4.dp))
                                 Icon(
                                     imageVector = Icons.AutoMirrored.Filled.ArrowForward,
@@ -10104,13 +9522,22 @@ fun EddieMusicGeneratorView(
     onDeleteMusic: (String) -> Unit,
     onSaveEditedMusic: (String, String, String, String, String, String) -> Unit,
     onProviderChange: (String) -> Unit,
-    onModelChange: (String) -> Unit
+    onModelChange: (String) -> Unit,
+    onClearLog: () -> Unit = {},
+    onOpenSubscription: () -> Unit = {}
 ) {
     val context = LocalContext.current
     var prompt by remember { mutableStateOf("") }
     var selectedGenre by remember { mutableStateOf("Pop") }
     var selectedDuration by remember { mutableStateOf("15s") }
     var selectedTempo by remember { mutableStateOf("Medium") }
+    var showMusicDebugWindow by remember { mutableStateOf(false) }
+
+    LaunchedEffect(uiState.musicGenLog, uiState.musicGenIsLoading) {
+        if (!uiState.musicGenIsLoading && uiState.musicGenLog.contains("❌")) {
+            showMusicDebugWindow = true
+        }
+    }
     
     val quickInspirations = remember {
         listOf(
@@ -10213,7 +9640,16 @@ fun EddieMusicGeneratorView(
                     context
                 }
                 val newMp = android.media.MediaPlayer().apply {
-                    setDataSource(attributionContext, android.net.Uri.parse(url))
+                    val parsedUri = android.net.Uri.parse(url)
+                    if (parsedUri.scheme == "file" && !parsedUri.path.isNullOrBlank()) {
+                        val localFile = java.io.File(parsedUri.path!!)
+                        if (!localFile.exists() || localFile.length() == 0L) {
+                            throw java.io.FileNotFoundException("Local audio file not found")
+                        }
+                        setDataSource(localFile.absolutePath)
+                    } else {
+                        setDataSource(attributionContext, parsedUri)
+                    }
                     setOnPreparedListener {
                         it.start()
                         isAudioPlaying = true
@@ -10228,7 +9664,7 @@ fun EddieMusicGeneratorView(
                         isAudioPlaying = false
                         playingMusicId = null
                         playPercent = 0f
-                        Toast.makeText(context, "Failed to play audio from server", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(context, "Failed to play audio track", Toast.LENGTH_SHORT).show()
                         true
                     }
                     prepareAsync()
@@ -10279,6 +9715,7 @@ fun EddieMusicGeneratorView(
         modifier = Modifier
             .fillMaxSize()
             .padding(paddingValues)
+            .navigationBarsPadding()
             .imePadding()
     ) {
         // Scrollable content underneath
@@ -10301,9 +9738,10 @@ fun EddieMusicGeneratorView(
                     style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Bold),
                     color = MaterialTheme.colorScheme.primary
                 )
-                if (uiState.isSubscribed) {
-                    Spacer(modifier = Modifier.height(4.dp))
+                Spacer(modifier = Modifier.height(4.dp))
+                if (uiState.isSubscribed || uiState.userTokens > 0.0) {
                     Surface(
+                        onClick = onOpenSubscription,
                         color = Color(0xFFFFB100).copy(alpha = 0.15f),
                         border = BorderStroke(1.dp, Color(0xFFFFB100)),
                         shape = RoundedCornerShape(6.dp)
@@ -10313,6 +9751,20 @@ fun EddieMusicGeneratorView(
                             modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
                             style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold, fontSize = 10.sp),
                             color = Color(0xFFFFB100)
+                        )
+                    }
+                } else {
+                    Surface(
+                        onClick = onOpenSubscription,
+                        color = Color(0xFFFFB100).copy(alpha = 0.12f),
+                        border = BorderStroke(1.dp, Color(0xFFFFB100).copy(alpha = 0.6f)),
+                        shape = RoundedCornerShape(6.dp)
+                    ) {
+                        Text(
+                            text = "⚡ Free Tier (Max 2 Tracks) • Upgrade PRO",
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold, fontSize = 10.sp),
+                            color = Color(0xFFD48200)
                         )
                     }
                 }
@@ -10464,37 +9916,53 @@ fun EddieMusicGeneratorView(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
-                    val models = listOf("Eleven Music v1", "Eleven Music v1 Pro") // ElevenLabs
+                    val models = listOf(
+                        Triple("Eleven Music v2.5", "music_v2_5", true),
+                        Triple("Eleven Music v2", "music_v2", false)
+                    ) // ElevenLabs
 
-                    models.forEach { model ->
-                        val isSelected = uiState.selectedMusicModel == model
-                        val isPro = model in listOf("Eleven Music v1 Pro")
+                    models.forEach { (displayName, modelId, isPro) ->
+                        val isSelected = uiState.selectedMusicModel == modelId
                         val badgeColor = if (uiState.isSubscribed) MaterialTheme.colorScheme.primary else Color(0xFFFFB100)
                         val badgeTextColor = if (uiState.isSubscribed) MaterialTheme.colorScheme.onPrimary else Color(0xFF111111)
 
                         FilterChip(
                             selected = isSelected,
-                            onClick = { onModelChange(model) },
+                            onClick = { onModelChange(modelId) },
+                            modifier = Modifier.testTag("music_model_$modelId"),
                             label = {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                Column(
+                                    modifier = Modifier.padding(vertical = 2.dp),
+                                    verticalArrangement = Arrangement.spacedBy(2.dp)
                                 ) {
-                                    Text(model)
-                                    if (isPro) {
-                                        Surface(
-                                            color = badgeColor,
-                                            shape = RoundedCornerShape(4.dp)
-                                        ) {
-                                            Text(
-                                                text = "PRO",
-                                                color = badgeTextColor,
-                                                fontSize = 8.sp,
-                                                fontWeight = FontWeight.Bold,
-                                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
-                                            )
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                    ) {
+                                        Text(
+                                            text = displayName,
+                                            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold)
+                                        )
+                                        if (isPro) {
+                                            Surface(
+                                                color = badgeColor,
+                                                shape = RoundedCornerShape(4.dp)
+                                            ) {
+                                                Text(
+                                                    text = "PRO",
+                                                    color = badgeTextColor,
+                                                    fontSize = 8.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                                                )
+                                            }
                                         }
                                     }
+                                    Text(
+                                        text = modelId,
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
+                                    )
                                 }
                             },
                             colors = FilterChipDefaults.filterChipColors(
@@ -10706,7 +10174,7 @@ fun EddieMusicGeneratorView(
             }
         }
 
-        // Progress/Loading logger
+        // Generate Action / Loading Logger
         if (uiState.musicGenIsLoading) {
             Surface(
                 color = Color(0xFF1E1E1E),
@@ -10737,7 +10205,10 @@ fun EddieMusicGeneratorView(
             Button(
                 onClick = { onGenerateMusic(prompt, selectedGenre, selectedDuration, selectedTempo) },
                 enabled = prompt.isNotBlank(),
-                modifier = Modifier.fillMaxWidth().height(52.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(52.dp)
+                    .testTag("start_music_generation_button"),
                 shape = RoundedCornerShape(12.dp)
             ) {
                 Text(
@@ -10745,6 +10216,76 @@ fun EddieMusicGeneratorView(
                     style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
                 )
             }
+
+            if (uiState.musicGenLog.contains("❌")) {
+                val errorSummary = remember(uiState.musicGenLog) {
+                    val idx = uiState.musicGenLog.indexOf("❌")
+                    uiState.musicGenLog.substring(idx).trim()
+                }
+                Surface(
+                    color = MaterialTheme.colorScheme.errorContainer,
+                    shape = RoundedCornerShape(12.dp),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.4f)),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(12.dp),
+                        verticalAlignment = Alignment.Top,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Info,
+                            contentDescription = "Music generation error",
+                            tint = MaterialTheme.colorScheme.onErrorContainer,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Text(
+                            text = errorSummary,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onErrorContainer,
+                            modifier = Modifier.weight(1f)
+                        )
+                        IconButton(
+                            onClick = onClearLog,
+                            modifier = Modifier.size(32.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Close,
+                                contentDescription = "Dismiss error",
+                                tint = MaterialTheme.colorScheme.onErrorContainer,
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
+        // Music Studio Debug Window
+        StudioDebugToggleBar(
+            title = "🛠️ Debug Window (Music Studio)",
+            isOpen = showMusicDebugWindow,
+            onToggle = { showMusicDebugWindow = !showMusicDebugWindow },
+            hasLogs = uiState.musicGenLog.isNotBlank(),
+            isLoading = uiState.musicGenIsLoading,
+            modifier = Modifier.padding(top = 4.dp)
+        )
+
+        AnimatedVisibility(
+            visible = showMusicDebugWindow,
+            enter = fadeIn(),
+            exit = fadeOut()
+        ) {
+            StudioDebugConsole(
+                title = "Music Studio Debug Pipeline",
+                logText = uiState.musicGenLog,
+                isLoading = uiState.musicGenIsLoading,
+                onClearLog = onClearLog,
+                onClose = { showMusicDebugWindow = false },
+                modifier = Modifier.padding(top = 4.dp)
+            )
         }
 
         HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f), modifier = Modifier.padding(vertical = 8.dp))
@@ -10844,7 +10385,7 @@ fun EddieMusicGeneratorView(
 
                                     // 2. Model Name
                                     Text(
-                                        text = "Suno AI V3.5",
+                                        text = "ElevenLabs Music",
                                         style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp, fontWeight = FontWeight.SemiBold),
                                         color = MaterialTheme.colorScheme.primary,
                                         maxLines = 1,
@@ -13990,7 +13531,6 @@ fun getLumaVideoCostHint(
 fun getVeoSoraVideoCostHint(
     isOpenAiSora2: Boolean,
     isOpenAiSora2Pro: Boolean,
-    isVeo2: Boolean,
     isFalVeo3_1Lite: Boolean,
     isFalVeo3_1: Boolean,
     isFalVeo3Only: Boolean,
@@ -14000,7 +13540,6 @@ fun getVeoSoraVideoCostHint(
     return when {
         isOpenAiSora2 -> "The pricing is 30 token /s for Sora 2."
         isOpenAiSora2Pro -> "The pricing is 85 token /s for 720p, 135 token /s for legacy 1080p (1792x1024 or 1024x1792) or 185 token /s for true 1080p (1920x1080 or 1080x1920)."
-        isVeo2 -> "For 5s video your request will cost 650 token. For every aditional second you will be charged 150 token."
         isFalVeo3_1Lite -> "For every second of video you generate you will be charged 20 token for 720p with audio, 15 token for 720p without audio, 30 token for 1080p with audio or 20 token for 1080p without audio."
         isFalVeo3_1 -> "For every second of video you generate you will be charged 60 token without audio or 120 token with audio for 720p or 1080p. At 4k, you will be charged 120 token per second without audio, or 180 token with audio."
         isFalVeo3Only -> "For every second of video you generated, you will be charged 60 token (audio off) or 120 token (audio on)."
@@ -14210,7 +13749,6 @@ fun HunyuanV15ParametersCard(
 
 @Composable
 fun VeoEngineParametersCard(
-    isVeo2: Boolean,
     isFalVeo3: Boolean,
     isFalVeo3FastModel: Boolean,
     negativePromptText: String,
@@ -14239,7 +13777,7 @@ fun VeoEngineParametersCard(
                 modifier = Modifier.size(20.dp)
             )
             Text(
-                text = if (isVeo2) "Veo 2 Engine Parameters" else "Veo 3 Engine Parameters",
+                text = "Veo 3 Engine Parameters",
                 style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
                 color = MaterialTheme.colorScheme.primary
             )

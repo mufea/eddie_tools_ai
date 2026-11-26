@@ -7,6 +7,7 @@ import androidx.compose.ui.graphics.Color
 
 /**
  * AppSkinTheme definition with distinct visual identities and color palettes.
+ * Default Slate matches the crisp Modern Light aesthetic.
  */
 enum class AppSkinTheme(
     val id: String,
@@ -19,10 +20,10 @@ enum class AppSkinTheme(
 ) {
     DEFAULT_SLATE(
         id = "slate",
-        title = "Slate Clean",
-        subtitle = "Minimalist putih & slate elegan",
+        title = "Modern Light",
+        subtitle = "Minimalis putih bersih & kontras modern",
         iconEmoji = "⚪",
-        primaryColor = Color(0xFF0F172A),
+        primaryColor = Color(0xFF0D0D0D),
         surfaceColor = Color(0xFFFFFFFF),
         isDark = false
     ),
@@ -64,10 +65,10 @@ enum class AppSkinTheme(
     ),
     AMOLED_NOIR(
         id = "amoled_noir",
-        title = "AMOLED Pitch Black",
-        subtitle = "Hitam murni hemat baterai & aksen perak",
+        title = "Modern Dark (AMOLED)",
+        subtitle = "Hitam murni elegan & hemat baterai",
         iconEmoji = "🖤",
-        primaryColor = Color(0xFFE2E8F0),
+        primaryColor = Color(0xFFECECEC),
         surfaceColor = Color(0xFF000000),
         isDark = true
     );
@@ -79,29 +80,38 @@ enum class AppSkinTheme(
     }
 }
 
+val ChatGptVoiceBlue = Color(0xFF2F6BFF)
+
 /**
  * Generate Material3 ColorScheme based on the selected AppSkinTheme.
  */
 fun getSkinColorScheme(skin: AppSkinTheme): ColorScheme {
     return when (skin) {
         AppSkinTheme.DEFAULT_SLATE -> lightColorScheme(
-            primary = Color(0xFF0F172A),
+            primary = Color(0xFF0D0D0D),
             onPrimary = Color(0xFFFFFFFF),
-            primaryContainer = Color(0xFFF1F5F9),
-            onPrimaryContainer = Color(0xFF0F172A),
+            primaryContainer = Color(0xFFF4F4F4),
+            onPrimaryContainer = Color(0xFF0D0D0D),
+            secondary = Color(0xFF2F6BFF),
+            onSecondary = Color(0xFFFFFFFF),
+            secondaryContainer = Color(0xFFEFF4FF),
+            onSecondaryContainer = Color(0xFF1E40AF),
             background = Color(0xFFFFFFFF),
-            onBackground = Color(0xFF0F172A),
+            onBackground = Color(0xFF0D0D0D),
             surface = Color(0xFFFFFFFF),
-            onSurface = Color(0xFF0F172A),
-            surfaceVariant = Color(0xFFF1F5F9),
-            onSurfaceVariant = Color(0xFF64748B),
-            outline = Color(0xFFE2E8F0)
+            onSurface = Color(0xFF0D0D0D),
+            surfaceVariant = Color(0xFFF4F4F4),
+            onSurfaceVariant = Color(0xFF5D5D5D),
+            outline = Color(0xFFE5E5E5),
+            outlineVariant = Color(0xFFECECEC)
         )
         AppSkinTheme.MIDNIGHT_CYBER -> darkColorScheme(
             primary = Color(0xFF06B6D4),
             onPrimary = Color(0xFF083344),
             primaryContainer = Color(0xFF164E63),
             onPrimaryContainer = Color(0xFFCFFAFE),
+            secondary = Color(0xFF38BDF8),
+            onSecondary = Color(0xFF082F49),
             background = Color(0xFF0B0F19),
             onBackground = Color(0xFFF1F5F9),
             surface = Color(0xFF111827),
@@ -150,17 +160,19 @@ fun getSkinColorScheme(skin: AppSkinTheme): ColorScheme {
             outline = Color(0xFFFED7AA)
         )
         AppSkinTheme.AMOLED_NOIR -> darkColorScheme(
-            primary = Color(0xFFFFFFFF),
-            onPrimary = Color(0xFF000000),
-            primaryContainer = Color(0xFF1E293B),
+            primary = Color(0xFFECECEC),
+            onPrimary = Color(0xFF0D0D0D),
+            primaryContainer = Color(0xFF212121),
             onPrimaryContainer = Color(0xFFF8FAFC),
-            background = Color(0xFF000000),
-            onBackground = Color(0xFFEDEDED),
-            surface = Color(0xFF0A0A0A),
+            secondary = Color(0xFF2F6BFF),
+            onSecondary = Color(0xFFFFFFFF),
+            background = Color(0xFF0D0D0D),
+            onBackground = Color(0xFFECECEC),
+            surface = Color(0xFF171717),
             onSurface = Color(0xFFF5F5F5),
-            surfaceVariant = Color(0xFF171717),
+            surfaceVariant = Color(0xFF212121),
             onSurfaceVariant = Color(0xFFA3A3A3),
-            outline = Color(0xFF262626)
+            outline = Color(0xFF2E2E2E)
         )
     }
 }

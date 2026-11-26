@@ -4,7 +4,7 @@ import android.net.Uri
 import android.util.Base64
 import android.util.Log
 import com.example.AppContextProvider
-import com.example.BuildConfig
+import com.example.data.BackendProxyClient.withProxyAuth
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
@@ -86,32 +86,14 @@ class FalVeo3Client {
         proxyUrl: String? = null,
         onLog: (String) -> Unit = {}
     ): String = withContext(Dispatchers.IO) {
-        val isProxy = !proxyUrl.isNullOrBlank() && (proxyUrl.contains("api/video") || proxyUrl.contains("gemini") || proxyUrl.contains("vercel") || proxyUrl.contains("workers.dev"))
-        val resolvedProxyUrl = if (isProxy) {
-            val p = proxyUrl!!.trim()
-            if (p.endsWith("/api/video")) p
-            else if (p.endsWith("/")) "${p}api/video"
-            else "$p/api/video"
-        } else null
-
-        // Resolve dynamic key
-        val keyToUse = if (!customApiKey.isNullOrBlank()) {
-            customApiKey.trim()
-        } else {
-            BuildConfig.FAL_API_KEY
-        }
-
-        if (resolvedProxyUrl == null && (keyToUse.isBlank() || keyToUse.contains("PLACEHOLDER"))) {
-            throw IllegalStateException("Fal.ai API key is missing. Please set your FAL_API_KEY in the Secrets panel or select a Video Proxy in Settings.")
-        }
-        val effectiveKey = if (resolvedProxyUrl != null && (keyToUse.isBlank() || keyToUse.contains("PLACEHOLDER"))) "proxy_active" else keyToUse
+        val resolvedProxyUrl = BackendProxyClient.resolveEndpoint(proxyUrl, "/api/video")
+        val firebaseToken = BackendProxyClient.getFirebaseIdToken()
 
         val actualModel = if (model.contains("/")) model.trim() else "fal-ai/$model"
         val isImageToVideo = mode == "Image to Video" && !imageUrl.isNullOrBlank()
-        val baseEndpoint = "https://queue.fal.run/$actualModel"
-        val submitEndpoint = resolvedProxyUrl ?: baseEndpoint
+        val submitEndpoint = resolvedProxyUrl
 
-        onLog("> Constructing production payload for $actualModel...\n")
+        onLog("> Constructing production payload for $actualModel (Backend Proxy)...\n")
 
         val durationSecs = when {
             duration.contains("4") -> "4s"
@@ -130,9 +112,7 @@ class FalVeo3Client {
 
         // Build robust JSON matching API schema
         val requestJson = JSONObject().apply {
-            if (resolvedProxyUrl != null) {
-                put("model", actualModel)
-            }
+            put("model", actualModel)
             put("prompt", prompt)
             put("resolution", resolutionToUse)
             put("duration", durationSecs)
@@ -162,7 +142,7 @@ class FalVeo3Client {
 
         val submitRequest = Request.Builder()
             .url(submitEndpoint)
-            .header("Authorization", "Key $effectiveKey")
+            .withProxyAuth("Key", firebaseToken)
             .header("Content-Type", "application/json")
             .post(requestBody)
             .build()
@@ -213,15 +193,11 @@ class FalVeo3Client {
             delay(pollIntervalMs)
 
             onLog("> Checking queue status...\n")
-            val pollStatusUrl = if (resolvedProxyUrl != null) {
-                "$resolvedProxyUrl?statusUrl=" + java.net.URLEncoder.encode(statusUrl, "UTF-8")
-            } else {
-                statusUrl
-            }
+            val pollStatusUrl = "$resolvedProxyUrl?statusUrl=" + java.net.URLEncoder.encode(statusUrl, "UTF-8")
 
             val statusRequest = Request.Builder()
                 .url(pollStatusUrl)
-                .header("Authorization", "Key $effectiveKey")
+                .withProxyAuth("Key", firebaseToken)
                 .get()
                 .build()
 
@@ -255,15 +231,11 @@ class FalVeo3Client {
 
         onLog("> Generation Completed! Fetching final video assets...\n")
 
-        val pollResultUrl = if (resolvedProxyUrl != null) {
-            "$resolvedProxyUrl?statusUrl=" + java.net.URLEncoder.encode(resultUrl, "UTF-8")
-        } else {
-            resultUrl
-        }
+        val pollResultUrl = "$resolvedProxyUrl?statusUrl=" + java.net.URLEncoder.encode(resultUrl, "UTF-8")
 
         val resultRequest = Request.Builder()
             .url(pollResultUrl)
-            .header("Authorization", "Key $effectiveKey")
+            .withProxyAuth("Key", firebaseToken)
             .get()
             .build()
 

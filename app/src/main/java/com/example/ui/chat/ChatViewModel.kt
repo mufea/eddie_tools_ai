@@ -4,18 +4,21 @@ import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.AppContextProvider
+import com.example.data.BackendProxyClient
 import com.example.data.ChatMessage
 import com.example.data.ChatRepository
 import com.example.data.Role
 import com.example.data.db.AppDatabase
 import com.example.data.db.ChatMessageEntity
 import com.example.data.db.ChatSessionEntity
+import com.example.data.firebase.FirestoreSyncRepository
+import com.google.firebase.firestore.FirebaseFirestoreException
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
 import java.util.UUID
-import com.example.BuildConfig
 import org.json.JSONObject
 import org.json.JSONArray
 
@@ -93,6 +96,49 @@ var availableModels: List<AiModel> = defaultDynamicModels
 
 val defaultFallbackModel = availableModels[0]
 
+val defaultTopUpPackages: List<ChatRepository.TopUpPackage> = listOf(
+    ChatRepository.TopUpPackage(
+        id = "pack_1",
+        name = "Starter Pack",
+        tokens = 250,
+        price = "$0.99",
+        description = "Cocok untuk mencoba chat, gambar AI, dan musik singkat.",
+        badge = null
+    ),
+    ChatRepository.TopUpPackage(
+        id = "pack_2",
+        name = "Plus Pack",
+        tokens = 600,
+        price = "$1.99",
+        description = "Lebih leluasa untuk generasi gambar HD & beberapa video pendek.",
+        badge = null
+    ),
+    ChatRepository.TopUpPackage(
+        id = "pack_3",
+        name = "Pro Pack",
+        tokens = 1500,
+        price = "$4.99",
+        description = "Pilihan populer untuk Image Studio, Video Studio & Musik AI.",
+        badge = "POPULAR"
+    ),
+    ChatRepository.TopUpPackage(
+        id = "pack_4",
+        name = "Ultra Pack",
+        tokens = 4000,
+        price = "$11.99",
+        description = "Paket hemat intensif untuk video panjang & proyek kreatif.",
+        badge = "BEST VALUE"
+    ),
+    ChatRepository.TopUpPackage(
+        id = "pack_5",
+        name = "Enterprise Pack",
+        tokens = 10000,
+        price = "$24.99",
+        description = "Kapasitas maksimal untuk kreator & pemakaian harian berat.",
+        badge = "MAX SAVER"
+    )
+)
+
 data class ChatSession(
     val id: String = UUID.randomUUID().toString(),
     val title: String = "New Conversation",
@@ -101,7 +147,9 @@ data class ChatSession(
 
 data class UserProfile(
     val email: String,
-    val username: String
+    val username: String,
+    val uid: String = "",
+    val photoUrl: String? = null
 )
 
 data class ArHotspot(
@@ -119,32 +167,6 @@ data class MathStep(
     val conceptKey: String
 )
 
-data class ColoringPage(
-    val pageNumber: Int,
-    val title: String,
-    val storyPoem: String,
-    val imagePath: String? = null,
-    val presetType: String = "space_dinosaur"
-)
-
-data class StoryPage(
-    val pageNumber: Int,
-    val title: String,
-    val text: String,
-    val imagePrompt: String,
-    val imagePath: String? = null
-)
-
-data class KidStory(
-    val id: String = java.util.UUID.randomUUID().toString(),
-    val title: String,
-    val theme: String,
-    val childName: String,
-    val illustrationStyle: String,
-    val pages: List<StoryPage> = emptyList(),
-    val createdAt: Long = System.currentTimeMillis()
-)
-
 data class LanguageChatMessage(
     val id: String = java.util.UUID.randomUUID().toString(),
     val message: String,
@@ -153,27 +175,6 @@ data class LanguageChatMessage(
     val phoneticSpelling: String? = null,
     val pronunciationTips: String? = null,
     val corrections: String? = null
-)
-
-data class CulinaryRecipe(
-    val id: String = java.util.UUID.randomUUID().toString(),
-    val title: String,
-    val sDescription: String,
-    val difficulty: String, // "Easy", "Medium", "Hard"
-    val prepTime: String, // "20 mins", etc.
-    val calories: Int,
-    val ingredients: List<String>,
-    val missingIngredients: List<String>,
-    val steps: List<String>,
-    val imageUrl: String? = null,
-    val dietaryTags: List<String> = emptyList() // "Vegetarian", "Keto", "Gluten-Free", "Vegan"
-)
-
-data class InteriorChatMessage(
-    val id: String = java.util.UUID.randomUUID().toString(),
-    val sender: String, // "user" or "assistant"
-    val text: String,
-    val timestamp: Long = System.currentTimeMillis()
 )
 
 data class AvatarStudioVideo(
@@ -190,16 +191,6 @@ data class AvatarStudioVideo(
     val createdAt: Long = System.currentTimeMillis()
 )
 
-data class ShoppableItem(
-    val id: String = java.util.UUID.randomUUID().toString(),
-    val name: String,
-    val price: String,
-    val merchant: String,
-    val imageUrl: String,
-    val rating: Float = 4.5f,
-    val shopUrl: String = "https://www.google.com/search?tbm=shop&q="
-)
-
 data class ChatUiState(
     val sessions: List<ChatSession> = emptyList(),
     val currentSessionId: String = "",
@@ -212,6 +203,7 @@ data class ChatUiState(
     val openaiApiKey: String = "",
     val falApiKey: String = "",
     val stabilityApiKey: String = "",
+    val elevenLabsApiKey: String = "",
     val deepseekApiKey: String = "",
     val claudeApiKey: String = "",
     val xaiApiKey: String = "",
@@ -223,10 +215,10 @@ data class ChatUiState(
     val isDarkTheme: Boolean = false,
     val appSkinThemeId: String = "slate",
     val currentUserProfile: UserProfile? = null,
-    val isSubscribed: Boolean = true,
-    val activeSubscriptionPlan: String? = "Developer Pro (Testing)",
-    val subscriptionExpiryDate: String? = "Permanent (Testing Phase)",
-    val userTokens: Double = 999999.0,
+    val isSubscribed: Boolean = false,
+    val activeSubscriptionPlan: String? = "Free Tier",
+    val subscriptionExpiryDate: String? = "Free Plan",
+    val userTokens: Double = 0.0,
     val generatedImages: List<com.example.data.db.GeneratedImageEntity> = emptyList(),
     val selectedImageProvider: String = "OpenAI",
     val selectedImageModel: String = "gpt-image-1.5",
@@ -241,7 +233,7 @@ data class ChatUiState(
     val videoGenLog: String = "",
     val generatedMusic: List<com.example.data.db.GeneratedMusicEntity> = emptyList(),
     val selectedMusicProvider: String = "ElevenLabs",
-    val selectedMusicModel: String = "Eleven Music v1 Pro",
+    val selectedMusicModel: String = "music_v2_5",
     val musicGenIsLoading: Boolean = false,
     val musicGenLog: String = "",
     val codeSelectedLanguage: String = "Kotlin",
@@ -251,18 +243,6 @@ data class ChatUiState(
     val codeIsLoading: Boolean = false,
     val codeFreeQueriesLeft: Int = 3,
 
-    // Interior Designer State Properties
-    val interiorDesigns: List<com.example.data.db.InteriorDesignEntity> = emptyList(),
-    val interiorSelectedDesignId: String? = null,
-    val interiorOriginalBitmap: android.graphics.Bitmap? = null,
-    val interiorOriginalUri: android.net.Uri? = null,
-    val interiorSelectedStyle: String = "Scandinavian",
-    val interiorIsAnalyzing: Boolean = false,
-    val interiorError: String = "",
-    val interiorChatMessages: List<InteriorChatMessage> = emptyList(),
-    val interiorShoppableItems: List<ShoppableItem> = emptyList(),
-    val interiorReimaginedImageUrls: Map<String, String> = emptyMap(),
-    
     // Language Learning State Properties
     val languageSelectedLocale: String = "Spanish",
     val languageConversationTopic: String = "Casual Greetings",
@@ -272,17 +252,6 @@ data class ChatUiState(
     val languageIsSpeakActive: Boolean = false,
     val languageSuggestedVocabulary: List<Pair<String, String>> = emptyList(),
     val languageError: String = "",
-    
-    // Kids Storyteller State Properties
-    val storySelectedTheme: String = "",
-    val storyChildName: String = "",
-    val storySelectedStyle: String = "Watercolor Illustration",
-    val storyIsLoading: String? = null,
-    val storyIsPlayingAudio: Boolean = false,
-    val storyCurrentPageIndex: Int = 0,
-    val storyActiveBook: KidStory? = null,
-    val storyBookList: List<KidStory> = emptyList(),
-    val storyError: String = "",
     
     // Asisten Suara
     val voiceIsSpeakActive: Boolean = false,
@@ -414,57 +383,23 @@ data class ChatUiState(
     val mathCustomQuestion: String = "",
     val mathTutorHistory: List<String> = emptyList(),
 
-    // Children's Coloring Book Generator
-    val colorBookTheme: String = "",
-    val colorBookChildName: String = "",
-    val colorBookPages: List<com.example.ui.chat.ColoringPage> = emptyList(),
-    val colorBookIsLoading: Boolean = false,
-    val colorBookError: String? = null,
-    val colorBookPdfPath: String? = null,
-    val colorBookGeneratingPdf: Boolean = false,
-
-    // Smart Fridge & Culinary Assistant state
-    val culinarySelectedBitmap: android.graphics.Bitmap? = null,
-    val culinarySelectedUri: android.net.Uri? = null,
-    val culinaryIsScanning: Boolean = false,
-    val culinaryDetectedIngredients: List<String> = emptyList(),
-    val culinaryRecipes: List<CulinaryRecipe> = emptyList(),
-    val culinaryDietaryFilter: String = "All", // "All", "Vegetarian", "Keto", "Gluten-Free", "Vegan"
-    val culinarySelectedRecipe: CulinaryRecipe? = null,
-    val culinaryCurrentStepIndex: Int = 0,
-    val culinaryShoppingList: List<String> = emptyList(),
-    val culinaryError: String = "",
-    val culinaryIsTtsPlaying: Boolean = false,
-
-    // AI-Powered Meme Generator state
-    val memeSelectedBitmap: android.graphics.Bitmap? = null,
-    val memeSelectedUri: android.net.Uri? = null,
-    val memeSuggestedCaptions: List<String> = emptyList(),
-    val memeTopText: String = "",
-    val memeBottomText: String = "",
-    val memeIsGeneratingCaptions: Boolean = false,
-    val memeError: String = "",
-    val memeTextColor: String = "#FFFFFF",
-    val memeTextSize: Float = 28f,
-    val memeIsCapitalized: Boolean = true,
-    
-    // Map Chatbot State Properties
-    val mapSearchQuery: String = "",
-    val mapIsSearching: Boolean = false,
-    val mapError: String = "",
-    val mapPlaces: List<com.example.ui.chat.MapPlace> = emptyList(),
-    val mapSelectedPlace: com.example.ui.chat.MapPlace? = null,
-    val mapChatMessages: List<com.example.ui.chat.MapChatMessage> = emptyList(),
-    val mapBookmarkedIds: Set<String> = emptySet(),
-    val mapTheme: String = "Midnight Tech", // "Midnight Tech", "Silver Minimalist", "Retro Sepia", "Classic Roadmap"
-    
     val tokenUsages: List<com.example.data.db.TokenUsageEntity> = emptyList(),
 
     // OpenAI Sora 2 Image to Video Schema state
     val soraDeleteVideo: Boolean = true,
     val soraModelSnapshot: String = "sora-2",
     val soraDetectAndBlockIp: Boolean = false,
-    val soraCharacterIds: String = ""
+    val soraCharacterIds: String = "",
+
+    // Pending Main Chat Attachment (Camera / Gallery / Files)
+    val pendingAttachmentBitmap: android.graphics.Bitmap? = null,
+    val pendingAttachmentLabel: String? = null,
+    val pendingAttachmentFileName: String? = null,
+    val pendingAttachmentFileContent: String? = null,
+
+    // Dynamic Top-Up Packages (synced from backend proxy)
+    val topUpPackages: List<ChatRepository.TopUpPackage> = defaultTopUpPackages,
+    val isLoadingTopUpPackages: Boolean = false
 ) {
     val currentSession: ChatSession
         get() = sessions.find { it.id == currentSessionId } ?: sessions.firstOrNull() ?: ChatSession()
@@ -477,7 +412,7 @@ data class ChatUiState(
     }
 
     fun getConsumedTokens(): Double {
-        return (999999.0 - userTokens).coerceAtLeast(0.0)
+        return tokenUsages.sumOf { it.tokenCost }.coerceAtLeast(0.0)
     }
 
     fun getFormattedConsumedTokens(): String {
@@ -486,7 +421,12 @@ data class ChatUiState(
 }
 
 class ChatViewModel(
-    private val repository: ChatRepository = ChatRepository()
+    private val repository: ChatRepository = ChatRepository(),
+    private val firestoreSync: FirestoreSyncRepository? = null,
+    private val authenticatedUid: String = "",
+    private val authenticatedEmail: String = "",
+    private val authenticatedDisplayName: String = "",
+    private val authenticatedPhotoUrl: String? = null
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(ChatUiState())
@@ -511,55 +451,43 @@ class ChatViewModel(
     private val database = AppDatabase.getDatabase(AppContextProvider.context)
     private val chatDao = database.chatDao()
 
+    private var firestoreSyncJob: Job? = null
     private var sessionsCollectionJob: Job? = null
     private var messagesCollectionJob: Job? = null
     private var imagesCollectionJob: Job? = null
     private var videosCollectionJob: Job? = null
     private var musicCollectionJob: Job? = null
-    private var interiorDesignsCollectionJob: Job? = null
 
-    private fun getActiveKeysMap(): Map<String, String> = mapOf(
-        "OpenAI" to _uiState.value.openaiApiKey,
-        "DeepSeek" to _uiState.value.deepseekApiKey,
-        "Deepseek" to _uiState.value.deepseekApiKey,
-        "Claude" to _uiState.value.claudeApiKey,
-        "Anthropic" to _uiState.value.claudeApiKey,
-        "XAI" to _uiState.value.xaiApiKey,
-        "Xai" to _uiState.value.xaiApiKey
-    )
+    private fun getActiveKeysMap(): Map<String, String> = emptyMap()
 
     private fun getActiveUrlsMap(): Map<String, String> {
-        val proxy = _uiState.value.proxyBaseUrl.ifBlank { "https://geminiaitools.com/" }
+        val proxy = BackendProxyClient.normalizeProxyRoot(_uiState.value.proxyBaseUrl)
         return mapOf(
-            "OpenAI" to _uiState.value.openaiBaseUrl.ifBlank { proxy },
-            "DeepSeek" to _uiState.value.deepseekBaseUrl.ifBlank { proxy },
-            "Deepseek" to _uiState.value.deepseekBaseUrl.ifBlank { proxy },
-            "Claude" to _uiState.value.claudeBaseUrl.ifBlank { proxy },
-            "Anthropic" to _uiState.value.claudeBaseUrl.ifBlank { proxy },
-            "XAI" to _uiState.value.xaiBaseUrl.ifBlank { proxy },
-            "Xai" to _uiState.value.xaiBaseUrl.ifBlank { proxy }
+            "OpenAI" to proxy,
+            "DeepSeek" to proxy,
+            "Deepseek" to proxy,
+            "Claude" to proxy,
+            "Anthropic" to proxy,
+            "XAI" to proxy,
+            "Xai" to proxy
         )
     }
 
-    // Keep track of registered users in memory for high-fidelity fully-functional Sign In/Up
-    private val registeredUsers = mutableMapOf<String, Pair<String, String>>(
-        "mufeas@gmail.com" to Pair("password123", "Eddie")
+    private val activeUserScopeKey: String?
+        get() = _uiState.value.currentUserProfile?.email?.ifBlank { authenticatedUid }
+            ?: authenticatedUid.ifBlank { null }
+
+    // Expose bookmarked messages reactively scoped to the current user's sessions
+    val bookmarkedMessages: StateFlow<List<ChatMessageEntity>> = combine(
+        chatDao.getBookmarkedMessages(),
+        _uiState.map { state -> state.sessions.map { it.id }.toSet() }.distinctUntilChanged()
+    ) { messages, sessionIds ->
+        messages.filter { it.sessionId in sessionIds }
+    }.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5000),
+        initialValue = emptyList()
     )
-
-    // Expose bookmarked messages reactively to build the saved/favorite feature
-    val bookmarkedMessages: StateFlow<List<ChatMessageEntity>> = chatDao.getBookmarkedMessages()
-        .stateIn(
-            scope = viewModelScope,
-            started = SharingStarted.WhileSubscribed(5000),
-            initialValue = emptyList()
-        )
-
-    fun testProxyConnection(url: String = _uiState.value.proxyBaseUrl, onResult: (Boolean, String) -> Unit) {
-        viewModelScope.launch {
-            val res = repository.testProxyConnectivity(url)
-            onResult(res.first, res.second)
-        }
-    }
 
     fun fetchApiKeysFromProxy(
         url: String = _uiState.value.proxyBaseUrl,
@@ -567,54 +495,21 @@ class ChatViewModel(
     ) {
         viewModelScope.launch {
             val result = repository.fetchApiKeysFromProxy(url)
-            result.onSuccess { keysMap ->
-                val prefs = try {
-                    AppContextProvider.context.getSharedPreferences("eddie_prefs", Context.MODE_PRIVATE)
-                } catch (e: Exception) {
-                    null
+            result.onSuccess { keyMap ->
+                val resolvedElevenLabsKey = keyMap["ELEVENLABS_API_KEY"]?.trim().orEmpty()
+                if (resolvedElevenLabsKey.isNotBlank()) {
+                    _uiState.update { state ->
+                        state.copy(elevenLabsApiKey = resolvedElevenLabsKey)
+                    }
                 }
-                val editor = prefs?.edit()
-
-                val openaiKey = keysMap["openai"]
-                val deepseekKey = keysMap["deepseek"]
-                val claudeKey = keysMap["anthropic"] ?: keysMap["claude"]
-                val xaiKey = keysMap["xai"]
-                val stabilityKey = keysMap["stability"] ?: keysMap["stablediffusion"] ?: keysMap["stabilityai"]
-                val falKey = keysMap["fal"] ?: keysMap["falai"] ?: keysMap["fal_key"]
-
-                _uiState.update { state ->
-                    var s = state
-                    if (!openaiKey.isNullOrBlank()) {
-                        s = s.copy(openaiApiKey = openaiKey)
-                        editor?.putString("openai_key", openaiKey)
-                    }
-                    if (!deepseekKey.isNullOrBlank()) {
-                        s = s.copy(deepseekApiKey = deepseekKey)
-                        editor?.putString("deepseek_key", deepseekKey)
-                    }
-                    if (!claudeKey.isNullOrBlank()) {
-                        s = s.copy(claudeApiKey = claudeKey)
-                        editor?.putString("claude_key", claudeKey)
-                    }
-                    if (!xaiKey.isNullOrBlank()) {
-                        s = s.copy(xaiApiKey = xaiKey)
-                        editor?.putString("xai_key", xaiKey)
-                    }
-                    if (!stabilityKey.isNullOrBlank()) {
-                        s = s.copy(stabilityApiKey = stabilityKey)
-                        editor?.putString("stability_key", stabilityKey)
-                        editor?.putString("stable diffusion_key", stabilityKey)
-                    }
-                    if (!falKey.isNullOrBlank()) {
-                        s = s.copy(falApiKey = falKey)
-                        editor?.putString("falai_key", falKey)
-                    }
-                    s
+                val msg = if (resolvedElevenLabsKey.isNotBlank()) {
+                    "Terhubung ke proxy geminiaitools.com! ELEVENLABS_API_KEY berhasil dimuat."
+                } else {
+                    "Terhubung ke backend proxy aman! Semua API key dikelola di server."
                 }
-                editor?.apply()
-                onResult(true, keysMap, "Berhasil mengambil ${keysMap.size} API Keys dari proxy!")
+                onResult(true, keyMap, msg)
             }.onFailure { err ->
-                onResult(false, null, err.localizedMessage ?: "Gagal mengambil API key dari proxy.")
+                onResult(false, null, err.localizedMessage ?: "Gagal terhubung ke backend proxy.")
             }
         }
     }
@@ -630,35 +525,21 @@ class ChatViewModel(
                 "ANTHROPIC_MODEL_OPUS",
                 "ANTHROPIC_MODEL_SONET",
                 "DEEPSEEK_MODEL",
-                "XAI_MODEL_GROK",
-                "FAL",
-                "STABILITY"
+                "XAI_MODEL_GROK"
             )
 
             val result = repository.fetchDynamicModelConfigsFromProxy(url, params)
             result.onSuccess { configMap ->
-                val prefs = try {
-                    AppContextProvider.context.getSharedPreferences("eddie_prefs", Context.MODE_PRIVATE)
-                } catch (e: Exception) {
-                    null
-                }
-                val editor = prefs?.edit()
-
                 val newModels = mutableListOf<AiModel>()
 
                 // 1. GPT
                 configMap["OPENAI_MODEL_GPT"]?.let { c ->
                     val targetModel = c["targetModel"]?.takeIf { it.isNotBlank() } ?: "gpt-5-2025-08-07"
-                    val key = c["apiKey"]?.takeIf { it.isNotBlank() }
-                    if (key != null) {
-                        _uiState.update { it.copy(openaiApiKey = key) }
-                        editor?.putString("openai_key", key)
-                    }
                     newModels.add(
                         AiModel(
                             displayName = "GPT",
                             apiValue = targetModel,
-                            subtitle = "OpenAI flagship reasoning model ($targetModel)",
+                            subtitle = "OpenAI flagship reasoning model",
                             provider = "OpenAI",
                             isPro = false,
                             tokenPrice = "Free"
@@ -669,16 +550,11 @@ class ChatViewModel(
                 // 2. GPT mini
                 configMap["OPENAI_MODEL_GPT_MINI"]?.let { c ->
                     val targetModel = c["targetModel"]?.takeIf { it.isNotBlank() } ?: "gpt-5-mini-2025-08-07"
-                    val key = c["apiKey"]?.takeIf { it.isNotBlank() }
-                    if (key != null && _uiState.value.openaiApiKey.isBlank()) {
-                        _uiState.update { it.copy(openaiApiKey = key) }
-                        editor?.putString("openai_key", key)
-                    }
                     newModels.add(
                         AiModel(
                             displayName = "GPT mini",
                             apiValue = targetModel,
-                            subtitle = "OpenAI fast lightweight reasoning model ($targetModel)",
+                            subtitle = "OpenAI fast lightweight reasoning model",
                             provider = "OpenAI",
                             isPro = false,
                             tokenPrice = "Free"
@@ -689,16 +565,11 @@ class ChatViewModel(
                 // 3. Claude Opus
                 configMap["ANTHROPIC_MODEL_OPUS"]?.let { c ->
                     val targetModel = c["targetModel"]?.takeIf { it.isNotBlank() } ?: "claude-opus-5"
-                    val key = c["apiKey"]?.takeIf { it.isNotBlank() }
-                    if (key != null) {
-                        _uiState.update { it.copy(claudeApiKey = key) }
-                        editor?.putString("claude_key", key)
-                    }
                     newModels.add(
                         AiModel(
                             displayName = "Claude Opus",
                             apiValue = targetModel,
-                            subtitle = "Anthropic deep reasoning & synthesis model ($targetModel)",
+                            subtitle = "Anthropic deep reasoning & synthesis model",
                             provider = "Anthropic",
                             isPro = false,
                             tokenPrice = "Free"
@@ -709,16 +580,11 @@ class ChatViewModel(
                 // 4. Claude Sonnet
                 configMap["ANTHROPIC_MODEL_SONET"]?.let { c ->
                     val targetModel = c["targetModel"]?.takeIf { it.isNotBlank() } ?: "claude-sonnet-5"
-                    val key = c["apiKey"]?.takeIf { it.isNotBlank() }
-                    if (key != null && _uiState.value.claudeApiKey.isBlank()) {
-                        _uiState.update { it.copy(claudeApiKey = key) }
-                        editor?.putString("claude_key", key)
-                    }
                     newModels.add(
                         AiModel(
                             displayName = "Claude Sonnet",
                             apiValue = targetModel,
-                            subtitle = "Anthropic high-intelligence balanced model ($targetModel)",
+                            subtitle = "Anthropic high-intelligence balanced model",
                             provider = "Anthropic",
                             isPro = false,
                             tokenPrice = "Free"
@@ -729,16 +595,11 @@ class ChatViewModel(
                 // 5. Deepseek
                 configMap["DEEPSEEK_MODEL"]?.let { c ->
                     val targetModel = c["targetModel"]?.takeIf { it.isNotBlank() } ?: "deepseek-chat"
-                    val key = c["apiKey"]?.takeIf { it.isNotBlank() }
-                    if (key != null) {
-                        _uiState.update { it.copy(deepseekApiKey = key) }
-                        editor?.putString("deepseek_key", key)
-                    }
                     newModels.add(
                         AiModel(
                             displayName = "Deepseek",
                             apiValue = targetModel,
-                            subtitle = "DeepSeek advanced reasoning model ($targetModel)",
+                            subtitle = "DeepSeek code & reasoning intelligence",
                             provider = "Deepseek",
                             isPro = false,
                             tokenPrice = "Free"
@@ -749,42 +610,17 @@ class ChatViewModel(
                 // 6. Grok
                 configMap["XAI_MODEL_GROK"]?.let { c ->
                     val targetModel = c["targetModel"]?.takeIf { it.isNotBlank() } ?: "grok-4.3"
-                    val key = c["apiKey"]?.takeIf { it.isNotBlank() }
-                    if (key != null) {
-                        _uiState.update { it.copy(xaiApiKey = key) }
-                        editor?.putString("xai_key", key)
-                    }
                     newModels.add(
                         AiModel(
                             displayName = "Grok",
                             apiValue = targetModel,
-                            subtitle = "xAI conversational intelligence ($targetModel)",
+                            subtitle = "xAI conversational intelligence",
                             provider = "Xai",
                             isPro = false,
                             tokenPrice = "Free"
                         )
                     )
                 }
-
-                // 7. Fal.ai & Stability AI keys
-                configMap["FAL"]?.let { c ->
-                    val key = c["apiKey"]?.takeIf { it.isNotBlank() }
-                    if (key != null) {
-                        _uiState.update { it.copy(falApiKey = key) }
-                        editor?.putString("falai_key", key)
-                    }
-                }
-
-                configMap["STABILITY"]?.let { c ->
-                    val key = c["apiKey"]?.takeIf { it.isNotBlank() }
-                    if (key != null) {
-                        _uiState.update { it.copy(stabilityApiKey = key) }
-                        editor?.putString("stability_key", key)
-                        editor?.putString("stable diffusion_key", key)
-                    }
-                }
-
-                editor?.apply()
 
                 if (newModels.isNotEmpty()) {
                     availableModels = newModels
@@ -808,6 +644,28 @@ class ChatViewModel(
         }
     }
 
+    fun fetchTopUpPackagesFromProxy(
+        url: String = _uiState.value.proxyBaseUrl,
+        onResult: ((Boolean, List<ChatRepository.TopUpPackage>?) -> Unit)? = null
+    ) {
+        viewModelScope.launch {
+            _uiState.update { it.copy(isLoadingTopUpPackages = true) }
+            val result = repository.fetchTopUpPackagesFromProxy(url)
+            result.onSuccess { packages ->
+                _uiState.update { state ->
+                    state.copy(
+                        topUpPackages = packages,
+                        isLoadingTopUpPackages = false
+                    )
+                }
+                onResult?.invoke(true, packages)
+            }.onFailure {
+                _uiState.update { it.copy(isLoadingTopUpPackages = false) }
+                onResult?.invoke(false, null)
+            }
+        }
+    }
+
     init {
         val prefs = try {
             AppContextProvider.context.getSharedPreferences("eddie_prefs", Context.MODE_PRIVATE)
@@ -815,35 +673,35 @@ class ChatViewModel(
             android.util.Log.e("ChatViewModel", "Failed to retrieve shared preferences in init", e)
             null
         }
+        // Scrub any legacy cached third-party API keys from local device storage
+        prefs?.edit()?.apply {
+            remove("openai_key")
+            remove("deepseek_key")
+            remove("claude_key")
+            remove("xai_key")
+            remove("falai_key")
+            remove("stability_key")
+            remove("stable diffusion_key")
+            remove("elevenlabs_key")
+            apply()
+        }
         val showTooltip = prefs?.getBoolean("show_agentic_tooltip", false) ?: false
-        
-        val initialOpenai = prefs?.getString("openai_key", "") ?: ""
-        val initialDeepseek = prefs?.getString("deepseek_key", "") ?: ""
-        val initialClaude = prefs?.getString("claude_key", "") ?: ""
-        val initialXai = prefs?.getString("xai_key", "") ?: ""
-        val initialFal = prefs?.getString("falai_key", "") ?: ""
-        val initialStability = (prefs?.getString("stability_key", "")?.takeIf { it.isNotBlank() }
-            ?: prefs?.getString("stable diffusion_key", "")) ?: ""
 
         val tokens = if (prefs != null) {
             try {
-                prefs.getFloat("user_tokens", 999999f).toDouble()
+                prefs.getFloat("user_tokens", 0f).toDouble()
             } catch (e: Exception) {
                 try {
-                    prefs.getInt("user_tokens", 999999).toDouble()
+                    prefs.getInt("user_tokens", 0).toDouble()
                 } catch (ex: Exception) {
-                    999999.0
+                    0.0
                 }
             }
         } else {
-            999999.0
+            0.0
         }
 
-        val defaultProxy = "https://geminiaitools.com/"
-        fun sanitizeStoredProxy(key: String): String {
-            val stored = prefs?.getString(key, defaultProxy)?.trim()
-            return if (stored.isNullOrBlank() || stored.contains("eddie-proxy.onrender.com")) defaultProxy else stored
-        }
+        val defaultProxy = BackendProxyClient.DEFAULT_PROXY_ROOT
 
         val loadedDynamicModels = loadDynamicModels()
         if (loadedDynamicModels.isNotEmpty()) {
@@ -858,23 +716,40 @@ class ChatViewModel(
             ?: loadedCustomModels.firstOrNull()
             ?: defaultFallbackModel
 
+        val initialProfile = if (authenticatedUid.isNotBlank()) {
+            val resolvedEmail = authenticatedEmail.ifBlank { authenticatedUid }
+            val resolvedName = authenticatedDisplayName.ifBlank {
+                resolvedEmail.substringBefore("@").ifBlank { "User" }
+            }
+            UserProfile(
+                email = resolvedEmail,
+                username = resolvedName,
+                uid = authenticatedUid,
+                photoUrl = authenticatedPhotoUrl
+            )
+        } else {
+            null
+        }
+
         _uiState.update { state ->
             state.copy(
+                currentUserProfile = initialProfile,
                 customModels = loadedCustomModels,
                 selectedModel = initialSelectedModel,
-                openaiApiKey = initialOpenai,
-                falApiKey = prefs?.getString("falai_key", "") ?: "",
-                stabilityApiKey = (prefs?.getString("stability_key", "")?.takeIf { it.isNotBlank() }
-                    ?: prefs?.getString("stable diffusion_key", "")) ?: "",
-                deepseekApiKey = initialDeepseek,
-                claudeApiKey = initialClaude,
-                xaiApiKey = initialXai,
-                proxyBaseUrl = sanitizeStoredProxy("proxy_base_url"),
-                openaiBaseUrl = sanitizeStoredProxy("openai_base_url"),
+                customApiKey = "",
+                openaiApiKey = "",
+                falApiKey = "",
+                stabilityApiKey = "",
+                elevenLabsApiKey = "",
+                deepseekApiKey = "",
+                claudeApiKey = "",
+                xaiApiKey = "",
+                proxyBaseUrl = defaultProxy,
+                openaiBaseUrl = defaultProxy,
                 openaiWebhookUrl = prefs?.getString("openai_webhook_url", "") ?: "",
-                deepseekBaseUrl = sanitizeStoredProxy("deepseek_base_url"),
-                claudeBaseUrl = sanitizeStoredProxy("claude_base_url"),
-                xaiBaseUrl = sanitizeStoredProxy("xai_base_url"),
+                deepseekBaseUrl = defaultProxy,
+                claudeBaseUrl = defaultProxy,
+                xaiBaseUrl = defaultProxy,
                 appSkinThemeId = prefs?.getString("app_skin_theme", "slate") ?: "slate",
                 showAgenticTooltip = showTooltip,
                 userTokens = tokens
@@ -885,9 +760,12 @@ class ChatViewModel(
         observeGeneratedImagesByCurrentUser()
         observeGeneratedVideosByCurrentUser()
         observeGeneratedMusicByCurrentUser()
-        observeInteriorDesignsByCurrentUser()
         observeMemoriesByCurrentUser()
         observeTokenUsagesByCurrentUser()
+
+        if (firestoreSync != null && authenticatedUid.isNotBlank()) {
+            startFirestoreSync(authenticatedUid)
+        }
 
         // Start with a clean window in Chat Assistant every app open
         val startSessionId = java.util.UUID.randomUUID().toString()
@@ -898,19 +776,17 @@ class ChatViewModel(
                     id = startSessionId,
                     title = "Percakapan Baru",
                     modelValue = _uiState.value.selectedModel.apiValue,
-                    userEmail = _uiState.value.currentUserProfile?.email
+                    userEmail = activeUserScopeKey
                 ))
             } catch (e: Exception) {
                 android.util.Log.e("ChatViewModel", "Failed to create initial clean session", e)
             }
         }
 
-        if ((initialOpenai.isBlank() && initialDeepseek.isBlank() && initialClaude.isBlank()) ||
-            initialFal.isBlank() || initialStability.isBlank()) {
-            fetchApiKeysFromProxy(defaultProxy) { success, keys, _ ->
-                if (success) {
-                    android.util.Log.d("ChatViewModel", "Auto-loaded API keys from proxy: ${keys?.keys}")
-                }
+        // Verify backend proxy connectivity (keys stay strictly server-side)
+        fetchApiKeysFromProxy(defaultProxy) { success, _, msg ->
+            if (success) {
+                android.util.Log.d("ChatViewModel", "Backend proxy connected: $msg")
             }
         }
 
@@ -920,6 +796,9 @@ class ChatViewModel(
                 android.util.Log.d("ChatViewModel", "Auto-loaded ${models?.size} dynamic models from proxy")
             }
         }
+
+        // Fetch / update 5 top-up token packages dynamically from proxy
+        fetchTopUpPackagesFromProxy(defaultProxy)
     }
 
     fun dismissAgenticTooltip() {
@@ -945,47 +824,6 @@ class ChatViewModel(
 
     fun toggleAgenticTooltip() {
         resetAgenticTooltip()
-    }
-
-    fun updateProxyBaseUrl(url: String) {
-        val prefs = AppContextProvider.context.getSharedPreferences("eddie_prefs", Context.MODE_PRIVATE)
-        prefs.edit().putString("proxy_base_url", url).apply()
-        _uiState.update { state ->
-            state.copy(proxyBaseUrl = url)
-        }
-    }
-
-    fun updateProviderApiKey(provider: String, key: String) {
-        val prefs = AppContextProvider.context.getSharedPreferences("eddie_prefs", Context.MODE_PRIVATE)
-        prefs.edit().putString("${provider.lowercase()}_key", key).apply()
-        _uiState.update { state ->
-            when (provider.lowercase().trim()) {
-                "openai" -> state.copy(openaiApiKey = key)
-                "deepseek" -> state.copy(deepseekApiKey = key)
-                "claude", "anthropic" -> state.copy(claudeApiKey = key)
-                "xai" -> state.copy(xaiApiKey = key)
-                "falai" -> state.copy(falApiKey = key)
-                "stable diffusion", "stability" -> {
-                    prefs.edit().putString("stability_key", key).putString("stable diffusion_key", key).apply()
-                    state.copy(stabilityApiKey = key)
-                }
-                else -> state
-            }
-        }
-    }
-
-    fun updateProviderBaseUrl(provider: String, url: String) {
-        val prefs = AppContextProvider.context.getSharedPreferences("eddie_prefs", Context.MODE_PRIVATE)
-        prefs.edit().putString("${provider.lowercase()}_base_url", url).apply()
-        _uiState.update { state ->
-            when (provider.lowercase().trim()) {
-                "openai" -> state.copy(openaiBaseUrl = url)
-                "deepseek" -> state.copy(deepseekBaseUrl = url)
-                "claude", "anthropic" -> state.copy(claudeBaseUrl = url)
-                "xai" -> state.copy(xaiBaseUrl = url)
-                else -> state
-            }
-        }
     }
 
     fun updateOpenAiWebhookUrl(url: String) {
@@ -1158,29 +996,6 @@ class ChatViewModel(
         }
     }
 
-    private fun observeInteriorDesignsByCurrentUser() {
-        interiorDesignsCollectionJob?.cancel()
-        interiorDesignsCollectionJob = viewModelScope.launch {
-            _uiState.map { it.currentUserProfile?.email }
-                .distinctUntilChanged()
-                .collectLatest { email ->
-                    val queryFlow = if (email == null) {
-                        chatDao.getAllInteriorDesigns()
-                    } else {
-                        chatDao.getInteriorDesignsForUser(email)
-                    }
-
-                    queryFlow
-                        .catch { e -> android.util.Log.e("ChatViewModel", "observeInteriorDesigns error", e) }
-                        .collect { designEntities ->
-                            _uiState.update { state ->
-                                state.copy(interiorDesigns = designEntities)
-                            }
-                        }
-                }
-        }
-    }
-
     private var memoriesCollectionJob: Job? = null
     private var tokenUsagesCollectionJob: Job? = null
 
@@ -1228,18 +1043,300 @@ class ChatViewModel(
         }
     }
 
+    private fun unwrapFirestoreError(error: Throwable): Throwable {
+        val firestoreError = generateSequence(error) { it.cause }
+            .filterIsInstance<FirebaseFirestoreException>()
+            .firstOrNull()
+        if (firestoreError == null && error is CancellationException) throw error
+        return firestoreError ?: error
+    }
+
+    private fun startFirestoreSync(uid: String) {
+        val sync = firestoreSync ?: return
+        firestoreSyncJob?.cancel()
+        val userKey = authenticatedEmail.ifBlank { uid }
+        firestoreSyncJob = viewModelScope.launch {
+            val snapshotState = _uiState.value
+            val displayName = snapshotState.currentUserProfile?.username
+                ?: authenticatedDisplayName.ifBlank { userKey.substringBefore("@").ifBlank { "User" } }
+            sync.ensureUserProfile(
+                username = displayName,
+                email = authenticatedEmail.ifBlank { null },
+                photoUrl = authenticatedPhotoUrl,
+                defaultThemeId = snapshotState.appSkinThemeId,
+                defaultInstruction = snapshotState.customSystemInstruction,
+                defaultPlan = snapshotState.activeSubscriptionPlan ?: "Free Tier",
+                defaultExpiry = snapshotState.subscriptionExpiryDate ?: "Free Plan",
+                defaultSubscribed = snapshotState.isSubscribed,
+                defaultTokens = snapshotState.userTokens
+            )
+
+            launch {
+                sync.observeUserProfile(uid)
+                    .catch { err ->
+                        val root = unwrapFirestoreError(err)
+                        android.util.Log.w("ChatViewModel", "observeUserProfile failed", root)
+                    }
+                    .collect { profile ->
+                        if (profile != null) {
+                            val isLegacyTestingProfile = profile.activeSubscriptionPlan == "Developer Pro (Testing)"
+                            val resolvedPlan = if (isLegacyTestingProfile) "Free Tier" else profile.activeSubscriptionPlan.ifBlank { "Free Tier" }
+                            val resolvedExpiry = if (isLegacyTestingProfile) "Free Plan" else profile.subscriptionExpiryDate.ifBlank { "Free Plan" }
+                            val resolvedSubscribed = if (isLegacyTestingProfile) false else profile.subscribed
+                            val resolvedTokens = if (isLegacyTestingProfile) 0.0 else profile.userTokens
+
+                            if (isLegacyTestingProfile) {
+                                launch {
+                                    sync.updateUserPreferences(
+                                        activeSubscriptionPlan = "Free Tier",
+                                        subscriptionExpiryDate = "Free Plan",
+                                        subscribed = false,
+                                        userTokens = 0.0
+                                    )
+                                }
+                            }
+
+                            _uiState.update { state ->
+                                state.copy(
+                                    currentUserProfile = UserProfile(
+                                        email = profile.email.ifBlank { userKey },
+                                        username = profile.username.ifBlank { displayName },
+                                        uid = uid,
+                                        photoUrl = profile.photoUrl.ifBlank { authenticatedPhotoUrl }
+                                    ),
+                                    appSkinThemeId = profile.appSkinThemeId.ifBlank { state.appSkinThemeId },
+                                    customSystemInstruction = profile.customSystemInstruction.ifBlank { state.customSystemInstruction },
+                                    activeSubscriptionPlan = resolvedPlan,
+                                    subscriptionExpiryDate = resolvedExpiry,
+                                    isSubscribed = resolvedSubscribed,
+                                    userTokens = resolvedTokens
+                                )
+                            }
+                            try {
+                                val prefs = AppContextProvider.context.getSharedPreferences("eddie_prefs", Context.MODE_PRIVATE)
+                                prefs.edit()
+                                    .putString("app_skin_theme", profile.appSkinThemeId.ifBlank { _uiState.value.appSkinThemeId })
+                                    .putFloat("user_tokens", resolvedTokens.toFloat())
+                                    .apply()
+                            } catch (_: Exception) {}
+                        }
+                    }
+            }
+
+            launch {
+                var seenIds = emptySet<String>()
+                sync.observeSessions(uid)
+                    .catch { err ->
+                        val root = unwrapFirestoreError(err)
+                        android.util.Log.w("ChatViewModel", "observeSessions cloud failed", root)
+                    }
+                    .collect { cloudList ->
+                        val incomingIds = cloudList.map { it.id }.toSet()
+                        (seenIds - incomingIds).forEach { removedId ->
+                            chatDao.deleteSessionById(removedId)
+                        }
+                        seenIds = incomingIds
+                        cloudList.forEach { doc ->
+                            chatDao.insertSession(
+                                ChatSessionEntity(
+                                    id = doc.id,
+                                    title = doc.title,
+                                    timestamp = doc.clientTimestamp,
+                                    modelValue = doc.modelValue,
+                                    userEmail = userKey
+                                )
+                            )
+                        }
+                    }
+            }
+
+            launch {
+                sync.observeMessages(uid)
+                    .catch { err ->
+                        val root = unwrapFirestoreError(err)
+                        android.util.Log.w("ChatViewModel", "observeMessages cloud failed", root)
+                    }
+                    .collect { cloudList ->
+                        cloudList.forEach { doc ->
+                            chatDao.insertMessage(
+                                ChatMessageEntity(
+                                    id = doc.id,
+                                    sessionId = doc.sessionId,
+                                    role = doc.role,
+                                    text = doc.text,
+                                    timestamp = doc.clientTimestamp,
+                                    isBookmarked = doc.bookmarked
+                                )
+                            )
+                        }
+                    }
+            }
+
+            launch {
+                var seenIds = emptySet<String>()
+                sync.observeGeneratedImages(uid)
+                    .catch { err ->
+                        val root = unwrapFirestoreError(err)
+                        android.util.Log.w("ChatViewModel", "observeImages cloud failed", root)
+                    }
+                    .collect { cloudList ->
+                        val incomingIds = cloudList.map { it.id }.toSet()
+                        (seenIds - incomingIds).forEach { chatDao.deleteGeneratedImageById(it) }
+                        seenIds = incomingIds
+                        cloudList.forEach { doc ->
+                            chatDao.insertGeneratedImage(
+                                com.example.data.db.GeneratedImageEntity(
+                                    id = doc.id,
+                                    prompt = doc.prompt,
+                                    imageUrl = doc.imageUrl,
+                                    style = doc.style,
+                                    aspectRatio = doc.aspectRatio,
+                                    timestamp = doc.clientTimestamp,
+                                    userEmail = userKey,
+                                    model = doc.model
+                                )
+                            )
+                        }
+                    }
+            }
+
+            launch {
+                var seenIds = emptySet<String>()
+                sync.observeGeneratedVideos(uid)
+                    .catch { err ->
+                        val root = unwrapFirestoreError(err)
+                        android.util.Log.w("ChatViewModel", "observeVideos cloud failed", root)
+                    }
+                    .collect { cloudList ->
+                        val incomingIds = cloudList.map { it.id }.toSet()
+                        (seenIds - incomingIds).forEach { chatDao.deleteGeneratedVideoById(it) }
+                        seenIds = incomingIds
+                        cloudList.forEach { doc ->
+                            chatDao.insertGeneratedVideo(
+                                com.example.data.db.GeneratedVideoEntity(
+                                    id = doc.id,
+                                    prompt = doc.prompt,
+                                    videoUrl = doc.videoUrl,
+                                    style = doc.style,
+                                    aspectRatio = doc.aspectRatio,
+                                    resolution = doc.resolution,
+                                    duration = doc.duration,
+                                    timestamp = doc.clientTimestamp,
+                                    userEmail = userKey,
+                                    model = doc.model
+                                )
+                            )
+                        }
+                    }
+            }
+
+            launch {
+                var seenIds = emptySet<String>()
+                sync.observeGeneratedMusic(uid)
+                    .catch { err ->
+                        val root = unwrapFirestoreError(err)
+                        android.util.Log.w("ChatViewModel", "observeMusic cloud failed", root)
+                    }
+                    .collect { cloudList ->
+                        val incomingIds = cloudList.map { it.id }.toSet()
+                        (seenIds - incomingIds).forEach { chatDao.deleteGeneratedMusicById(it) }
+                        seenIds = incomingIds
+                        cloudList.forEach { doc ->
+                            chatDao.insertGeneratedMusic(
+                                com.example.data.db.GeneratedMusicEntity(
+                                    id = doc.id,
+                                    prompt = doc.prompt,
+                                    musicUrl = doc.musicUrl,
+                                    genre = doc.genre,
+                                    duration = doc.duration,
+                                    tempo = doc.tempo,
+                                    timestamp = doc.clientTimestamp,
+                                    userEmail = userKey
+                                )
+                            )
+                        }
+                    }
+            }
+
+            launch {
+                var seenIds = emptySet<String>()
+                sync.observeMemories(uid)
+                    .catch { err ->
+                        val root = unwrapFirestoreError(err)
+                        android.util.Log.w("ChatViewModel", "observeMemories cloud failed", root)
+                    }
+                    .collect { cloudList ->
+                        val incomingIds = cloudList.map { it.id }.toSet()
+                        (seenIds - incomingIds).forEach { chatDao.deleteMemoryById(it) }
+                        seenIds = incomingIds
+                        cloudList.forEach { doc ->
+                            chatDao.insertMemory(
+                                com.example.data.db.UserMemoryEntity(
+                                    id = doc.id,
+                                    key = doc.key,
+                                    content = doc.content,
+                                    timestamp = doc.clientTimestamp,
+                                    userEmail = userKey
+                                )
+                            )
+                        }
+                    }
+            }
+
+            launch {
+                sync.observeTokenUsages(uid)
+                    .catch { err ->
+                        val root = unwrapFirestoreError(err)
+                        android.util.Log.w("ChatViewModel", "observeTokenUsages cloud failed", root)
+                    }
+                    .collect { cloudList ->
+                        cloudList.forEach { doc ->
+                            chatDao.insertTokenUsage(
+                                com.example.data.db.TokenUsageEntity(
+                                    id = doc.id,
+                                    featureType = doc.featureType,
+                                    detail = doc.detail,
+                                    tokenCost = doc.tokenCost,
+                                    timestamp = doc.clientTimestamp,
+                                    userEmail = userKey
+                                )
+                            )
+                        }
+                    }
+            }
+        }
+    }
+
+    fun prepareSignOut() {
+        firestoreSyncJob?.cancel()
+        firestoreSyncJob = null
+        sessionsCollectionJob?.cancel()
+        messagesCollectionJob?.cancel()
+        imagesCollectionJob?.cancel()
+        videosCollectionJob?.cancel()
+        musicCollectionJob?.cancel()
+        memoriesCollectionJob?.cancel()
+        tokenUsagesCollectionJob?.cancel()
+    }
+
     fun logTokenUsage(featureType: String, detail: String, tokenCost: Double) {
         viewModelScope.launch {
-            val email = _uiState.value.currentUserProfile?.email
-            chatDao.insertTokenUsage(
-                com.example.data.db.TokenUsageEntity(
-                    id = java.util.UUID.randomUUID().toString(),
-                    featureType = featureType,
-                    detail = detail,
-                    tokenCost = tokenCost,
-                    timestamp = System.currentTimeMillis(),
-                    userEmail = email
-                )
+            val email = activeUserScopeKey
+            val usage = com.example.data.db.TokenUsageEntity(
+                id = java.util.UUID.randomUUID().toString(),
+                featureType = featureType,
+                detail = detail,
+                tokenCost = tokenCost,
+                timestamp = System.currentTimeMillis(),
+                userEmail = email
+            )
+            chatDao.insertTokenUsage(usage)
+            firestoreSync?.saveTokenUsage(
+                id = usage.id,
+                featureType = usage.featureType,
+                detail = usage.detail,
+                tokenCost = usage.tokenCost,
+                clientTimestamp = usage.timestamp
             )
         }
     }
@@ -1247,6 +1344,7 @@ class ChatViewModel(
     fun clearTokenUsageHistory() {
         viewModelScope.launch {
             chatDao.deleteAllTokenUsages()
+            firestoreSync?.clearTokenUsages()
         }
     }
 
@@ -1260,71 +1358,41 @@ class ChatViewModel(
 
     fun addMemory(key: String, content: String) {
         viewModelScope.launch {
-            val user = _uiState.value.currentUserProfile
             val newMemory = com.example.data.db.UserMemoryEntity(
                 id = UUID.randomUUID().toString(),
                 key = key.uppercase().trim(),
                 content = content.trim(),
-                userEmail = user?.email
+                userEmail = activeUserScopeKey
             )
             chatDao.insertMemory(newMemory)
+            firestoreSync?.saveMemory(
+                id = newMemory.id,
+                key = newMemory.key,
+                content = newMemory.content,
+                clientTimestamp = newMemory.timestamp
+            )
         }
     }
 
     fun deleteMemory(id: String) {
         viewModelScope.launch {
             chatDao.deleteMemoryById(id)
+            firestoreSync?.deleteMemory(id)
         }
-    }
-
-    fun signIn(email: String, password: String): String? {
-        val emailClean = email.trim().lowercase()
-        if (emailClean.isBlank() || password.isBlank()) {
-            return "Email and password are required."
-        }
-        val userPair = registeredUsers[emailClean]
-        if (userPair == null) {
-            return "Email is not registered. Please sign up first."
-        }
-        if (userPair.first != password) {
-            return "Incorrect password."
-        }
-        _uiState.update { state ->
-            state.copy(currentUserProfile = UserProfile(email = emailClean, username = userPair.second))
-        }
-        return null // Success and triggers re-collection mapping
-    }
-
-    fun signUp(email: String, password: String, username: String): String? {
-        val emailClean = email.trim().lowercase()
-        val usernameClean = username.trim()
-        if (emailClean.isBlank() || password.isBlank() || usernameClean.isBlank()) {
-            return "All fields are required."
-        }
-        if (!emailClean.contains("@")) {
-            return "Invalid email address format."
-        }
-        if (registeredUsers.containsKey(emailClean)) {
-            return "Email is already registered. Please sign in."
-        }
-        registeredUsers[emailClean] = Pair(password, usernameClean)
-        _uiState.update { state ->
-            state.copy(currentUserProfile = UserProfile(email = emailClean, username = usernameClean))
-        }
-        return null // Success and triggers re-collection mapping
     }
 
     fun signOut() {
+        prepareSignOut()
         _uiState.update { state ->
             state.copy(
                 currentUserProfile = null,
-                isSubscribed = true,
-                activeSubscriptionPlan = "Developer Pro (Testing)",
-                subscriptionExpiryDate = "Permanent (Testing Phase)",
-                userTokens = 999999.0
+                isSubscribed = false,
+                activeSubscriptionPlan = "Free Tier",
+                subscriptionExpiryDate = "Free Plan",
+                userTokens = 0.0
             )
         }
-        saveTokensToPrefs(999999.0)
+        saveTokensToPrefs(0.0)
     }
 
     fun activateSubscription(plan: String) {
@@ -1351,18 +1419,53 @@ class ChatViewModel(
             )
         }
         saveTokensToPrefs(newTokensValue)
+        if (firestoreSync != null && authenticatedUid.isNotBlank()) {
+            viewModelScope.launch {
+                firestoreSync.updateUserPreferences(
+                    activeSubscriptionPlan = plan,
+                    subscriptionExpiryDate = expiryDate,
+                    subscribed = true,
+                    userTokens = newTokensValue
+                )
+            }
+        }
+    }
+
+    fun topUpTokens(pkg: ChatRepository.TopUpPackage, paymentMethod: String) {
+        val state = _uiState.value
+        if (state.currentUserProfile == null && authenticatedUid.isBlank()) return
+        val newTokensValue = state.userTokens + pkg.tokens.toDouble()
+        _uiState.update { s ->
+            s.copy(userTokens = newTokensValue)
+        }
+        saveTokensToPrefs(newTokensValue)
+        if (firestoreSync != null && authenticatedUid.isNotBlank()) {
+            viewModelScope.launch {
+                firestoreSync.updateUserPreferences(userTokens = newTokensValue)
+            }
+        }
     }
 
     fun cancelSubscription() {
         _uiState.update { state ->
             state.copy(
-                isSubscribed = true,
-                activeSubscriptionPlan = "Developer Pro (Testing)",
-                subscriptionExpiryDate = "Permanent (Testing Phase)",
-                userTokens = 999999.0
+                isSubscribed = false,
+                activeSubscriptionPlan = "Free Tier",
+                subscriptionExpiryDate = "Free Plan",
+                userTokens = 0.0
             )
         }
-        saveTokensToPrefs(999999.0)
+        saveTokensToPrefs(0.0)
+        if (firestoreSync != null && authenticatedUid.isNotBlank()) {
+            viewModelScope.launch {
+                firestoreSync.updateUserPreferences(
+                    activeSubscriptionPlan = "Free Tier",
+                    subscriptionExpiryDate = "Free Plan",
+                    subscribed = false,
+                    userTokens = 0.0
+                )
+            }
+        }
     }
 
     fun selectModel(model: GeminiModel) {
@@ -1602,8 +1705,8 @@ class ChatViewModel(
 
     fun selectMusicProvider(provider: String) {
         val defaultModel = when (provider) {
-            "ElevenLabs" -> "Eleven Music v1 Pro"
-            else -> "Eleven Music v1 Pro"
+            "ElevenLabs" -> "music_v2_5"
+            else -> "music_v2_5"
         }
         _uiState.update { state ->
             state.copy(
@@ -1643,6 +1746,7 @@ class ChatViewModel(
     fun deleteSession(sessionId: String) {
         viewModelScope.launch {
             chatDao.deleteSessionById(sessionId)
+            firestoreSync?.deleteSessionAndMessages(sessionId)
             if (_uiState.value.currentSessionId == sessionId) {
                 val remain = _uiState.value.sessions.filter { it.id != sessionId }
                 if (remain.isEmpty()) {
@@ -1659,6 +1763,7 @@ class ChatViewModel(
     fun toggleBookmark(messageId: String, isBookmarked: Boolean) {
         viewModelScope.launch {
             chatDao.updateMessageBookmark(messageId, isBookmarked)
+            firestoreSync?.updateMessageBookmark(messageId, isBookmarked)
         }
     }
 
@@ -1666,11 +1771,17 @@ class ChatViewModel(
         _uiState.update { state ->
             state.copy(customSystemInstruction = instruction)
         }
+        if (firestoreSync != null && authenticatedUid.isNotBlank()) {
+            viewModelScope.launch {
+                firestoreSync.updateUserPreferences(customSystemInstruction = instruction)
+            }
+        }
     }
 
     fun updateApiKey(apiKey: String) {
+        // Security: Client-side API keys are disabled; all requests use the secure backend proxy.
         _uiState.update { state ->
-            state.copy(customApiKey = apiKey)
+            state.copy(customApiKey = "")
         }
     }
 
@@ -1680,8 +1791,63 @@ class ChatViewModel(
         }
     }
 
+    fun attachImageToChat(bitmap: android.graphics.Bitmap, label: String) {
+        _uiState.update { state ->
+            state.copy(
+                pendingAttachmentBitmap = bitmap,
+                pendingAttachmentLabel = label,
+                pendingAttachmentFileName = null,
+                pendingAttachmentFileContent = null
+            )
+        }
+    }
+
+    fun attachFileToChat(fileName: String, content: String) {
+        _uiState.update { state ->
+            state.copy(
+                pendingAttachmentBitmap = null,
+                pendingAttachmentLabel = null,
+                pendingAttachmentFileName = fileName,
+                pendingAttachmentFileContent = content
+            )
+        }
+    }
+
+    fun clearChatAttachment() {
+        _uiState.update { state ->
+            state.copy(
+                pendingAttachmentBitmap = null,
+                pendingAttachmentLabel = null,
+                pendingAttachmentFileName = null,
+                pendingAttachmentFileContent = null
+            )
+        }
+    }
+
     fun sendMessage(prompt: String) {
-        if (prompt.isBlank()) return
+        val attachedBitmap = _uiState.value.pendingAttachmentBitmap
+        val attachedLabel = _uiState.value.pendingAttachmentLabel
+        val attachedFileName = _uiState.value.pendingAttachmentFileName
+        val attachedFileContent = _uiState.value.pendingAttachmentFileContent
+
+        if (prompt.isBlank() && attachedBitmap == null && attachedFileName == null) return
+
+        // Clear pending attachment once submitted
+        if (attachedBitmap != null || attachedFileName != null) {
+            clearChatAttachment()
+        }
+
+        val displayPrompt = when {
+            attachedBitmap != null -> {
+                val tag = "📷 [${attachedLabel ?: "Attached Image"}]"
+                if (prompt.isBlank()) "$tag\nAnalyze this image." else "$tag\n$prompt"
+            }
+            attachedFileName != null -> {
+                val tag = "📄 [$attachedFileName]"
+                if (prompt.isBlank()) "$tag\nAnalyze and summarize this file." else "$tag\n$prompt"
+            }
+            else -> prompt
+        }
         
         var sessionId = _uiState.value.currentSessionId
         val userItemMessageId = UUID.randomUUID().toString()
@@ -1703,31 +1869,49 @@ class ChatViewModel(
                     var activeSessionId = _uiState.value.currentSessionId
                     if (activeSessionId.isBlank()) {
                         val newSessionId = UUID.randomUUID().toString()
+                        val ts = System.currentTimeMillis()
+                        val modelVal = _uiState.value.selectedModel.apiValue
                         chatDao.insertSession(ChatSessionEntity(
                             id = newSessionId,
                             title = "Image Generation",
-                            modelValue = _uiState.value.selectedModel.apiValue,
-                            userEmail = _uiState.value.currentUserProfile?.email
+                            timestamp = ts,
+                            modelValue = modelVal,
+                            userEmail = activeUserScopeKey
                         ))
+                        firestoreSync?.upsertSession(newSessionId, "Image Generation", modelVal, ts)
                         activeSessionId = newSessionId
                         _uiState.update { state -> state.copy(currentSessionId = newSessionId) }
+                    } else {
+                        val existingSession = _uiState.value.sessions.find { it.id == activeSessionId }
+                        firestoreSync?.upsertSession(
+                            activeSessionId,
+                            existingSession?.title ?: "Image Generation",
+                            _uiState.value.selectedModel.apiValue,
+                            System.currentTimeMillis()
+                        )
                     }
 
+                    val userMsgTs = System.currentTimeMillis()
                     chatDao.insertMessage(ChatMessageEntity(
                         id = userItemMessageId,
                         sessionId = activeSessionId,
                         role = "USER",
                         text = prompt,
-                        timestamp = System.currentTimeMillis()
+                        timestamp = userMsgTs
                     ))
+                    firestoreSync?.upsertMessage(userItemMessageId, activeSessionId, "USER", prompt, false, userMsgTs)
 
+                    val replyId = UUID.randomUUID().toString()
+                    val replyTs = System.currentTimeMillis()
+                    val replyText = "🎨 **How to Use Image Generation Commands**:\nYou can use any of the following shortcut commands to instantly generate state-of-the-art AI images:\n\n• `/draw <your prompt>`\n• `/image <your prompt>`\n• `/generate <your prompt>`\n\nOr simply click the 🎨 button on the input bar to toggle **Image Mode**.\n\n*Example*:\n`/image a gorgeous futuristic city floating above clouds, synthwave aesthetic`"
                     chatDao.insertMessage(ChatMessageEntity(
-                        id = UUID.randomUUID().toString(),
+                        id = replyId,
                         sessionId = activeSessionId,
                         role = "MODEL",
-                        text = "🎨 **How to Use Image Generation Commands**:\nYou can use any of the following shortcut commands to instantly generate state-of-the-art AI images:\n\n• `/draw <your prompt>`\n• `/image <your prompt>`\n• `/generate <your prompt>`\n\nOr simply click the 🎨 button on the input bar to toggle **Image Mode**.\n\n*Example*:\n`/image a gorgeous futuristic city floating above clouds, synthwave aesthetic`",
-                        timestamp = System.currentTimeMillis()
+                        text = replyText,
+                        timestamp = replyTs
                     ))
+                    firestoreSync?.upsertMessage(replyId, activeSessionId, "MODEL", replyText, false, replyTs)
                 }
                 return
             }
@@ -1737,23 +1921,37 @@ class ChatViewModel(
                 if (activeSessionId.isBlank()) {
                     val newSessionId = UUID.randomUUID().toString()
                     val sessionTitle = if (promptText.length > 25) promptText.take(22) + "..." else promptText
+                    val ts = System.currentTimeMillis()
+                    val modelVal = _uiState.value.selectedModel.apiValue
                     chatDao.insertSession(ChatSessionEntity(
                         id = newSessionId,
                         title = sessionTitle,
-                        modelValue = _uiState.value.selectedModel.apiValue,
-                        userEmail = _uiState.value.currentUserProfile?.email
+                        timestamp = ts,
+                        modelValue = modelVal,
+                        userEmail = activeUserScopeKey
                     ))
+                    firestoreSync?.upsertSession(newSessionId, sessionTitle, modelVal, ts)
                     activeSessionId = newSessionId
                     _uiState.update { state -> state.copy(currentSessionId = newSessionId) }
+                } else {
+                    val existingSession = _uiState.value.sessions.find { it.id == activeSessionId }
+                    firestoreSync?.upsertSession(
+                        activeSessionId,
+                        existingSession?.title ?: "Image Generation",
+                        _uiState.value.selectedModel.apiValue,
+                        System.currentTimeMillis()
+                    )
                 }
 
+                val userMsgTs = System.currentTimeMillis()
                 chatDao.insertMessage(ChatMessageEntity(
                     id = userItemMessageId,
                     sessionId = activeSessionId,
                     role = "USER",
                     text = prompt,
-                    timestamp = System.currentTimeMillis()
+                    timestamp = userMsgTs
                 ))
+                firestoreSync?.upsertMessage(userItemMessageId, activeSessionId, "USER", prompt, false, userMsgTs)
 
                 generateImageFromChat(promptText, activeSessionId)
             }
@@ -1775,7 +1973,7 @@ class ChatViewModel(
                             id = newSessionId,
                             title = sessionTitle,
                             modelValue = selectedModel.apiValue,
-                            userEmail = _uiState.value.currentUserProfile?.email
+                            userEmail = activeUserScopeKey
                         ))
                         sessionId = newSessionId
                         _uiState.update { state -> state.copy(currentSessionId = newSessionId) }
@@ -1813,108 +2011,145 @@ class ChatViewModel(
                 // 1. Resolve Session ID
                 if (sessionId.isBlank()) {
                     val newSessionId = UUID.randomUUID().toString()
-                    val sessionTitle = if (prompt.length > 25) prompt.take(22) + "..." else prompt
+                    val sessionTitle = if (displayPrompt.length > 25) displayPrompt.take(22) + "..." else displayPrompt
+                    val ts = System.currentTimeMillis()
+                    val modelVal = _uiState.value.selectedModel.apiValue
                     chatDao.insertSession(ChatSessionEntity(
                         id = newSessionId,
                         title = sessionTitle,
-                        modelValue = _uiState.value.selectedModel.apiValue,
-                        userEmail = _uiState.value.currentUserProfile?.email
+                        timestamp = ts,
+                        modelValue = modelVal,
+                        userEmail = activeUserScopeKey
                     ))
+                    firestoreSync?.upsertSession(newSessionId, sessionTitle, modelVal, ts)
                     sessionId = newSessionId
                     _uiState.update { state ->
                         state.copy(currentSessionId = newSessionId)
                     }
                 } else {
                     val existingSession = _uiState.value.sessions.find { it.id == sessionId }
-                    if (existingSession != null && existingSession.title == "Percakapan Baru") {
-                        val newTitle = if (prompt.length > 25) prompt.take(22) + "..." else prompt
+                    val ts = System.currentTimeMillis()
+                    val modelVal = _uiState.value.selectedModel.apiValue
+                    val resolvedTitle = if (existingSession != null && existingSession.title == "Percakapan Baru") {
+                        val newTitle = if (displayPrompt.length > 25) displayPrompt.take(22) + "..." else displayPrompt
                         chatDao.insertSession(ChatSessionEntity(
                             id = sessionId,
                             title = newTitle,
-                            modelValue = _uiState.value.selectedModel.apiValue,
-                            userEmail = _uiState.value.currentUserProfile?.email
+                            timestamp = ts,
+                            modelValue = modelVal,
+                            userEmail = activeUserScopeKey
                         ))
+                        newTitle
+                    } else {
+                        existingSession?.title ?: "Percakapan"
                     }
+                    firestoreSync?.upsertSession(sessionId, resolvedTitle, modelVal, ts)
                 }
 
                 // 2. Insert user's query
+                val userMsgTs = System.currentTimeMillis()
                 chatDao.insertMessage(ChatMessageEntity(
                     id = userItemMessageId,
                     sessionId = sessionId,
                     role = "USER",
-                    text = prompt,
-                    timestamp = System.currentTimeMillis()
+                    text = displayPrompt,
+                    timestamp = userMsgTs
                 ))
+                firestoreSync?.upsertMessage(userItemMessageId, sessionId, "USER", displayPrompt, false, userMsgTs)
 
                 // Set preliminary loading state
                 _uiState.update { state -> state.copy(isLoading = true) }
-
-                // 3. AI Agentic Web Search (Browsing Mandiri) Detection
-                val cleanLower = prompt.lowercase().trim()
-                val autoTriggerSearch = cleanLower.contains("search") || cleanLower.contains("browsing") ||
-                        cleanLower.contains("news") || cleanLower.contains("score") ||
-                        cleanLower.contains("weather") || cleanLower.contains("stock") ||
-                        cleanLower.contains("market")
-
-                val searchActive = _uiState.value.isWebSearchEnabled || autoTriggerSearch
-                var injectedPrompt = prompt
-                var searchSummaryText = ""
-
-                if (searchActive) {
-                    _uiState.update { state ->
-                        state.copy(
-                            isSearchingWeb = true,
-                            webSearchQueries = state.webSearchQueries + prompt
-                        )
-                    }
-                    // Simulated agentic delay to enhance realism of the search process
-                    delay(1200)
-
-                    val snippets = com.example.data.WebSearchService.search(prompt)
-                    if (snippets.isNotEmpty()) {
-                        searchSummaryText = snippets.joinToString("\n\n") {
-                            "[SOURCE: ${it.source}] - ${it.title} (${it.date})\nLink: ${it.link}\nSummary: ${it.snippet}"
-                        }
-                        injectedPrompt = "Here are the latest real-time Google search results (Today is Saturday, May 30, 2026) for the query '${prompt}':\n\n$searchSummaryText\n\nPlease use the latest data above to respond to the user's questions intelligently and accurately. Please include a flag icon 🌐 and a brief search reference at the beginning of your response so the user knows you have performed a real-time Google Search exploration!\n\nUser Question: $prompt"
-                    }
-
-                    _uiState.update { state ->
-                        state.copy(
-                            isSearchingWeb = false,
-                            webSearchResultsSummary = "Successfully found ${snippets.size} search results from Google!"
-                        )
-                    }
-                }
-
-                // 4. Smart Memory Context Retrieval (Long-Term Personalization Context)
-                val memories = _uiState.value.userMemories
-                val memoryInstruct = if (memories.isNotEmpty()) {
-                    "\n\n[PERSONAL MEMORY SECURE AND PRIVATE THAT YOU REMEMBER ABOUT THE USER]:\n" +
-                    memories.joinToString("\n") { "- ${it.key}: ${it.content}" } +
-                    "\nUse the preferences or details above to respond in a friendly and helpful manner."
-                } else {
-                    ""
-                }
-
-                val finalSystemInstruction = _uiState.value.customSystemInstruction + memoryInstruct
-
-                // 5. Build prompt history
-                val history = _uiState.value.messages
 
                 // Call API Repository
                 val keysMap = getActiveKeysMap()
                 val urlsMap = getActiveUrlsMap()
 
-                // Let's call the repository API with the injected search payload & extended contextual system instruction
-                val responseText = repository.sendMessage(
-                    history = history,
-                    newPrompt = injectedPrompt,
-                    model = _uiState.value.selectedModel.apiValue,
-                    provider = _uiState.value.selectedModel.provider,
-                    customSystemInstruction = finalSystemInstruction,
-                    providerKeys = keysMap,
-                    providerUrls = urlsMap
-                )
+                val responseText = if (attachedBitmap != null) {
+                    val visionPrompt = if (prompt.isBlank()) {
+                        "Analyze this image thoroughly and describe what you see."
+                    } else {
+                        prompt
+                    }
+                    repository.sendVisionRequest(
+                        bitmap = attachedBitmap,
+                        prompt = visionPrompt,
+                        provider = "OpenAI",
+                        model = "gpt-4o-mini",
+                        providerKeys = keysMap,
+                        providerUrls = urlsMap
+                    )
+                } else {
+                    // 3. AI Agentic Web Search (Browsing Mandiri) Detection
+                    val cleanLower = prompt.lowercase().trim()
+                    val autoTriggerSearch = cleanLower.contains("search") || cleanLower.contains("browsing") ||
+                            cleanLower.contains("news") || cleanLower.contains("score") ||
+                            cleanLower.contains("weather") || cleanLower.contains("stock") ||
+                            cleanLower.contains("market")
+
+                    val searchActive = _uiState.value.isWebSearchEnabled || autoTriggerSearch
+                    var injectedPrompt = if (attachedFileName != null && attachedFileContent != null) {
+                        val truncatedContent = attachedFileContent.take(12000)
+                        if (prompt.isBlank()) {
+                            "Please analyze, summarize, and highlight key insights from the attached file '$attachedFileName':\n\n$truncatedContent"
+                        } else {
+                            "Attached File ('$attachedFileName'):\n$truncatedContent\n\nUser Request: $prompt"
+                        }
+                    } else {
+                        prompt
+                    }
+                    var searchSummaryText = ""
+
+                    if (searchActive && prompt.isNotBlank()) {
+                        _uiState.update { state ->
+                            state.copy(
+                                isSearchingWeb = true,
+                                webSearchQueries = state.webSearchQueries + prompt
+                            )
+                        }
+                        delay(1200)
+
+                        val snippets = com.example.data.WebSearchService.search(prompt)
+                        if (snippets.isNotEmpty()) {
+                            searchSummaryText = snippets.joinToString("\n\n") {
+                                "[SOURCE: ${it.source}] - ${it.title} (${it.date})\nLink: ${it.link}\nSummary: ${it.snippet}"
+                            }
+                            injectedPrompt = "Here are the latest real-time Google search results (Today is Saturday, May 30, 2026) for the query '${prompt}':\n\n$searchSummaryText\n\nPlease use the latest data above to respond to the user's questions intelligently and accurately. Please include a flag icon 🌐 and a brief search reference at the beginning of your response so the user knows you have performed a real-time Google Search exploration!\n\nUser Question: $injectedPrompt"
+                        }
+
+                        _uiState.update { state ->
+                            state.copy(
+                                isSearchingWeb = false,
+                                webSearchResultsSummary = "Successfully found ${snippets.size} search results from Google!"
+                            )
+                        }
+                    }
+
+                    // 4. Smart Memory Context Retrieval (Long-Term Personalization Context)
+                    val memories = _uiState.value.userMemories
+                    val memoryInstruct = if (memories.isNotEmpty()) {
+                        "\n\n[PERSONAL MEMORY SECURE AND PRIVATE THAT YOU REMEMBER ABOUT THE USER]:\n" +
+                        memories.joinToString("\n") { "- ${it.key}: ${it.content}" } +
+                        "\nUse the preferences or details above to respond in a friendly and helpful manner."
+                    } else {
+                        ""
+                    }
+
+                    val finalSystemInstruction = _uiState.value.customSystemInstruction + memoryInstruct
+
+                    // 5. Build prompt history
+                    val history = _uiState.value.messages
+
+                    // Let's call the repository API with the injected search/file payload & extended contextual system instruction
+                    repository.sendMessage(
+                        history = history,
+                        newPrompt = injectedPrompt,
+                        model = _uiState.value.selectedModel.apiValue,
+                        provider = _uiState.value.selectedModel.provider,
+                        customSystemInstruction = finalSystemInstruction,
+                        providerKeys = keysMap,
+                        providerUrls = urlsMap
+                    )
+                }
 
                 val modelItemMessageId = UUID.randomUUID().toString()
 
@@ -1937,15 +2172,18 @@ class ChatViewModel(
                 }
 
                 // 6. Save model's response to Database
+                val modelMsgTs = System.currentTimeMillis()
                 chatDao.insertMessage(ChatMessageEntity(
                     id = modelItemMessageId,
                     sessionId = sessionId,
                     role = "MODEL",
                     text = finalResponseText,
-                    timestamp = System.currentTimeMillis()
+                    timestamp = modelMsgTs
                 ))
+                firestoreSync?.upsertMessage(modelItemMessageId, sessionId, "MODEL", finalResponseText, false, modelMsgTs)
 
                 // 7. AI Agentic Task Automation (Action-to-API) Detection
+                val cleanLower = prompt.lowercase().trim()
                 if (cleanLower.contains("email") || cleanLower.contains("surel") || cleanLower.contains("surat")) {
                     val emailCleanBody = responseText.replace(Regex("<[^>]*>"), "")
                     val extractedRecipient = if (cleanLower.contains("klien")) "klien@company.com" else "manager@company.com"
@@ -1974,7 +2212,7 @@ class ChatViewModel(
                 _uiState.update { state -> state.copy(isLoading = false) }
             } catch (e: Exception) {
                 _uiState.update { state -> state.copy(isLoading = false) }
-                val errorMsg = "Koneksi terputus atau batas waktu habis (timeout) saat menghubungi server: ${e.localizedMessage}. Silakan periksa koneksi internet Anda atau lengkapi API Key Anda di menu Pengaturan."
+                val errorMsg = "Koneksi terputus atau batas waktu habis (timeout) saat menghubungi server: ${e.localizedMessage}. Silakan periksa koneksi internet Anda dan coba lagi."
                 
                 if (sessionId.isBlank()) {
                     val newSessionId = UUID.randomUUID().toString()
@@ -2059,43 +2297,41 @@ class ChatViewModel(
             try {
                 val imageUrl = when (provider) {
                     "OpenAI" -> {
-                        val key = _uiState.value.openaiApiKey.ifBlank { null }
-                        val customUrl = _uiState.value.openaiBaseUrl.ifBlank { null }
                         repository.generateOpenAiImage(
                             prompt = promptText,
                             model = model,
                             aspectRatio = "1:1",
-                            customApiKey = key,
-                            customBaseUrl = customUrl
+                            customApiKey = null,
+                            customBaseUrl = _uiState.value.proxyBaseUrl
                         )
                     }
                     "Stable Diffusion", "Stability" -> {
-                        val key = _uiState.value.stabilityApiKey.ifBlank { null }
                         repository.generateStabilityImage(
                             prompt = promptText,
                             model = model,
-                            customApiKey = key
+                            customApiKey = null,
+                            customBaseUrl = _uiState.value.proxyBaseUrl
                         )
                     }
                     else -> {
-                        val key = _uiState.value.falApiKey.ifBlank { null }
                         val endpoint = when (val m = model.lowercase()) {
-                            "flux pro", "flux-pro" -> "https://queue.fal.run/fal-ai/flux-pro"
-                            "flux 2 flex", "flux-2-flex" -> "https://queue.fal.run/fal-ai/flux-2-flex"
-                            "flux realism", "flux-realism" -> "https://queue.fal.run/fal-ai/flux-realism"
-                            "ideogram-v2", "ideogram-v2-using-image-to-image" -> "https://queue.fal.run/fal-ai/ideogram/v2"
-                            "nano-banana" -> "https://queue.fal.run/fal-ai/nano-banana"
-                            "nano-banana-pro" -> "https://queue.fal.run/fal-ai/nano-banana-pro"
-                            "nano-banana-2" -> "https://queue.fal.run/fal-ai/nano-banana-2"
-                            "imagen4" -> "https://queue.fal.run/fal-ai/imagen4"
-                            "flux/schnell", "flux-schnell" -> "https://queue.fal.run/fal-ai/flux/schnell"
-                            else -> if (m.startsWith("https://")) m else "https://queue.fal.run/fal-ai/$m"
+                            "flux pro", "flux-pro" -> "fal-ai/flux-pro"
+                            "flux 2 flex", "flux-2-flex" -> "fal-ai/flux-2-flex"
+                            "flux realism", "flux-realism" -> "fal-ai/flux-realism"
+                            "ideogram-v2", "ideogram-v2-using-image-to-image" -> "fal-ai/ideogram/v2"
+                            "nano-banana" -> "fal-ai/nano-banana"
+                            "nano-banana-pro" -> "fal-ai/nano-banana-pro"
+                            "nano-banana-2" -> "fal-ai/nano-banana-2"
+                            "imagen4" -> "fal-ai/imagen4"
+                            "flux/schnell", "flux-schnell" -> "fal-ai/flux/schnell"
+                            else -> if (m.startsWith("fal-ai/")) m else "fal-ai/$m"
                         }
                         repository.generateFalImage(
                             prompt = promptText,
                             endpointUrl = endpoint,
                             aspectRatio = "1:1",
-                            customApiKey = key
+                            customApiKey = null,
+                            customBaseUrl = _uiState.value.proxyBaseUrl
                         )
                     }
                 }
@@ -2115,13 +2351,15 @@ class ChatViewModel(
                 }
 
                 val successMessageText = "[IMAGE_URL]$cachedImageUrl[IMAGE_URL_END]$promptText\n\n🪙 **Deducted Price:** `${tokenCost} Tokens`"
+                val successTs = System.currentTimeMillis()
                 chatDao.insertMessage(ChatMessageEntity(
                     id = modelMessageId,
                     sessionId = sessionId,
                     role = "MODEL",
                     text = successMessageText,
-                    timestamp = System.currentTimeMillis()
+                    timestamp = successTs
                 ))
+                firestoreSync?.upsertMessage(modelMessageId, sessionId, "MODEL", successMessageText, false, successTs)
 
                 val imageEntity = com.example.data.db.GeneratedImageEntity(
                     id = UUID.randomUUID().toString(),
@@ -2129,21 +2367,32 @@ class ChatViewModel(
                     imageUrl = cachedImageUrl,
                     style = "Cosmic",
                     aspectRatio = "1:1",
-                    timestamp = System.currentTimeMillis(),
-                    userEmail = _uiState.value.currentUserProfile?.email,
+                    timestamp = successTs,
+                    userEmail = activeUserScopeKey,
                     model = model
                 )
                 chatDao.insertGeneratedImage(imageEntity)
+                firestoreSync?.saveGeneratedImage(
+                    id = imageEntity.id,
+                    prompt = imageEntity.prompt,
+                    imageUrl = imageEntity.imageUrl,
+                    style = imageEntity.style,
+                    aspectRatio = imageEntity.aspectRatio,
+                    model = imageEntity.model,
+                    clientTimestamp = imageEntity.timestamp
+                )
 
             } catch (e: Exception) {
                 val errorMessage = "❌ **Failed to generate image via $provider**\nError details: ${e.localizedMessage ?: "Unknown server error"}\n\n*Please verify that your Proxy (geminiaitools.com) or Secrets panel is configured properly.*"
+                val errTs = System.currentTimeMillis()
                 chatDao.insertMessage(ChatMessageEntity(
                     id = modelMessageId,
                     sessionId = sessionId,
                     role = "MODEL",
                     text = errorMessage,
-                    timestamp = System.currentTimeMillis()
+                    timestamp = errTs
                 ))
+                firestoreSync?.upsertMessage(modelMessageId, sessionId, "MODEL", errorMessage, false, errTs)
             } finally {
                 _uiState.update { state -> state.copy(isLoading = false) }
             }
@@ -2200,9 +2449,15 @@ class ChatViewModel(
                             id = UUID.randomUUID().toString(),
                             key = key,
                             content = content,
-                            userEmail = userSpec?.email
+                            userEmail = activeUserScopeKey
                         )
                         chatDao.insertMemory(memory)
+                        firestoreSync?.saveMemory(
+                            id = memory.id,
+                            key = memory.key,
+                            content = memory.content,
+                            clientTimestamp = memory.timestamp
+                        )
                         _uiState.update { state ->
                             state.copy(lastExtractedMemory = "$key: $content")
                         }
@@ -2345,11 +2600,6 @@ class ChatViewModel(
             }
             "Veo" -> {
                 when {
-                    modelLower == "veo-2.0-generate-001" || modelLower == "veo2" || modelLower == "veo 2" -> {
-                        val secClean = duration.replace("s", "").replace(" seconds", "").trim()
-                        val seconds = secClean.toIntOrNull() ?: 5
-                        650.0 + (seconds - 5).coerceAtLeast(0) * 150.0
-                    }
                     modelLower == "veo-3.0-generate-preview" || modelLower == "veo-3.0-generate-001" || modelLower == "veo3" || modelLower == "veo 3" -> 800.0
                     modelLower == "veo-3.0-fast-generate-preview" || modelLower == "veo-3.0-fast-generate-001" || modelLower == "veo3-fast" || modelLower == "veo 3 fast" -> 300.0
                     modelLower == "veo-3.1-generate-preview" || modelLower == "veo-3.1-generate-001" || modelLower == "veo3.1/text-to-video" || modelLower == "veo 3.1" -> 800.0
@@ -2484,11 +2734,6 @@ class ChatViewModel(
                         modelLower == "fal-ai/veo3.1/lite" || modelLower.contains("veo3.1/lite") || modelLower.contains("veo 3.1 lite") -> 200.0
                         modelLower == "fal-ai/veo3.1/fast" || modelLower.contains("veo3.1/fast") || modelLower.contains("veo 3.1 fast") -> 300.0
                         modelLower == "fal-ai/veo3.1" || modelLower == "veo3.1" || modelLower.contains("veo3.1") || modelLower.contains("veo 3.1") -> 800.0
-                        modelLower == "veo2" -> {
-                            val secClean = duration.replace("s", "").replace(" seconds", "").trim()
-                            val seconds = secClean.toIntOrNull() ?: 5
-                            650.0 + (seconds - 5).coerceAtLeast(0) * 150.0
-                        }
                         modelLower == "veo3" -> 800.0
                         modelLower == "veo3-fast" -> 300.0
                         modelLower == "veed" -> 87.5
@@ -2724,11 +2969,17 @@ class ChatViewModel(
         } catch (e: Exception) {
             // Ignore error
         }
+        if (firestoreSync != null && authenticatedUid.isNotBlank()) {
+            viewModelScope.launch {
+                firestoreSync.updateUserPreferences(userTokens = tokens)
+            }
+        }
     }
 
     fun deleteGeneratedImage(id: String) {
         viewModelScope.launch {
             chatDao.deleteGeneratedImageById(id)
+            firestoreSync?.deleteGeneratedImage(id)
         }
     }
 
@@ -2747,46 +2998,14 @@ class ChatViewModel(
         val isSubscribed = _uiState.value.isSubscribed
         val tokenCost = getImageTokenCost(provider, model) * numImages
 
-        // Premium restrictions:
-        // 1. Pro styles check (Pro styles are: Oil Painting, 3D Render, Anime, Editorial, Cinematic, Sci-Fi, Analog Camera, Classic Art, Cyberpunk, 3D Character)
-        val isProStyle = style in listOf(
-            "Oil Painting", "3D Render", "Anime", "Editorial", "Cinematic",
-            "Sci-Fi", "Analog Camera", "Classic Art", "Cyberpunk", "3D Character"
-        )
-
-        // 2. Pro aspect ratios check
-        val isProRatio = aspectRatio in listOf("1536:1024", "1024:1536", "1080:1920", "1920:1080")
-
-        // 3. Max free generations count check (free users up to 3)
-        val currentImagesCount = _uiState.value.generatedImages.size
-        val isDailyLimitReached = currentImagesCount >= 3
-
-        if (!isSubscribed) {
-            if (isProStyle || isProRatio || isDailyLimitReached || numImages > 1 || background != "Auto") {
-                onSubscriptionRequired()
-                return
-            }
-        } else {
-            if (_uiState.value.userTokens < tokenCost.toDouble()) {
-                onSubscriptionRequired()
-                return
-            }
+        if (_uiState.value.userTokens < tokenCost.toDouble()) {
+            onSubscriptionRequired()
+            return
         }
 
-        viewModelScope.launch {
-            if (isSubscribed) {
-                val nextTokens = (_uiState.value.userTokens - tokenCost.toDouble()).coerceAtLeast(0.0)
-                _uiState.update { state ->
-                    state.copy(userTokens = nextTokens)
-                }
-                saveTokensToPrefs(nextTokens)
-                logTokenUsage(
-                    featureType = "Image Generation",
-                    detail = "$numImages Image(s) | Model: $model | Style: $style",
-                    tokenCost = tokenCost.toDouble()
-                )
-            }
+        val perImageCost = getImageTokenCost(provider, model)
 
+        viewModelScope.launch {
             _uiState.update { state ->
                 state.copy(
                     imageGenIsLoading = true,
@@ -2870,107 +3089,165 @@ class ChatViewModel(
             }
             delay(1000)
 
+            var successfulVariants = 0
+            var lastErrorMsg: String? = null
+
             for (i in 1..numImages) {
                 var finalImageUrl = "$baselineImageUrl?w=1024&sig=${UUID.randomUUID()}"
-                
+                var variantSucceeded = false
+
                 val variationLabel = if (numImages > 1) " (Variant $i of $numImages)" else ""
                 if (provider == "Stable Diffusion" || provider == "Stability") {
                     try {
                         _uiState.update { state ->
-                            state.copy(imageGenLog = state.imageGenLog + "> [Stability AI] Uploading visual weights utilizing model $model$variationLabel...\n")
+                            state.copy(imageGenLog = state.imageGenLog + "> [Stability AI] Uploading visual weights utilizing model $model$variationLabel via backend proxy...\n")
                         }
-                        val customApiKey = _uiState.value.stabilityApiKey
                         val generatedUrl = repository.generateStabilityImage(
                             prompt = "${prompt.trim()}, $style aesthetic style, background: $background",
                             model = model,
                             aspectRatio = aspectRatio,
-                            customApiKey = customApiKey.ifBlank { null }
+                            customApiKey = null,
+                            customBaseUrl = _uiState.value.proxyBaseUrl
                         )
-                        finalImageUrl = generatedUrl
-                        _uiState.update { state ->
-                            state.copy(imageGenLog = state.imageGenLog + "> [Stability AI] Decoded artwork array successfully!$variationLabel\n")
+                        if (generatedUrl.isNotBlank()) {
+                            finalImageUrl = generatedUrl
+                            variantSucceeded = true
+                            _uiState.update { state ->
+                                state.copy(imageGenLog = state.imageGenLog + "> [Stability AI] Decoded artwork array successfully!$variationLabel\n")
+                            }
+                        } else {
+                            lastErrorMsg = "Empty image URL returned from Stability AI."
                         }
                     } catch (e: Exception) {
+                        lastErrorMsg = e.localizedMessage ?: "Stability AI generation error."
                         _uiState.update { state ->
-                            state.copy(imageGenLog = state.imageGenLog + "⚠️ [Stability AI] Generation error$variationLabel: ${e.localizedMessage}. Utilizing local high resolution canvas fallback.\n")
+                            state.copy(imageGenLog = state.imageGenLog + "❌ [Stability AI] Generation failed$variationLabel: $lastErrorMsg (0 tokens charged).\n")
                         }
                     }
                 } else if (provider == "OpenAI") {
                     try {
                         _uiState.update { state ->
-                            state.copy(imageGenLog = state.imageGenLog + "> [OpenAI API] Initializing request for $model$variationLabel...\n")
+                            state.copy(imageGenLog = state.imageGenLog + "> [OpenAI API] Initializing request for $model$variationLabel via backend proxy...\n")
                         }
-                        val customApiKey = _uiState.value.openaiApiKey
-                        val customUrl = _uiState.value.openaiBaseUrl
                         val generatedUrl = repository.generateOpenAiImage(
                             prompt = "${prompt.trim()}, $style aesthetic style, background: $background",
                             model = model,
                             aspectRatio = aspectRatio,
-                            customApiKey = customApiKey.ifBlank { null },
-                            customBaseUrl = customUrl.ifBlank { null }
+                            customApiKey = null,
+                            customBaseUrl = _uiState.value.proxyBaseUrl
                         )
-                        finalImageUrl = generatedUrl
-                        _uiState.update { state ->
-                            state.copy(imageGenLog = state.imageGenLog + "> [OpenAI API] Decoded image URL successfully!$variationLabel\n")
+                        if (generatedUrl.isNotBlank()) {
+                            finalImageUrl = generatedUrl
+                            variantSucceeded = true
+                            _uiState.update { state ->
+                                state.copy(imageGenLog = state.imageGenLog + "> [OpenAI API] Decoded image URL successfully!$variationLabel\n")
+                            }
+                        } else {
+                            lastErrorMsg = "Empty image URL returned from OpenAI."
                         }
                     } catch (e: Exception) {
+                        lastErrorMsg = e.localizedMessage ?: "OpenAI generation error."
                         _uiState.update { state ->
-                            state.copy(imageGenLog = state.imageGenLog + "⚠️ [OpenAI API] Generation error$variationLabel: ${e.localizedMessage}. Selecting fallback placeholder.\n")
+                            state.copy(imageGenLog = state.imageGenLog + "❌ [OpenAI API] Generation failed$variationLabel: $lastErrorMsg (0 tokens charged).\n")
                         }
                     }
                 } else if (provider == "Fal AI") {
                     try {
                         val endpointUrl = when (val m = model.lowercase()) {
-                            "flux pro", "flux-pro" -> "https://queue.fal.run/fal-ai/flux-pro"
-                            "flux 2 flex", "flux-2-flex" -> "https://queue.fal.run/fal-ai/flux-2-flex"
-                            "flux realism", "flux-realism" -> "https://queue.fal.run/fal-ai/flux-realism"
-                            "ideogram-v2", "ideogram-v2-using-image-to-image" -> "https://queue.fal.run/fal-ai/ideogram/v2"
-                            "nano-banana" -> "https://queue.fal.run/fal-ai/nano-banana"
-                            "nano-banana-pro" -> "https://queue.fal.run/fal-ai/nano-banana-pro"
-                            "nano-banana-2" -> "https://queue.fal.run/fal-ai/nano-banana-2"
-                            "imagen4" -> "https://queue.fal.run/fal-ai/imagen4"
-                            "flux/schnell", "flux-schnell" -> "https://queue.fal.run/fal-ai/flux/schnell"
-                            else -> if (m.startsWith("https://")) m else "https://queue.fal.run/fal-ai/$m"
+                            "flux pro", "flux-pro" -> "fal-ai/flux-pro"
+                            "flux 2 flex", "flux-2-flex" -> "fal-ai/flux-2-flex"
+                            "flux realism", "flux-realism" -> "fal-ai/flux-realism"
+                            "ideogram-v2", "ideogram-v2-using-image-to-image" -> "fal-ai/ideogram/v2"
+                            "nano-banana" -> "fal-ai/nano-banana"
+                            "nano-banana-pro" -> "fal-ai/nano-banana-pro"
+                            "nano-banana-2" -> "fal-ai/nano-banana-2"
+                            "imagen4" -> "fal-ai/imagen4"
+                            "flux/schnell", "flux-schnell" -> "fal-ai/flux/schnell"
+                            else -> if (m.startsWith("fal-ai/")) m else "fal-ai/$m"
                         }
                         _uiState.update { state ->
-                            state.copy(imageGenLog = state.imageGenLog + "> [Fal.ai Serverless] Initializing fast-stream endpoint for $model$variationLabel...\n")
+                            state.copy(imageGenLog = state.imageGenLog + "> [Fal.ai Serverless] Initializing proxy endpoint for $model$variationLabel...\n")
                         }
-                        val customApiKey = _uiState.value.falApiKey
                         val generatedUrl = repository.generateFalImage(
                             prompt = "${prompt.trim()}, $style aesthetic style, $aspectRatio, background: $background",
                             endpointUrl = endpointUrl,
                             aspectRatio = aspectRatio,
-                            customApiKey = customApiKey.ifBlank { null }
+                            customApiKey = null,
+                            customBaseUrl = _uiState.value.proxyBaseUrl
                         )
-                        finalImageUrl = generatedUrl
-                        _uiState.update { state ->
-                            state.copy(imageGenLog = state.imageGenLog + "> [Fal.ai Serverless] Streamed image response successfully!$variationLabel\n")
+                        if (generatedUrl.isNotBlank()) {
+                            finalImageUrl = generatedUrl
+                            variantSucceeded = true
+                            _uiState.update { state ->
+                                state.copy(imageGenLog = state.imageGenLog + "> [Fal.ai Serverless] Streamed image response successfully!$variationLabel\n")
+                            }
+                        } else {
+                            lastErrorMsg = "Empty image URL returned from Fal.ai."
                         }
                     } catch (e: Exception) {
+                        lastErrorMsg = e.localizedMessage ?: "Fal.ai generation error."
                         _uiState.update { state ->
-                            state.copy(imageGenLog = state.imageGenLog + "⚠️ [Fal.ai] Generation error$variationLabel: ${e.localizedMessage}. Selecting fallback vector map.\n")
+                            state.copy(imageGenLog = state.imageGenLog + "❌ [Fal.ai] Generation failed$variationLabel: $lastErrorMsg (0 tokens charged).\n")
                         }
                     }
+                } else {
+                    variantSucceeded = true
                 }
 
-                val imageEntity = com.example.data.db.GeneratedImageEntity(
-                    id = UUID.randomUUID().toString(),
-                    prompt = if (numImages > 1) "${prompt.trim()} (Image ${i} of ${numImages})" else prompt.trim(),
-                    imageUrl = saveBase64ImageToFileIfNeeded(finalImageUrl),
-                    style = style,
-                    aspectRatio = aspectRatio,
-                    timestamp = System.currentTimeMillis() + i * 10,
-                    userEmail = _uiState.value.currentUserProfile?.email,
-                    model = model
-                )
-                chatDao.insertGeneratedImage(imageEntity)
+                if (variantSucceeded) {
+                    successfulVariants++
+                    val imageEntity = com.example.data.db.GeneratedImageEntity(
+                        id = UUID.randomUUID().toString(),
+                        prompt = if (numImages > 1) "${prompt.trim()} (Image ${i} of ${numImages})" else prompt.trim(),
+                        imageUrl = saveBase64ImageToFileIfNeeded(finalImageUrl),
+                        style = style,
+                        aspectRatio = aspectRatio,
+                        timestamp = System.currentTimeMillis() + i * 10,
+                        userEmail = activeUserScopeKey,
+                        model = model
+                    )
+                    chatDao.insertGeneratedImage(imageEntity)
+                    firestoreSync?.saveGeneratedImage(
+                        id = imageEntity.id,
+                        prompt = imageEntity.prompt,
+                        imageUrl = imageEntity.imageUrl,
+                        style = imageEntity.style,
+                        aspectRatio = imageEntity.aspectRatio,
+                        model = imageEntity.model,
+                        clientTimestamp = imageEntity.timestamp
+                    )
+                }
             }
 
-            _uiState.update { state ->
-                state.copy(
-                    imageGenIsLoading = false,
-                    imageGenLog = state.imageGenLog + "\n> ALL ARTWORKS GENERATED SUCCESSFULLY!\n> Saved to your gallery."
-                )
+            if (successfulVariants > 0) {
+                var deductedAmount = 0.0
+                if (perImageCost > 0 && _uiState.value.userTokens > 0.0) {
+                    deductedAmount = (perImageCost * successfulVariants).toDouble()
+                    val nextTokens = (_uiState.value.userTokens - deductedAmount).coerceAtLeast(0.0)
+                    _uiState.update { state ->
+                        state.copy(userTokens = nextTokens)
+                    }
+                    saveTokensToPrefs(nextTokens)
+                    logTokenUsage(
+                        featureType = "Image Generation",
+                        detail = "$successfulVariants Image(s) | Model: $model | Style: $style",
+                        tokenCost = deductedAmount
+                    )
+                }
+                _uiState.update { state ->
+                    val tokenLog = if (deductedAmount > 0.0) "\n> 🪙 Deducted ${deductedAmount.formatTokens()} Tokens after successful generation." else ""
+                    state.copy(
+                        imageGenIsLoading = false,
+                        imageGenLog = state.imageGenLog + "\n> $successfulVariants ARTWORK(S) GENERATED SUCCESSFULLY!\n> Saved to your gallery.$tokenLog"
+                    )
+                }
+            } else {
+                _uiState.update { state ->
+                    state.copy(
+                        imageGenIsLoading = false,
+                        imageGenLog = state.imageGenLog + "\n> ❌ Image generation failed${lastErrorMsg?.let { ": $it" } ?: ""}.\n> 🪙 0 Tokens deducted."
+                    )
+                }
             }
         }
     }
@@ -2990,6 +3267,7 @@ class ChatViewModel(
     fun deleteGeneratedVideo(id: String) {
         viewModelScope.launch {
             chatDao.deleteGeneratedVideoById(id)
+            firestoreSync?.deleteGeneratedVideo(id)
             try {
                 val file = java.io.File(AppContextProvider.context.filesDir, "video_${id}.mp4")
                 if (file.exists()) {
@@ -3088,48 +3366,12 @@ class ChatViewModel(
             lumaExrExport = lumaExrExport
         )
 
-        // Premium restrictions check:
-        val isProRatio = if (provider == "OpenAI") {
-            aspectRatio == "1024x1792" || aspectRatio == "1792x1024" || aspectRatio == "1080x1920" || aspectRatio == "1920x1080"
-        } else {
-            aspectRatio in listOf("9:16", "21:9")
-        }
-        val isProResolution = if (provider == "OpenAI") {
-            false
-        } else {
-            resolution in listOf("1080p", "4K")
-        }
-        val isProDuration = duration in listOf("10s", "30s")
-
-        val currentVideosCount = _uiState.value.generatedVideos.size
-        val isLimitReached = currentVideosCount >= 2
-
-        if (!isSubscribed) {
-            if (isProRatio || isProResolution || isProDuration || isLimitReached) {
-                onSubscriptionRequired()
-                return
-            }
-        } else {
-            if (_uiState.value.userTokens < tokenCost.toDouble()) {
-                onSubscriptionRequired()
-                return
-            }
+        if (_uiState.value.userTokens < tokenCost.toDouble()) {
+            onSubscriptionRequired()
+            return
         }
 
         viewModelScope.launch {
-            if (isSubscribed) {
-                val nextTokens = (_uiState.value.userTokens - tokenCost.toDouble()).coerceAtLeast(0.0)
-                _uiState.update { state ->
-                    state.copy(userTokens = nextTokens)
-                }
-                saveTokensToPrefs(nextTokens)
-                logTokenUsage(
-                    featureType = "Video Generation",
-                    detail = "Model: $model | Style: $style | Duration: $duration",
-                    tokenCost = tokenCost.toDouble()
-                )
-            }
-
             val mode = _uiState.value.selectedVideoMode
 
             _uiState.update { state ->
@@ -3165,23 +3407,7 @@ class ChatViewModel(
                     }
                     delay(800)
                     _uiState.update { state ->
-                        val isVeo2 = model.contains("veo-2", ignoreCase = true) || model == "veo2"
-                        val logText = if (isVeo2) {
-                            val durationSecs = if (duration.contains("5")) 5 else if (duration.contains("6")) 6 else if (duration.contains("7")) 7 else 8
-                            val aspect = if (aspectRatio == "9:16") "9:16" else "16:9"
-                            "> [Veo Native API] Serializing Client Payload to client.models.generateVideos:\n" +
-                            "   ├─ Top-Level Parameters:\n" +
-                            "   │   ├─ model: \"veo-2.0-generate-001\"\n" +
-                            "   │   └─ prompt: \"${prompt.trim()}\"\n" +
-                            "   ├─ Configuration (GenerateVideosConfig):\n" +
-                            "   │   ├─ durationSeconds: $durationSecs (allowed bounds: 5s - 8s)\n" +
-                            "   │   ├─ aspectRatio: \"$aspect\"\n" +
-                            "   │   ├─ negativePrompt: \"$negativePrompt\"\n" +
-                            "   │   ├─ enhancePrompt: $enhancePrompt\n" +
-                            "   │   ├─ seed: ${seed ?: "random"}\n" +
-                            "   │   └─ autoFix: $autoFix\n" +
-                            "   └─ Note: Native audio generation is not supported on Veo 2. Payload configured without acoustical targets.\n"
-                        } else {
+                        val logText =
                             "> [Veo Native API] Serializing Client Payload to client.models.generateVideos:\n" +
                             "   ├─ Top-Level Parameters:\n" +
                             "   │   ├─ model: \"$model\"\n" +
@@ -3191,12 +3417,11 @@ class ChatViewModel(
                             "       ├─ aspectRatio: \"$aspectRatio\"\n" +
                             "       ├─ resolution: \"$resolution\"\n" +
                             "       └─ audioGeneration: $generateAudio\n"
-                        }
                         state.copy(videoGenLog = state.videoGenLog + logText)
                     }
                     delay(1200)
 
-                    if (generateAudio == "On" && !(model.contains("veo-2", ignoreCase = true) || model == "veo2")) {
+                    if (generateAudio == "On") {
                         _uiState.update { state ->
                             state.copy(videoGenLog = state.videoGenLog + "> [Veo Audio Engine] Synthesizing dynamically spatialized 3D surround sound matched to scene dynamics...\n")
                         }
@@ -3233,14 +3458,12 @@ class ChatViewModel(
 
             if (provider == "OpenAI") {
                 try {
-                    val key = _uiState.value.openaiApiKey.ifBlank { null }
-                    val customUrl = _uiState.value.openaiBaseUrl.ifBlank { null }
                     val customWebhookUrl = _uiState.value.openaiWebhookUrl.ifBlank { null }
                     _uiState.update { state ->
                         val msg = if (!customWebhookUrl.isNullOrBlank()) {
-                            "> Sending request to OpenAI Sora API with Webhook URL [$customWebhookUrl]...\n"
+                            "> Sending request to OpenAI Sora proxy with Webhook URL [$customWebhookUrl]...\n"
                         } else {
-                            "> Sending request to OpenAI Sora API...\n"
+                            "> Sending request to OpenAI Sora proxy...\n"
                         }
                         state.copy(videoGenLog = state.videoGenLog + msg)
                     }
@@ -3251,8 +3474,8 @@ class ChatViewModel(
                         resolution = resolution,
                         duration = duration,
                         style = style,
-                        customApiKey = key,
-                        customBaseUrl = customUrl,
+                        customApiKey = null,
+                        customBaseUrl = _uiState.value.proxyBaseUrl,
                         webhookUrl = customWebhookUrl,
                         onLogMessage = { log ->
                             _uiState.update { state ->
@@ -3273,7 +3496,6 @@ class ChatViewModel(
                 }
             } else if (provider == "FalAI" || provider == "Minimax" || provider == "Veo" || provider == "Kling" || provider == "Bytedance" || provider == "PixVerse" || provider == "Alibaba" || provider == "Xai") {
                 try {
-                    val key = _uiState.value.falApiKey.ifBlank { null }
                     val modelLower = model.lowercase().trim()
                     val isKlingV25TurboStandard = provider == "Kling" && (modelLower == "kling v2.5 turbo standard" || modelLower.contains("kling-2.5-turbo/standard") || modelLower.contains("v2.5-turbo/standard"))
                     val isKlingV25TurboPro = provider == "Kling" && (modelLower == "kling v2.5 turbo pro" || modelLower.contains("kling-2.5-turbo/pro") || modelLower.contains("v2.5-turbo/pro"))
@@ -3619,7 +3841,7 @@ class ChatViewModel(
                         model = model,
                         resolution = resolution,
                         generateAudio = (generateAudio.trim().lowercase() == "on"),
-                        customApiKey = key,
+                        customApiKey = null,
                         negativePrompt = negativePrompt,
                         cfgScale = cfgScale,
                         shotType = shotType,
@@ -3649,6 +3871,7 @@ class ChatViewModel(
                         alibabaVideoUrl = alibabaVideoUrl,
                         hunyuanInferenceSteps = hunyuanInferenceSteps,
                         hunyuanFrames = hunyuanFrames,
+                        customBaseUrl = _uiState.value.proxyBaseUrl,
                         onLogMessage = { log ->
                             _uiState.update { state ->
                                 state.copy(videoGenLog = state.videoGenLog + log)
@@ -3669,17 +3892,17 @@ class ChatViewModel(
                 generatedVideoUrl = sampleVideoUrls[java.util.Random().nextInt(sampleVideoUrls.size)]
             }
 
-            if (errorOccurred != null) {
+            if (errorOccurred != null || generatedVideoUrl.isNullOrBlank()) {
                 _uiState.update { state ->
                     state.copy(
                         videoGenIsLoading = false,
-                        videoGenLog = state.videoGenLog + "\n❌ $provider Video Generation Failed:\n$errorOccurred\n"
+                        videoGenLog = state.videoGenLog + "\n❌ $provider Video Generation Failed:\n${errorOccurred ?: "Empty video URL returned"}\n> 🪙 0 Tokens deducted.\n"
                     )
                 }
                 return@launch
             }
 
-            val finalVideoUrl = generatedVideoUrl ?: "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4"
+            val finalVideoUrl = generatedVideoUrl
 
             val videoEntity = com.example.data.db.GeneratedVideoEntity(
                 id = UUID.randomUUID().toString(),
@@ -3690,14 +3913,41 @@ class ChatViewModel(
                 resolution = resolution,
                 duration = duration,
                 timestamp = System.currentTimeMillis(),
-                userEmail = _uiState.value.currentUserProfile?.email,
+                userEmail = activeUserScopeKey,
                 model = model
             )
 
             chatDao.insertGeneratedVideo(videoEntity)
+            firestoreSync?.saveGeneratedVideo(
+                id = videoEntity.id,
+                prompt = videoEntity.prompt,
+                videoUrl = videoEntity.videoUrl,
+                style = videoEntity.style,
+                aspectRatio = videoEntity.aspectRatio,
+                resolution = videoEntity.resolution,
+                duration = videoEntity.duration,
+                model = videoEntity.model,
+                clientTimestamp = videoEntity.timestamp
+            )
+
+            var tokenDeductedLog = ""
+            if (tokenCost > 0 && _uiState.value.userTokens > 0.0) {
+                val costDouble = tokenCost.toDouble()
+                val nextTokens = (_uiState.value.userTokens - costDouble).coerceAtLeast(0.0)
+                _uiState.update { state ->
+                    state.copy(userTokens = nextTokens)
+                }
+                saveTokensToPrefs(nextTokens)
+                logTokenUsage(
+                    featureType = "Video Generation",
+                    detail = "Model: $model | Style: $style | Duration: $duration",
+                    tokenCost = costDouble
+                )
+                tokenDeductedLog = "> 🪙 Deducted ${costDouble.formatTokens()} Tokens after successful generation.\n"
+            }
 
             _uiState.update { state ->
-                state.copy(videoGenLog = state.videoGenLog + "> GENERATION SUCCESSFUL!\n> Preserving generated .mp4 in internal database...\n> Downloading and caching video locally for offline player...\n")
+                state.copy(videoGenLog = state.videoGenLog + "> GENERATION SUCCESSFUL!\n$tokenDeductedLog> Preserving generated .mp4 in internal database...\n> Downloading and caching video locally for offline player...\n")
             }
 
             // Perform automatic background cache of the video file to ensure instant, perfect ExoPlayer rendering
@@ -3730,7 +3980,12 @@ class ChatViewModel(
     fun deleteGeneratedMusic(id: String) {
         viewModelScope.launch {
             chatDao.deleteGeneratedMusicById(id)
+            firestoreSync?.deleteGeneratedMusic(id)
         }
+    }
+
+    fun clearMusicGenLog() {
+        _uiState.update { state -> state.copy(musicGenLog = "") }
     }
 
     fun generateMusic(
@@ -3754,102 +4009,106 @@ class ChatViewModel(
         val currentMusicCount = _uiState.value.generatedMusic.size
         val isLimitReached = currentMusicCount >= 2
 
-        if (!isSubscribed) {
+        val hasEnoughTokens = _uiState.value.userTokens >= tokenCost.toDouble()
+        if (!isSubscribed && !hasEnoughTokens) {
             if (isProGenre || isProDuration || isLimitReached) {
                 onSubscriptionRequired()
                 return
             }
-        } else {
-            if (_uiState.value.userTokens < tokenCost.toDouble()) {
-                onSubscriptionRequired()
-                return
-            }
+        } else if (!hasEnoughTokens) {
+            onSubscriptionRequired()
+            return
         }
 
         viewModelScope.launch {
-            if (isSubscribed) {
-                val nextTokens = (_uiState.value.userTokens - tokenCost.toDouble()).coerceAtLeast(0.0)
-                _uiState.update { state ->
-                    state.copy(userTokens = nextTokens)
-                }
-                saveTokensToPrefs(nextTokens)
-                logTokenUsage(
-                    featureType = "Music Generation",
-                    detail = "Model: $model | Genre: $genre | Duration: $duration",
-                    tokenCost = tokenCost.toDouble()
-                )
-            }
-
             _uiState.update { state ->
                 state.copy(
                     musicGenIsLoading = true,
-                    musicGenLog = "> Connecting to AI Music Synthesizer Engine powered by $provider...\n"
+                    musicGenLog = "> Initializing AI Music Studio ($provider)...\n" +
+                        "> Selected Model: $model | Genre: $genre | Duration: $duration | Tempo: $tempo\n"
                 )
             }
 
-            delay(1000)
-            _uiState.update { state ->
-                state.copy(musicGenLog = state.musicGenLog + "> Secure authentication with $provider API ($model) completed successfully...\n")
-            }
-            delay(1000)
-            _uiState.update { state ->
-                state.copy(musicGenLog = state.musicGenLog + "> Analyzing beats and mood: '${prompt.trim()}'...\n")
-            }
-            delay(1200)
+            try {
+                val proxyRoot = _uiState.value.proxyBaseUrl.ifBlank { BackendProxyClient.DEFAULT_PROXY_ROOT }
+                val cachedOrFetchedKey = _uiState.value.elevenLabsApiKey.takeIf { it.isNotBlank() }
 
-            when (provider) {
-                "ElevenLabs" -> {
-                    _uiState.update { state ->
-                        state.copy(musicGenLog = state.musicGenLog + "> Connecting to ElevenLabs ($model) Sound & Music Synthesizer pipeline...\n")
+                val musicUrl = repository.generateElevenLabsMusic(
+                    prompt = prompt.trim(),
+                    genre = genre,
+                    duration = duration,
+                    tempo = tempo,
+                    model = model,
+                    customApiKey = cachedOrFetchedKey,
+                    customBaseUrl = proxyRoot,
+                    onLogMessage = { msg ->
+                        _uiState.update { state ->
+                            state.copy(musicGenLog = state.musicGenLog + msg)
+                        }
                     }
-                    delay(800)
+                )
+
+                // Deduct tokens ONLY after ElevenLabs succeeds
+                var tokenDeductedLog = ""
+                if (tokenCost > 0 && _uiState.value.userTokens >= tokenCost.toDouble()) {
+                    val nextTokens = (_uiState.value.userTokens - tokenCost.toDouble()).coerceAtLeast(0.0)
                     _uiState.update { state ->
-                        state.copy(musicGenLog = state.musicGenLog + "> Initializing ElevenLabs neural audio generator & acoustic stem synthesis...\n")
+                        state.copy(userTokens = nextTokens)
                     }
+                    saveTokensToPrefs(nextTokens)
+                    logTokenUsage(
+                        featureType = "Music Generation",
+                        detail = "Model: $model | Genre: $genre | Duration: $duration",
+                        tokenCost = tokenCost.toDouble()
+                    )
+                    tokenDeductedLog = "> 🪙 $tokenCost tokens deducted after successful generation.\n"
                 }
-            }
-            delay(1000)
 
-            _uiState.update { state ->
-                state.copy(musicGenLog = state.musicGenLog + "> Arranging instrument harmonies for the genre '$genre'...\n")
-            }
-            delay(1000)
-            _uiState.update { state ->
-                state.copy(musicGenLog = state.musicGenLog + "> Setting tempo [$tempo] and aligning sampler ($duration)...\n")
-            }
-            delay(1200)
-            _uiState.update { state ->
-                state.copy(musicGenLog = state.musicGenLog + "> Rendering hi-fi stereo master audio (multi-track frequency synthesis)...\n")
-            }
-            delay(1500)
-
-            val sampleMusicUrls = listOf(
-                "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3",
-                "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3",
-                "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-3.mp3",
-                "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-4.mp3",
-                "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-5.mp3"
-            )
-            val randomMusicUrl = sampleMusicUrls[java.util.Random().nextInt(sampleMusicUrls.size)]
-
-            val musicEntity = com.example.data.db.GeneratedMusicEntity(
-                id = UUID.randomUUID().toString(),
-                prompt = prompt.trim(),
-                musicUrl = randomMusicUrl,
-                genre = genre,
-                duration = duration,
-                tempo = tempo,
-                timestamp = System.currentTimeMillis(),
-                userEmail = _uiState.value.currentUserProfile?.email
-            )
-
-            chatDao.insertGeneratedMusic(musicEntity)
-
-            _uiState.update { state ->
-                state.copy(
-                    musicGenIsLoading = false,
-                    musicGenLog = state.musicGenLog + "> MUSIC GENERATION SUCCESSFUL!\n> Audio file for model $model has been successfully saved to the local library."
+                val musicEntity = com.example.data.db.GeneratedMusicEntity(
+                    id = UUID.randomUUID().toString(),
+                    prompt = prompt.trim(),
+                    musicUrl = musicUrl,
+                    genre = genre,
+                    duration = duration,
+                    tempo = tempo,
+                    timestamp = System.currentTimeMillis(),
+                    userEmail = activeUserScopeKey
                 )
+
+                chatDao.insertGeneratedMusic(musicEntity)
+                firestoreSync?.saveGeneratedMusic(
+                    id = musicEntity.id,
+                    prompt = musicEntity.prompt,
+                    musicUrl = musicEntity.musicUrl,
+                    genre = musicEntity.genre,
+                    duration = musicEntity.duration,
+                    tempo = musicEntity.tempo,
+                    clientTimestamp = musicEntity.timestamp
+                )
+
+                _uiState.update { state ->
+                    state.copy(
+                        musicGenIsLoading = false,
+                        musicGenLog = state.musicGenLog +
+                            "> MUSIC GENERATION SUCCESSFUL!\n" +
+                            tokenDeductedLog +
+                            "> Saved audio track to your library."
+                    )
+                }
+            } catch (e: Exception) {
+                val errorMsg = when (e) {
+                    is java.net.SocketTimeoutException ->
+                        "Request timeout saat menunggu musik dari server/ElevenLabs. Coba durasi lebih pendek (15s/30s) atau pastikan Render proxy tidak time-out."
+                    else -> e.message ?: e.localizedMessage ?: "Unknown ElevenLabs API error"
+                }
+                _uiState.update { state ->
+                    state.copy(
+                        musicGenIsLoading = false,
+                        musicGenLog = state.musicGenLog +
+                            "\n❌ $provider Music Generation Failed:\n$errorMsg\n" +
+                            "> 🪙 0 Tokens deducted.\n"
+                    )
+                }
             }
         }
     }
@@ -3981,10 +4240,19 @@ class ChatViewModel(
                 style = style,
                 aspectRatio = aspectRatio,
                 timestamp = System.currentTimeMillis(),
-                userEmail = _uiState.value.currentUserProfile?.email,
+                userEmail = activeUserScopeKey,
                 model = modelName
             )
             chatDao.insertGeneratedImage(editedEntity)
+            firestoreSync?.saveGeneratedImage(
+                id = editedEntity.id,
+                prompt = editedEntity.prompt,
+                imageUrl = editedEntity.imageUrl,
+                style = editedEntity.style,
+                aspectRatio = editedEntity.aspectRatio,
+                model = editedEntity.model,
+                clientTimestamp = editedEntity.timestamp
+            )
         }
     }
 
@@ -4008,10 +4276,21 @@ class ChatViewModel(
                 resolution = resolution,
                 duration = duration,
                 timestamp = System.currentTimeMillis(),
-                userEmail = _uiState.value.currentUserProfile?.email,
+                userEmail = activeUserScopeKey,
                 model = model
             )
             chatDao.insertGeneratedVideo(editedEntity)
+            firestoreSync?.saveGeneratedVideo(
+                id = editedEntity.id,
+                prompt = editedEntity.prompt,
+                videoUrl = editedEntity.videoUrl,
+                style = editedEntity.style,
+                aspectRatio = editedEntity.aspectRatio,
+                resolution = editedEntity.resolution,
+                duration = editedEntity.duration,
+                model = editedEntity.model,
+                clientTimestamp = editedEntity.timestamp
+            )
         }
     }
 
@@ -4032,9 +4311,18 @@ class ChatViewModel(
                 duration = duration,
                 tempo = tempo,
                 timestamp = System.currentTimeMillis(),
-                userEmail = _uiState.value.currentUserProfile?.email
+                userEmail = activeUserScopeKey
             )
             chatDao.insertGeneratedMusic(editedEntity)
+            firestoreSync?.saveGeneratedMusic(
+                id = editedEntity.id,
+                prompt = editedEntity.prompt,
+                musicUrl = editedEntity.musicUrl,
+                genre = editedEntity.genre,
+                duration = editedEntity.duration,
+                tempo = editedEntity.tempo,
+                clientTimestamp = editedEntity.timestamp
+            )
         }
     }
 
@@ -4453,7 +4741,7 @@ class ChatViewModel(
             } catch (e: Exception) {
                 _uiState.update { it.copy(
                     visionIsLoading = false,
-                    visionResult = "Error: Connection failed or timeout occurred while analyzing the image: ${e.localizedMessage}. Please try again later or verify your API Key in Settings."
+                    visionResult = "Error: Connection failed or timeout occurred while analyzing the image: ${e.localizedMessage}. Please check your internet connection and try again."
                 )}
             }
         }
@@ -4752,8 +5040,8 @@ class ChatViewModel(
                 }
             }
 
-            val currentProvider = if (_uiState.value.openaiApiKey.isNotBlank()) "OpenAI" else if (_uiState.value.deepseekApiKey.isNotBlank()) "DeepSeek" else if (_uiState.value.claudeApiKey.isNotBlank()) "Claude" else "OpenAI"
-            val currentModel = if (currentProvider == "OpenAI") "gpt-4o-mini" else if (currentProvider == "DeepSeek") "deepseek-v4-flash" else if (currentProvider == "Claude") "claude-sonnet-4-6" else "gpt-4o-mini"
+            val currentProvider = "OpenAI"
+            val currentModel = "gpt-4o-mini"
             val keysMap = getActiveKeysMap()
             val urlsMap = getActiveUrlsMap()
             val studentLevel = _uiState.value.mathStudentLevel
@@ -4887,8 +5175,8 @@ class ChatViewModel(
                 mathConceptExplanation = ""
             ) }
 
-            val currentProvider = if (_uiState.value.openaiApiKey.isNotBlank()) "OpenAI" else if (_uiState.value.deepseekApiKey.isNotBlank()) "DeepSeek" else if (_uiState.value.claudeApiKey.isNotBlank()) "Claude" else "OpenAI"
-            val currentModel = if (currentProvider == "OpenAI") "gpt-4o-mini" else if (currentProvider == "DeepSeek") "deepseek-v4-flash" else if (currentProvider == "Claude") "claude-sonnet-4-6" else "gpt-4o-mini"
+            val currentProvider = "OpenAI"
+            val currentModel = "gpt-4o-mini"
             val keysMap = getActiveKeysMap()
             val urlsMap = getActiveUrlsMap()
 
@@ -5006,7 +5294,7 @@ class ChatViewModel(
             } catch (e: Exception) {
                 _uiState.update { it.copy(
                     docIsLoading = false,
-                    docSummaryResult = "Error: Connection failed or timeout occurred while summarizing the document: ${e.localizedMessage}. Please periksa koneksi internet Anda atau lengkapi API Key Anda di menu Pengaturan."
+                    docSummaryResult = "Error: Connection failed or timeout occurred while summarizing the document: ${e.localizedMessage}. Silakan periksa koneksi internet Anda dan coba lagi."
                 )}
             }
         }
@@ -5049,7 +5337,7 @@ class ChatViewModel(
             } catch (e: Exception) {
                 _uiState.update { it.copy(
                     docQaIsLoading = false,
-                    docQaAnswer = "Error: Connection failed or timeout occurred while processing question: ${e.localizedMessage}. Please try again later or verify your API Key in Settings."
+                    docQaAnswer = "Error: Connection failed or timeout occurred while processing question: ${e.localizedMessage}. Please check your internet connection and try again."
                 )}
             }
         }
@@ -5998,2395 +6286,6 @@ class ChatViewModel(
         }
     }
 
-    // --- KIDS AI STORYTELLER ---
-    fun setStoryTheme(theme: String) {
-        _uiState.update { it.copy(storySelectedTheme = theme) }
-    }
-
-    fun setStoryChildName(name: String) {
-        _uiState.update { it.copy(storyChildName = name) }
-    }
-
-    fun setStoryStyle(style: String) {
-        _uiState.update { it.copy(storySelectedStyle = style) }
-    }
-
-    fun setStoryPageIndex(index: Int) {
-        _uiState.update { it.copy(storyCurrentPageIndex = index) }
-    }
-
-    fun clearStoryError() {
-        _uiState.update { it.copy(storyError = "") }
-    }
-
-    fun resetStoryBook() {
-        _uiState.update { it.copy(storyActiveBook = null, storyCurrentPageIndex = 0, storyError = "", storyIsLoading = null) }
-    }
-
-    fun generateKidsStory(
-        theme: String,
-        childName: String,
-        style: String,
-        tts: android.speech.tts.TextToSpeech?
-    ) {
-        val sanitizedTheme = theme.trim().ifEmpty { "Magic Fairy Forest" }
-        val sanitizedName = childName.trim().ifEmpty { "Leo" }
-        val sanitizedStyle = style.trim().ifEmpty { "Watercolor Illustration" }
-
-        viewModelScope.launch {
-            _uiState.update {
-                it.copy(
-                    storySelectedTheme = sanitizedTheme,
-                    storyChildName = sanitizedName,
-                    storySelectedStyle = sanitizedStyle,
-                    storyIsLoading = "Drafting your magical fairy tale...",
-                    storyError = "",
-                    storyActiveBook = null,
-                    storyCurrentPageIndex = 0
-                )
-            }
-
-            val apiKey = _uiState.value.openaiApiKey
-            if (apiKey.isBlank() || apiKey.contains("PLACEHOLDER")) {
-                // If API Key is missing, load a beautiful offline story!
-                delay(1500)
-                val book = getOfflineStory(sanitizedTheme, sanitizedName, sanitizedStyle)
-                val updatedList = _uiState.value.storyBookList.toMutableList().apply { add(0, book) }
-                _uiState.update {
-                    it.copy(
-                        storyActiveBook = book,
-                        storyIsLoading = null,
-                        storyBookList = updatedList
-                    )
-                }
-                // Speak the first page of the offline book!
-                speakStoryPage(book.pages.firstOrNull()?.text ?: "", tts)
-                return@launch
-            }
-
-            try {
-                _uiState.update { it.copy(storyIsLoading = "Weaving cohesive plot lines and characters...") }
-
-                val systemText = """
-                    You are a premium, award-winning children's storybook author.
-                    Generate exactly 5 continuous storybook pages based on the User's Theme and the Child's Name.
-                    Output a single JSON object with a "title" and a "pages" array of exactly 5 page objects with this exact structure:
-                    {
-                      "title": "A highly creative, magical title for the book",
-                      "pages": [
-                        {
-                          "pageNumber": 1,
-                          "pageTitle": "A short whimsical chapter or scene name",
-                          "text": "A paragraphs or 2-4 sweet storytelling lines filled with wonder. Keep it child-friendly, colorful, highly narrative, and beautiful.",
-                          "imagePrompt": "Highly descriptive scene illustration prompt detailing objects, main characters, colorful background elements, mood, and lightning. Do not include style keywords since style is injected separately."
-                        }
-                      ]
-                    }
-                    Strict rules:
-                    - Address the child by name as the hero throughout the adventure.
-                    - Keep sentences delightful, highly readable, and filled with gentle moral lessons or discovery.
-                    - Do not write any markdown code fences. Return only raw JSON string.
-                """.trimIndent()
-
-                val promptMsg = "Theme: $sanitizedTheme, Child Name: $sanitizedName."
-
-                val keysMap = getActiveKeysMap()
-                val urlsMap = getActiveUrlsMap()
-
-                val output = repository.sendSimpleRequest(
-                    prompt = promptMsg,
-                    systemText = systemText,
-                    providerKeys = keysMap,
-                    providerUrls = urlsMap
-                )
-
-                var rawText = output.trim()
-                if (rawText.startsWith("```json")) {
-                    rawText = rawText.substringAfter("```json")
-                } else if (rawText.startsWith("```")) {
-                    rawText = rawText.substringAfter("```")
-                }
-                if (rawText.endsWith("```")) {
-                    rawText = rawText.substringBeforeLast("```")
-                }
-                rawText = rawText.trim()
-
-                var parsedBook: KidStory? = null
-                try {
-                    val jsonObj = org.json.JSONObject(rawText)
-                    val bookTitle = jsonObj.optString("title", "A Whimsical Adventure")
-                    val pagesArray = jsonObj.getJSONArray("pages")
-                    val parsedPages = mutableListOf<StoryPage>()
-
-                    for (i in 0 until pagesArray.length()) {
-                        val pObj = pagesArray.getJSONObject(i)
-                        parsedPages.add(
-                            StoryPage(
-                                pageNumber = pObj.optInt("pageNumber", i + 1),
-                                title = pObj.optString("pageTitle", "Scene ${i + 1}"),
-                                text = pObj.optString("text", "Leo went on a beautiful starry stroll."),
-                                imagePrompt = pObj.optString("imagePrompt", "cute colorful space fields, friendly cartoon style")
-                            )
-                        )
-                    }
-
-                    parsedBook = KidStory(
-                        title = bookTitle,
-                        theme = sanitizedTheme,
-                        childName = sanitizedName,
-                        illustrationStyle = sanitizedStyle,
-                        pages = parsedPages
-                    )
-                } catch (e: Exception) {
-                    android.util.Log.e("Storyteller", "JSON Parse error: ${e.message}. Using offline fallback.")
-                    parsedBook = getOfflineStory(sanitizedTheme, sanitizedName, sanitizedStyle)
-                }
-
-                val bookToUse = parsedBook ?: getOfflineStory(sanitizedTheme, sanitizedName, sanitizedStyle)
-                val updatedList = _uiState.value.storyBookList.toMutableList().apply { add(0, bookToUse) }
-
-                _uiState.update {
-                    it.copy(
-                        storyActiveBook = bookToUse,
-                        storyIsLoading = "Painting illustrations for all pages in the background...",
-                        storyBookList = updatedList
-                    )
-                }
-
-                // Fire image generation
-                generateIllustrationsForBook(bookToUse, sanitizedStyle)
-
-                _uiState.update { it.copy(storyIsLoading = null) }
-
-                // Read page 1 aloud!
-                speakStoryPage(bookToUse.pages.firstOrNull()?.text ?: "", tts)
-
-            } catch (e: Exception) {
-                val book = getOfflineStory(sanitizedTheme, sanitizedName, sanitizedStyle)
-                val updatedList = _uiState.value.storyBookList.toMutableList().apply { add(0, book) }
-                _uiState.update {
-                    it.copy(
-                        storyError = "AI API failed: ${e.message}. Loaded dynamic Offline Tale!",
-                        storyActiveBook = book,
-                        storyIsLoading = null,
-                        storyBookList = updatedList
-                    )
-                }
-                speakStoryPage(book.pages.firstOrNull()?.text ?: "", tts)
-            }
-        }
-    }
-
-    private fun generateIllustrationsForBook(book: KidStory, style: String) {
-        viewModelScope.launch {
-            val stylePrefix = when (style) {
-                "Watercolor Illustration" -> "Lively, bright, highly detailed whimsical children's book watercolor illustration, cute pastel color palette, soft clean shapes, child friendly, scene: "
-                "Cute Pixel Art" -> "Vibrant 16-bit cute pixel art style, gameboy advance console retro screen, child-friendly cute vector aesthetics, scene: "
-                "Playful 3D Claymation" -> "Beautiful 3D stop-motion claymation, cozy hand-modeled play-doh figures, detailed plastiline characters, studio lighting, cute childish fantasy, scene: "
-                "Whimsical Storybook Sketch" -> "Delicate pencil drawing with color ink wash, cozy storybook classic illustration, classic fairy tale sketches, magical warm soft shadows, scene: "
-                else -> "Cozy bright whimsical children's book illustration, cartoon vibes, scene: "
-            }
-
-            book.pages.forEach { page ->
-                try {
-                    val fullPrompt = "$stylePrefix${page.imagePrompt}"
-                    val imageUri = repository.generateOpenAiImage(
-                        prompt = fullPrompt,
-                        model = "gpt-image-1.5",
-                        customApiKey = _uiState.value.openaiApiKey.ifBlank { null },
-                        customBaseUrl = _uiState.value.openaiBaseUrl.ifBlank { null }
-                    )
-
-                    _uiState.update { state ->
-                        val active = state.storyActiveBook
-                        if (active != null && active.id == book.id) {
-                            val updatedPages = active.pages.map { p ->
-                                if (p.pageNumber == page.pageNumber) p.copy(imagePath = imageUri) else p
-                            }
-                            state.copy(storyActiveBook = active.copy(pages = updatedPages))
-                        } else {
-                            state
-                        }
-                    }
-                } catch (e: Exception) {
-                    android.util.Log.e("Storyteller", "Failed to paint page ${page.pageNumber}: ${e.message}")
-                }
-            }
-        }
-    }
-
-    fun speakStoryPage(text: String, tts: android.speech.tts.TextToSpeech?) {
-        if (text.isBlank()) return
-        viewModelScope.launch {
-            _uiState.update { it.copy(storyIsPlayingAudio = true) }
-            if (tts != null) {
-                tts.language = java.util.Locale.US
-                tts.setOnUtteranceProgressListener(object : android.speech.tts.UtteranceProgressListener() {
-                    override fun onStart(utteranceId: String?) {}
-                    override fun onDone(utteranceId: String?) {
-                        _uiState.update { it.copy(storyIsPlayingAudio = false) }
-                    }
-                    override fun onError(utteranceId: String?) {
-                        _uiState.update { it.copy(storyIsPlayingAudio = false) }
-                    }
-                })
-                val params = android.os.Bundle().apply {
-                    putString(android.speech.tts.TextToSpeech.Engine.KEY_PARAM_UTTERANCE_ID, "StoryUtteranceId")
-                }
-                tts.speak(text, android.speech.tts.TextToSpeech.QUEUE_FLUSH, params, "StoryUtteranceId")
-            } else {
-                delay(4000)
-                _uiState.update { it.copy(storyIsPlayingAudio = false) }
-            }
-        }
-    }
-
-    fun stopStorySpeaker(tts: android.speech.tts.TextToSpeech?) {
-        try {
-            tts?.stop()
-        } catch (e: Exception) {}
-        _uiState.update { it.copy(storyIsPlayingAudio = false) }
-    }
-
-    fun selectHistoryStoryBook(book: KidStory, tts: android.speech.tts.TextToSpeech?) {
-        _uiState.update { it.copy(storyActiveBook = book, storyCurrentPageIndex = 0, storyError = "", storyIsLoading = null) }
-        speakStoryPage(book.pages.firstOrNull()?.text ?: "", tts)
-    }
-
-    private fun getOfflineStory(theme: String, childName: String, style: String): KidStory {
-        val title = "The Whimsical Quest of $childName"
-        val pages = listOf(
-            StoryPage(
-                pageNumber = 1,
-                title = "The Magic Gateway",
-                text = "Once upon a time, $childName discovered a shiny gold key nestled beneath a whispering willow leaf. With a sparkling leap, a magic gateway appeared, swirling with candy clouds and vanilla music!",
-                imagePrompt = "a cute child looking at a glowing golden door in an enchanted purple forest"
-            ),
-            StoryPage(
-                pageNumber = 2,
-                title = "Meeting Barnaby Bear",
-                text = "As $childName stepped through the door, a fluffy blue bear wearing tiny round glasses ran up. 'Hello there!' giggled Barnaby Bear. 'I have been waiting to show you our beautiful candy skies!'",
-                imagePrompt = "a cute fluffy blue cartoon bear with round spectables waving hello in a candy landscape"
-            ),
-            StoryPage(
-                pageNumber = 3,
-                title = "The Chocolate River Cruise",
-                text = "They hopped onto a floating marshmallow boat with strawberry sails. Together, $childName and Barnaby sailed down a lazy chocolate river, catching shiny jellybean fish with silver buckets.",
-                imagePrompt = "a marshmallow boat sailing on a chocolate river with a young kid and blue bear"
-            ),
-            StoryPage(
-                pageNumber = 4,
-                title = "The Rainbow Slide",
-                text = "Next, they arrived at the legendary Sugarcone Mountain. At the peak was a grand rainbow slide! $childName held Barnaby's paw and went sliding down, laughing into a warm puddle of soft whipped cream.",
-                imagePrompt = "a happy kid sliding down a gigantic glowing rainbow toward fluffy clouds of whipped cream"
-            ),
-            StoryPage(
-                pageNumber = 5,
-                title = "Sweet Dreams",
-                text = "The stars began to blink like soft yellow nightlights. Hand in hand, Barnaby Bear tucked $childName into a cozy bed of cotton candy. 'You are the bravest explorer,' whispered the stars, as $childName drifted off to sweet sleep.",
-                imagePrompt = "a cozy bedtime scene where a happy child is nestled in pastel cotton candy under shining yellow stars"
-            )
-        )
-        return KidStory(
-            title = title,
-            theme = theme,
-            childName = childName,
-            illustrationStyle = style,
-            pages = pages
-        )
-    }
-
-    // --- CHILDREN'S COLORING BOOK GENERATOR ---
-    fun setColorBookTheme(theme: String) {
-        _uiState.update { it.copy(colorBookTheme = theme) }
-    }
-
-    fun setColorBookChildName(name: String) {
-        _uiState.update { it.copy(colorBookChildName = name) }
-    }
-
-    fun generateColoringBook(theme: String, childName: String) {
-        val sanitizedTheme = theme.trim().lowercase()
-        val sanitizedName = childName.trim().ifEmpty { "Alex" }
-        
-        _uiState.update { 
-            it.copy(
-                colorBookTheme = sanitizedTheme,
-                colorBookChildName = sanitizedName,
-                colorBookIsLoading = true, 
-                colorBookError = null, 
-                colorBookPdfPath = null, 
-                colorBookPages = emptyList() 
-            ) 
-        }
-
-        // Determine preset type based on keywords
-        val presetType = when {
-            sanitizedTheme.contains("space") || sanitizedTheme.contains("dinosaur") || sanitizedTheme.contains("universe") || sanitizedTheme.contains("star") -> "space_dinosaur"
-            sanitizedTheme.contains("princess") || sanitizedTheme.contains("castle") || sanitizedTheme.contains("fairy") || sanitizedTheme.contains("magic") || sanitizedTheme.contains("pony") || sanitizedTheme.contains("royal") -> "princess_castle"
-            sanitizedTheme.contains("underwater") || sanitizedTheme.contains("sea") || sanitizedTheme.contains("fish") || sanitizedTheme.contains("ocean") || sanitizedTheme.contains("dolphin") || sanitizedTheme.contains("shark") -> "underwater"
-            sanitizedTheme.contains("robot") || sanitizedTheme.contains("tech") || sanitizedTheme.contains("gear") || sanitizedTheme.contains("gadget") || sanitizedTheme.contains("mechanic") -> "robot"
-            sanitizedTheme.contains("jungle") || sanitizedTheme.contains("safari") || sanitizedTheme.contains("lion") || sanitizedTheme.contains("animal") || sanitizedTheme.contains("monkey") || sanitizedTheme.contains("forest") -> "jungle"
-            sanitizedTheme.contains("farm") || sanitizedTheme.contains("cow") || sanitizedTheme.contains("pig") || sanitizedTheme.contains("sheep") || sanitizedTheme.contains("barn") || sanitizedTheme.contains("tractor") || sanitizedTheme.contains("chicken") -> "farm"
-            sanitizedTheme.contains("car") || sanitizedTheme.contains("race") || sanitizedTheme.contains("truck") || sanitizedTheme.contains("vehicle") || sanitizedTheme.contains("train") || sanitizedTheme.contains("wheel") -> "vehicles"
-            sanitizedTheme.contains("hero") || sanitizedTheme.contains("cape") || sanitizedTheme.contains("mask") || sanitizedTheme.contains("shield") || sanitizedTheme.contains("power") -> "superheroes"
-            sanitizedTheme.contains("cat") || sanitizedTheme.contains("dog") || sanitizedTheme.contains("puppy") || sanitizedTheme.contains("kitten") || sanitizedTheme.contains("pet") || sanitizedTheme.contains("fluffy") -> "pets"
-            sanitizedTheme.contains("candy") || sanitizedTheme.contains("chocolate") || sanitizedTheme.contains("lollipop") || sanitizedTheme.contains("sweet") || sanitizedTheme.contains("dessert") || sanitizedTheme.contains("cookie") -> "candyland"
-            sanitizedTheme.contains("dragon") || sanitizedTheme.contains("fire") || sanitizedTheme.contains("wings") || sanitizedTheme.contains("scales") || sanitizedTheme.contains("mythical") -> "dragons"
-            sanitizedTheme.contains("pirate") || sanitizedTheme.contains("sail") || sanitizedTheme.contains("ship") || sanitizedTheme.contains("anchor") || sanitizedTheme.contains("treasure") || sanitizedTheme.contains("island") -> "pirates"
-            sanitizedTheme.contains("astronaut") || sanitizedTheme.contains("rocket") || sanitizedTheme.contains("orbit") || sanitizedTheme.contains("galaxy") || sanitizedTheme.contains("cosmonaut") || sanitizedTheme.contains("planet") -> "astronauts"
-            sanitizedTheme.contains("toy") || sanitizedTheme.contains("bear") || sanitizedTheme.contains("teddy") || sanitizedTheme.contains("dollhouse") || sanitizedTheme.contains("blocks") || sanitizedTheme.contains("playroom") -> "toys"
-            sanitizedTheme.contains("ice cream") || sanitizedTheme.contains("scoop") || sanitizedTheme.contains("sundae") || sanitizedTheme.contains("cone") || sanitizedTheme.contains("cherry") || sanitizedTheme.contains("sprinkles") -> "ice_cream"
-            sanitizedTheme.contains("circus") || sanitizedTheme.contains("clown") || sanitizedTheme.contains("tent") || sanitizedTheme.contains("juggler") || sanitizedTheme.contains("acrobat") || sanitizedTheme.contains("balloon") -> "circus"
-            sanitizedTheme.contains("enchanted") || sanitizedTheme.contains("mushroom") || sanitizedTheme.contains("elf") || sanitizedTheme.contains("fairy") || sanitizedTheme.contains("toadstool") || sanitizedTheme.contains("owl") -> "enchanted"
-            sanitizedTheme.contains("cave") || sanitizedTheme.contains("prehistoric") || sanitizedTheme.contains("volcano") || sanitizedTheme.contains("pterodactyl") || sanitizedTheme.contains("lava") -> "dino_cave"
-            sanitizedTheme.contains("alien") || sanitizedTheme.contains("saucer") || sanitizedTheme.contains("ufo") || sanitizedTheme.contains("martian") -> "aliens"
-            sanitizedTheme.contains("winter") || sanitizedTheme.contains("snow") || sanitizedTheme.contains("snowman") || sanitizedTheme.contains("igloo") || sanitizedTheme.contains("penguin") || sanitizedTheme.contains("polar") || sanitizedTheme.contains("sled") -> "winter"
-            else -> "space_dinosaur"
-        }
-
-        viewModelScope.launch {
-            val apiKey = _uiState.value.openaiApiKey
-            val worksOffline = apiKey.isBlank() || apiKey.contains("PLACEHOLDER")
-
-            if (worksOffline) {
-                // Return immediate localized simulated pages
-                delay(1200)
-                val offlinePages = getOfflineColoringPages(presetType, sanitizedTheme, sanitizedName)
-                _uiState.update { it.copy(colorBookPages = offlinePages, colorBookIsLoading = false) }
-                return@launch
-            }
-
-            try {
-                val systemText = """
-                    You are a premium children's coloring book author.
-                    Generate exactly 5 distinct coloring pages based on the user's Theme and the Child's Name.
-                    Output a JSON array of exactly 5 page objects with this exact structure:
-                    [
-                      {
-                        "pageNumber": 1,
-                        "title": "A short descriptive title for the drawing (e.g. T-Rex floating in orbit)",
-                        "storyPoem": "A cute, happy, 4-line rhyming poem for kids that mentions the child's name and is about the drawing theme."
-                      }
-                    ]
-                    Strict rules:
-                    - Do not include any formatting markdown like ```json or ```. Return only raw JSON string.
-                    - Each storyPoem MUST be a humorous, rhyming 4-line poem.
-                    - Address the child by name in the poems to make it personalized!
-                """.trimIndent()
-
-                val promptMsg = "Theme: $sanitizedTheme, Child's Name: $sanitizedName."
-                
-                val keysMap = getActiveKeysMap()
-                val urlsMap = getActiveUrlsMap()
-                
-                val output = repository.sendSimpleRequest(
-                    prompt = promptMsg,
-                    systemText = systemText,
-                    providerKeys = keysMap,
-                    providerUrls = urlsMap
-                )
-                
-                var rawText = output.trim()
-                if (rawText.startsWith("```json")) {
-                    rawText = rawText.substringAfter("```json")
-                } else if (rawText.startsWith("```")) {
-                    rawText = rawText.substringAfter("```")
-                }
-                if (rawText.endsWith("```")) {
-                    rawText = rawText.substringBeforeLast("```")
-                }
-                rawText = rawText.trim()
-
-                val parsedPages = mutableListOf<ColoringPage>()
-                try {
-                    val jsonArray = org.json.JSONArray(rawText)
-                    for (i in 0 until jsonArray.length()) {
-                        val obj = jsonArray.getJSONObject(i)
-                        parsedPages.add(
-                            ColoringPage(
-                                pageNumber = obj.optInt("pageNumber", i + 1),
-                                title = obj.optString("title", "Page ${i + 1}"),
-                                storyPoem = obj.optString("storyPoem", "A lovely day to color and play!"),
-                                imagePath = null,
-                                presetType = presetType
-                            )
-                        )
-                    }
-                } catch (e: Exception) {
-                    val offlinePages = getOfflineColoringPages(presetType, sanitizedTheme, sanitizedName)
-                    parsedPages.addAll(offlinePages)
-                }
-
-                _uiState.update { it.copy(colorBookPages = parsedPages, colorBookIsLoading = false) }
-
-                // Fire image generation
-                generateImagesForPages(parsedPages, sanitizedTheme)
-
-            } catch (e: Exception) {
-                _uiState.update { 
-                    it.copy(
-                        colorBookError = "AI API failed: ${e.message}. Offline Fallback loaded.",
-                        colorBookPages = getOfflineColoringPages(presetType, sanitizedTheme, sanitizedName),
-                        colorBookIsLoading = false
-                    ) 
-                }
-            }
-        }
-    }
-
-    private fun generateImagesForPages(pages: List<ColoringPage>, theme: String) {
-        viewModelScope.launch {
-            pages.forEach { page ->
-                try {
-                    val imagePrompt = "Thick black lines vector outline contour coloring page for children, bold comic lines, clean white solid filled shapes, no gray, no gradient, no shading, simple, friendly, printable, subject: ${page.title}"
-                    val imageUri = repository.generateOpenAiImage(
-                        prompt = imagePrompt,
-                        model = "gpt-image-1.5",
-                        customApiKey = _uiState.value.openaiApiKey.ifBlank { null },
-                        customBaseUrl = _uiState.value.openaiBaseUrl.ifBlank { null }
-                    )
-                    _uiState.update { state ->
-                        val updatedList = state.colorBookPages.map { p ->
-                            if (p.pageNumber == page.pageNumber) {
-                                p.copy(imagePath = imageUri)
-                            } else {
-                                p
-                            }
-                        }
-                        state.copy(colorBookPages = updatedList)
-                    }
-                } catch (e: Exception) {
-                    android.util.Log.e("ColorBookRegen", "Failed to draw page ${page.pageNumber}: ${e.message}")
-                }
-            }
-        }
-    }
-
-    private fun getOfflineColoringPages(presetType: String, theme: String, childName: String): List<ColoringPage> {
-        return when (presetType) {
-            "space_dinosaur" -> listOf(
-                ColoringPage(1, "Astronaut T-Rex Orbiting", "With a silver suit and a fishbowl head,\n$childName is floating where stars are spread.\nThey wave hello to a glowing star,\nSpace is fun, both near and far!", null, "space_dinosaur"),
-                ColoringPage(2, "Stegosaurus Rocket Ride", "$childName joins Stego on the flight,\nInto the stardust of the night!\nWith plates all shining, green and clean,\nThe greatest spaceship ever seen.", null, "space_dinosaur"),
-                ColoringPage(3, "Pterodactyl Saturn Cruise", "Flying past the cosmic ring,\n$childName and Pterodactyl sing.\nNo air to flap, but we don't mind,\nLeaving cozy Earth behind!", null, "space_dinosaur"),
-                ColoringPage(4, "Triceratops Moon Rover", "Three-horn walker steps so light,\nOn the craters dusty white.\n$childName bounces high and free,\nHappy as a dino can be!", null, "space_dinosaur"),
-                ColoringPage(5, "Brachiosaurus Star Lunch", "With a neck so super-long,\nBrachio sings a starlit song.\n$childName feeds him star-salads bright,\nA delicious cosmic spacey bite!", null, "space_dinosaur")
-            )
-            "princess_castle" -> listOf(
-                ColoringPage(1, "The Fairy Garden Tiara", "$childName wears a tiara grand,\nRuling over a magic land.\nFlowers whisper stories sweet,\nGrowing blossoms at your feet.", null, "princess_castle"),
-                ColoringPage(2, "Princess Castle in Gold Clouds", "High towers rise in cloudy sky,\nWhere colorful balloons float by.\n$childName waves from windows high,\nAs friendly matching dragons fly.", null, "princess_castle"),
-                ColoringPage(3, "The Magic Carousel Pony", "A royal horse with starry mane,\nRunning through the magic lane.\n$childName holds the silver reins,\nOver sparkly rainbow plains.", null, "princess_castle"),
-                ColoringPage(4, "Tea Party under Willows", "Little rabbits pour the tea,\nLaughing under willow tree.\n$childName eats a frosted cake,\nThat the fairy bakers bake.", null, "princess_castle"),
-                ColoringPage(5, "Wishing Star at Bedtime", "Starry night is soft and blue,\nEvery dream is coming true.\n$childName makes a sleepy wish,\nTo a floating star-shaped fish.", null, "princess_castle")
-            )
-            "underwater" -> listOf(
-                ColoringPage(1, "Dolphin Jump and Splash", "Dolphin leaps in salty air,\nSplashing water everywhere.\n$childName watches from the shore,\nWanting many jumps and more!", null, "underwater"),
-                ColoringPage(2, "Yellow Submarine Expedition", "Submarine with windows round,\nSinking to the ocean ground.\n$childName is the captain bold,\nSearching for the chest of gold.", null, "underwater"),
-                ColoringPage(3, "Happy Seahorse Parade", "Seahorses marching two by two,\nIn the underwater blue.\n$childName plays a sea-shell horn,\nWhere the coral reefs are born.", null, "underwater"),
-                ColoringPage(4, "Octopus Balloon Meeting", "Eight long arms that wave a greeting,\nAt the friendly turtle meeting.\n$childName gets an eight-arm hug,\nWarm and cozy, safe and snug.", null, "underwater"),
-                ColoringPage(5, "The Pearl in the Oyster", "Oyster shell is opened wide,\nWith a shiny pearl inside.\n$childName finds the treasure bright,\nGlowing in the deep-sea night.", null, "underwater")
-            )
-            "robot" -> listOf(
-                ColoringPage(1, "Friendly Robot Beep", "With a square metal head and computer eyes,\nFriendly Beep waves hello as the sparrow flies.\n$childName type-types a code so bright,\nMaking parts light up in deep blue light!", null, "robot"),
-                ColoringPage(2, "Robot Workshop Party", "Wrenches, gears, and bolts that dance,\nGive the battery cells a chance.\n$childName joins the robo-band,\nClapping hands across the land.", null, "robot"),
-                ColoringPage(3, "Super Rocket Roller-Skates", "Fastest wheels you've ever seen,\nRunning on a solar screen.\n$childName helps him skate and spin,\nWith a super happy grin.", null, "robot"),
-                ColoringPage(4, "Flying Drone Delivery", "Propellers turning round and round,\nCarrying presents off the ground.\n$childName opens up the box,\nFinding customized robo-socks!", null, "robot"),
-                ColoringPage(5, "Windup Clockwork Pup", "Metal tail goes wag-wag-wag,\nCarrying a picnic bag.\n$childName winds the golden key,\nHappy as a pup can be!", null, "robot")
-            )
-            "jungle" -> listOf(
-                ColoringPage(1, "The Explorers Lion Cub", "He wears a hat of safari green,\nSoftest ears you've ever seen.\n$childName feeds him coconut treats,\nSitting on safari seats.", null, "jungle"),
-                ColoringPage(2, "Monkey Rope Acrobatics", "Swinging from the banyan branch,\nAt the wild banana ranch.\n$childName helps him catch a bunch,\nFor a very yummy lunch.", null, "jungle"),
-                ColoringPage(3, "Baby Elephant Water Shower", "Trumpet nose sprays water cool,\nIn the splashing forest pool.\n$childName enjoys the misty spray,\nOn a sunny forest day.", null, "jungle"),
-                ColoringPage(4, "Giraffe Sky Heights", "Tallest neck that eats a cloud,\nStanding very tall and proud.\n$childName climbs the ladder tree,\nTo wave hello so happily!", null, "jungle"),
-                ColoringPage(5, "Parrot Island Colors", "Wings of red and yellow bright,\nTaking happy forest flight.\n$childName talks in parrot screech,\nEating delicious yellow peach.", null, "jungle")
-            )
-            "farm" -> listOf(
-                ColoringPage(1, "The Squeaky Cow & Tractor", "With a big friendly 'Moo' and a tractor in tow,\n$childName shows the happy cows where they should go.\nThe sun is so high and the meadows are green,\nThe coziest little farm you've ever seen!", null, "farm"),
-                ColoringPage(2, "Happy Little Piggie Mud Bath", "A pink little piglet is splashing with glee,\nOink oink! goes the pig under apple-ripe tree.\n$childName giggles loud as a muddy splash flies,\nWhile happy birds sing up in golden warm skies!", null, "farm"),
-                ColoringPage(3, "The Fluffy Sheep Wool Parade", "With curly white coats and with cute tiny tails,\nThe sweet little sheep are now leaving their trails.\n$childName helps lead them to valleys of sleep,\nAs they jump one by one, oh the fluffy-wool sheep!", null, "farm"),
-                ColoringPage(4, "The Rooster's Sunshine Song", "Cock-a-doodle-doo! sings the proud feathery king,\nTo wake up the farm and the flowers of spring.\n$childName runs out with a bucket of wheat,\nTo give all the baby chicks something to eat!", null, "farm"),
-                ColoringPage(5, "The Playful Barnyard Puppy", "The dog has a bone and a wag of delight,\nHe runs round the barn making shadows look bright.\n$childName throws a frisbee that flies in the air,\nWith joy in the barnyard and love everywhere!", null, "farm")
-            )
-            "vehicles" -> listOf(
-                ColoringPage(1, "Super-Speed Lightning Racecar", "Vroom-vroom! goes the racer around the big track,\nIt's super-fast red from the front to the back!\n$childName is driving and steering so tight,\nAnd winning the golden grand trophy tonight!", null, "vehicles"),
-                ColoringPage(2, "The Big Bouncy Monster Truck", "With tires as tall as a house or a tree,\nThis bouncy big truck is as brave as can be.\n$childName jumps over a mountain of dirt,\nWhile wearing a helmet and racing-car shirt!", null, "vehicles"),
-                ColoringPage(3, "The Friendly Steam Locomotive", "Chugga-chugga choo-choo! the old engine cries,\nWith white steam clouds floating up high to the skies.\n$childName is waving from windows so wide,\nAs we travel along on a beautiful ride!", null, "vehicles"),
-                ColoringPage(4, "The Sky-High Flying Airplane", "High up in the clouds where the cool breezes blow,\n$childName looks down at the houses below.\nWith wings made of silver and propellers that spin,\nThe sky-high adventure is going to begin!", null, "vehicles"),
-                ColoringPage(5, "The Busy Yellow Excavator", "With claws made of iron and muscles of steel,\nThe digger scoops dirt with a rumble you feel!\n$childName controls all the levers so bold,\nTo find the deep canyon's shiny bright gold!", null, "vehicles")
-            )
-            "superheroes" -> listOf(
-                ColoringPage(1, "Heroic Cape Leap over Clouds", "With a bright red cape fluttering wild in the breeze,\n$childName can fly high above giant trees!\nThey jump over skyscrapers, happy and bold,\nWith a heart made of kindness and pure solid gold!", null, "superheroes"),
-                ColoringPage(2, "The Cosmic Shield Protection", "A star-studded shield made of sparkliest light,\n$childName is keeping the world safe tonight!\nNo bad guys can scare us, we laugh and we play,\nTo save all the puppy-dogs, day after day!", null, "superheroes"),
-                ColoringPage(3, "Flying Team-Up with Masked Hero", "Two superfriends flying so high side-by-side,\nAcross the grand sky with a giggle and glide.\n$childName and SuperPup swoop through the air,\nBringing big happy smiles to the sandbox out there!", null, "superheroes"),
-                ColoringPage(4, "The Speed-of-Light Running Boots", "Zap! goes the hero with boots painted blue,\nThey run twice as fast as the kangaroo too!\n$childName is racing around the whole park,\nAnd making the stars light up out of the dark!", null, "superheroes"),
-                ColoringPage(5, "The Superhero Secret Headquarters", "A high-tech treehouse with computers that beep,\nWhere helpers can watch while the baby cats sleep.\n$childName plan-plans a grand playdate of fun,\nUnder the light of the warm cozy sun!", null, "superheroes")
-            )
-            "pets" -> listOf(
-                ColoringPage(1, "Cute Puppy Chase under Flowers", "With ears so soft and a nose wet and small,\nThe happy pup jumps for the stripey red ball.\n$childName runs fast with a giggle and stride,\nThrough flowery gardens where bumblebees hide!", null, "pets"),
-                ColoringPage(2, "Fluffy Kitten Tangled in Yarn", "Meow! goes the kitten, all tangled in blue,\nShe plays with a yarn ball and looks up at you.\n$childName helps untangle her paws with a pat,\nWhat a silly and cuddly little fluffy-cat!", null, "pets"),
-                ColoringPage(3, "Goldfish Blowing Bubble Wishes", "The little orange fish is swimming with grace,\nA watery castle is his favorite place.\n$childName taps gently and whispers a wish,\nTo the bubbliest, happiest little gold-fish!", null, "pets"),
-                ColoringPage(4, "Chirpy Canary Secret Song", "With yellowest feathers and black beady eyes,\nHe sings a sweet song as the breakfast cake flies.\n$childName whistles a tune that is happy and clear,\nTo bring cozy joy to the whole family here!", null, "pets"),
-                ColoringPage(5, "Bunny Hop over Rainbow Fields", "With long floppy ears and a tail like a ball,\nThis little white bunny is not very tall.\n$childName feeds him a carrot both crunchy and sweet,\nAs he hops with delight on his bunny-hop feet!", null, "pets")
-            )
-            "candyland" -> listOf(
-                ColoringPage(1, "Lollipop Swirl Forest Adventure", "Step into a forest where lollipops grow,\nIn red, green, and purple, a rainbow-bright show!\n$childName walks down on a strawberry street,\nWhere leaves are all sugary, crunchy, and sweet!", null, "candyland"),
-                ColoringPage(2, "The Gingerbread Castle Guard", "A castle with walls made of cookie and spice,\nAnd windows of frosting that look very nice!\n$childName is crowned as the Candyland Mayor,\nIn a cozy sweet land of the lollipop player!", null, "candyland"),
-                ColoringPage(3, "Gummy Bear River Whitewater", "Row, row your boat down the chocolate stream,\nPast mountains of waffles and fluffy whipped cream!\n$childName can see all the gummy bears wave,\nIn a candy-boat voyage so happy and brave!", null, "candyland"),
-                ColoringPage(4, "The Giant Marshmallow Trampoline", "Boing-boing! on a marshmallow soft as a cloud,\n$childName is laughing and chanting out loud!\nIt bounces you high to the peppermint stars,\nPast flying candy cones and chocolatey bars!", null, "candyland"),
-                ColoringPage(5, "The Magic Cupcake Bakery", "With sprinkles of gold and a cherry on top,\nThe sweet cupcake baking will never-ever stop!\n$childName is decorating frosting so blue,\nMaking delicious custom treats just for you!", null, "candyland")
-            )
-            "dragons" -> listOf(
-                ColoringPage(1, "The Friendly Fire-Breathing Playmate", "With happy orange scales and cute little wings,\nThe baby dragon flies while the forest bird sings.\n$childName offers a basket of marshmallows sweet,\nMaking their magical playdate completely complete!", null, "dragons"),
-                ColoringPage(2, "Magical Dragon's Cloud Castle", "High on a castle made of soft purple mist,\nIs a kind baby dragon that the fairy has kissed.\n$childName waves a wand made of gold and of light,\nUnder the friendly stars shining so bright!", null, "dragons"),
-                ColoringPage(3, "Dragon Egg Forest Nursery", "A shiny speckled egg is starting to crack,\nShowing tiny green wings and a cute spiky back.\n$childName sings a lullaby gentle and low,\nTo welcome the smallest baby dragon we know!", null, "dragons"),
-                ColoringPage(4, "Flying High on Dragonback", "Swooping and gliding through the sky of pure blue,\nOver the mountains and the green valleys too!\n$childName holds on with a laugh and a cheer,\nFor the happiest sky ride of the whole year!", null, "dragons"),
-                ColoringPage(5, "The Dragon's Treasure Picnic", "In a cozy stone cave filled with sparkling gems,\nAnd flower crowns decorated with emerald stems.\n$childName shares snacks on a red blanket space,\nTucking sweet cookies in the dragon's happy face!", null, "dragons")
-            )
-            "pirates" -> listOf(
-                ColoringPage(1, "The Captain's Treasure Island Map", "With an 'X' marks the spot on the sandy beach shore,\nOur pirate crew is set to find treasure galore!\n$childName holds the old map painted yellow and brown,\nWith a red pirate hat and a smile, not a frown!", null, "pirates"),
-                ColoringPage(2, "The Jolly Sailing Galleon", "With big white sails catching the warm ocean breeze,\nOur majestic pirate ship sails across the blue seas.\n$childName stands bold at the steering wheel side,\nBringing us home on a wonderful tide!", null, "pirates"),
-                ColoringPage(3, "The Friendly Parrot's Coconut Song", "A bright feathery pirate bird sitting up high,\nWhistled a funny song as he flew in the sky.\n$childName feeds him crackers both crunchy and round,\nWhile dancing with pirates all over the ground!", null, "pirates"),
-                ColoringPage(4, "The Golden Chest of Wonders", "We opened the ancient trunk under the tree,\nFull of magic gold coins and toys from the sea!\n$childName finds a star-shaped shell made of light,\nShining so beautiful, glittering bright!", null, "pirates"),
-                ColoringPage(5, "Dolphin Escort to Pirate Bay", "Two friendly grey dolphins are leaping ahead,\nWhere the sun is now setting all rosy and red.\n$childName waves goodbye with a pirate-flag cheer,\nTo the kindest sea creatures of the whole hemisphere!", null, "pirates")
-            )
-            "astronauts" -> listOf(
-                ColoringPage(1, "Astronaut $childName's Rocket Blastoff", "Ten, nine, eight! goes the grand count in the sky,\nAs the silver metal rocket ship starts flying high!\n$childName is smiling behind the glass space,\nWith sparkles of fuel-smoke all over the place!", null, "astronauts"),
-                ColoringPage(2, "Moonwalk Dance of the Astronauts", "Walking on the moon where we drift and we float,\nLike a puffy white cloud or a paper toy boat.\n$childName does a high-jump and catches a star,\nIn the cosmic space heaven so beautiful and far!", null, "astronauts"),
-                ColoringPage(3, "Picnic with Friendly Star-Pals", "Sitting on a comet with three happy space friends,\nWhere the glittering tail of the orbit-line ends.\n$childName serves tea from a thermos of warm blue,\nGiving space-cupcakes to the galaxy crew!", null, "astronauts"),
-                ColoringPage(4, "Ring Toss on Giant Saturn Outer Rings", "A striped golden planet with rings made of ice,\n$childName thinks playing space ring-toss is nice!\nWe throw colorful hoops that go round and go round,\nWith the happiest giggles and cosmic space sound!", null, "astronauts"),
-                ColoringPage(5, "The Alien Starship Welcome Party", "A glowing soft saucer with friendly pink eyes,\nIs flashing hello from the star-flecked black skies.\n$childName receives a green banner of peace,\nAs the cosmic space wanderings never-ever cease!", null, "astronauts")
-            )
-            "toys" -> listOf(
-                ColoringPage(1, "Teddy Bear Tea-Party Parade", "A soft brown teddy with buttons for eyes,\nSits down on a pillow as a toy plane flies.\n$childName pours tea in a tiny pink cup,\nHelping the cute little teddy drink up!", null, "toys"),
-                ColoringPage(2, "The Shiny Wind-Up Train Track Cruise", "Chugga-chugga choo-choo! goes the wooden toy train,\nMoving round and round past the blue windowpane.\n$childName sets the signals and turns the gold key,\nFor the happiest train ride you ever did see!", null, "toys"),
-                ColoringPage(3, "The Magic Block Castle Fortress", "With red blocks and blue blocks built ever so tall,\nTo house the toy soldiers and guard dogs and all.\n$childName places the topmost bright star on the tower,\nHolding a wooden crayon of magical power!", null, "toys"),
-                ColoringPage(4, "The Dancing Dollhouse Ball", "A miniature house filled with tiny wood chairs,\nAnd cute little carpets and white spiral stairs.\n$childName spins the ballerina doll in a sweet dance,\nIn the coziest toy-room of wonder and chance!", null, "toys"),
-                ColoringPage(5, "The Ragdoll's Colorful Balloon ride", "A friendly ragdoll made of patches and thread,\nHolds a bunch of balloons of bright yellow and red.\n$childName hops along on the playroom floor carpet,\nLeading the balloons to the playroom toy market!", null, "toys")
-            )
-            "ice_cream" -> listOf(
-                ColoringPage(1, "The Triple-Scoop Sundae Mountain", "With strawberry, mint, and banana scoop stack,\nWith chocolate syrup from front to the back!\n$childName adds sprinkles of silver and gold,\nTo the tallest sweet treat that a kitchen can hold!", null, "ice_cream"),
-                ColoringPage(2, "Ice Cream Truck Chiming Melody", "Ding-aling! goes the truck as the music-box plays,\nTo bring cooling delight to the sunny summer days.\n$childName orders a waffle cone painted with blue,\nWith happy sweet cherries for the family too!", null, "ice_cream"),
-                ColoringPage(3, "The Friendly Snow-Cone Penguin", "A cute little penguin with spoons in his hand,\nOffers colorful snow cones in cold Ice-Cream Land!\n$childName picks blueberry syrup so bright,\nMaking the snowman and penguin smile with delight!", null, "ice_cream"),
-                ColoringPage(4, "Floating on a Cream-Float River", "Rowing a wafer boat down the vanilla ice stream,\nUnder candy-floss clouds in a sweet pastry dream.\n$childName steers past the caramel-fudge waterfall,\nLoved of the children and sweet tooth of all!", null, "ice_cream"),
-                ColoringPage(5, "The Giant Peppermint Cookie House", "A cottage with doors made of pure chocolate bar,\nAnd windows of frosting that shine like a star.\n$childName decorates fences with gumdrops of red,\nBefore turning to rest in a sweet sugar bed!", null, "ice_cream")
-            )
-            "circus" -> listOf(
-                ColoringPage(1, "The Big Top Circus Balloon Parade", "Under the striped canvas roof of the grand tent,\nWhere the funniest clowns and the acrobats went.\n$childName holds a giant round bunch of balloons,\nWhile marching in time to the brassy parade tunes!", null, "circus"),
-                ColoringPage(2, "The Juggling Teddy Bear Acrobat", "A brown fluffy cub stands on one single wheel,\nJuggling red apples and a slippery banana peel.\n$childName plays the drums as the teddy bear spins,\nWinning the applause and the audience's grins!", null, "circus"),
-                ColoringPage(3, "The Friendly Seal's Beachball Trick", "Balancing a striped soccer ball on her wet nose,\nThe seal claps her flippers as the circus horn blows.\n$childName tosses a fishy treat into the pool,\nFor the cleverest seal at the beach acrobat school!", null, "circus"),
-                ColoringPage(4, "The Cheeky Clown's Bubble Splash", "With big bubbly shoes and a polka-dot nose,\nHe blows giant soap bubbles wherever he goes!\n$childName pops a bubble as big as a car,\nSending soap sparklies near and sending them far!", null, "circus"),
-                ColoringPage(5, "The Flying Trapeze Show of Stars", "Swooping and soaring up high in the dome,\nFar above the play-mats and comfort of home.\n$childName waves a baton with sparkles of white,\nTo guide all the acrobats safely tonight!", null, "circus")
-            )
-            "enchanted" -> listOf(
-                ColoringPage(1, "The Glowing Mushroom Fairy Home", "Under a toadstool of crimson and spots,\nLive the kind little wood-elves with clay teapot pots.\n$childName knocks soft on the wooden round door,\nLighting a pathway on the mossy green floor!", null, "enchanted"),
-                ColoringPage(2, "The Wise Owl's Moonlit Storybook", "Sitting up high in the hollow oak tree,\nIs a kind-hearted owl as wise as can be.\n$childName turns the pages of fairy-tale gold,\nThe coziest forest story you've ever been told!", null, "enchanted"),
-                ColoringPage(3, "The Magic Unicorn Meadow Run", "With a stardust mane and sweet daisy wreaths,\nA beautiful unicorn runs and she breathes.\n$childName offers an apple of sugar-gloss red,\nPatting the horn on the unicorn's head!", null, "enchanted"),
-                ColoringPage(4, "The Talking Tree's Fruit Harvest", "The old ancient oak stretches branches so wide,\nWith friendly round eyes and a warm smile inside.\n$childName catches big rosy peaches that fall,\nSharing the magic tree fruit with us all!", null, "enchanted"),
-                ColoringPage(5, "Flying Firefly Lantern Parade", "A hundred small lanterns of yellow and green,\nThe prettiest forest path you've ever seen.\n$childName holds a bell that goes tinkle-and-ring,\nAs we watch the wood-flickering fireflies wing!", null, "enchanted")
-            )
-            "dino_cave" -> listOf(
-                ColoringPage(1, "Baby T-Rex's Volcano Egg Hatch", "CRACK! goes the egg near the warm lava lake,\nOut pops a baby T-Rex with a wiggle and shake!\n$childName feeds him leafy green ferns from a plate,\nMaking the baby dino feel super-duper great!", null, "dino_cave"),
-                ColoringPage(2, "The Pterodactyl's Cloud Heights Glide", "With leathery wings flying high in the air,\nOver the mountains and valleys so bare.\n$childName is waving from rocky ledge heights,\nWatching the sky filled with golden sun-lights!", null, "dino_cave"),
-                ColoringPage(3, "Friendly Brontosaurus Lake Splash", "A long graceful neck drinking pool water cool,\nIn the blue forest-lined prehistoric pool.\n$childName rides safe on his wide tail of grey,\nSplashing and laughing the whole summer day!", null, "dino_cave"),
-                ColoringPage(4, "Stegosaurus Rocky Path March", "With plates on his back shaped like triangles bold,\nThis safe armored dino is brave to behold.\n$childName draws a path with a chalk piece of blue,\nTo guide the friendly herd of dinosaurs through!", null, "dino_cave"),
-                ColoringPage(5, "The Dino Cave Campfire Party", "Inside a stone shelter with drawing-lined walls,\nWhere the sound of a prehistoric waterfall falls.\n$childName toasts marshmallow twigs with dinosaur pals,\nLoving the primeval boys and the primeval gals!", null, "dino_cave")
-            )
-            "aliens" -> listOf(
-                ColoringPage(1, "UFO Landing in the Sandbox Yard", "A glowing silver saucer lands soft on the grass,\nWith friendly steam puffs and a mirror of glass!\n$childName walks out with a shovel and spade,\nTo welcome the cosmic space travelers we've made!", null, "aliens"),
-                ColoringPage(2, "Meeting the Three-Eyed Space Monster", "He has blue fuzzy skin and a gigglist giggle,\nAnd three friendly eyes that can wiggle-and-wiggle.\n$childName shares a plate of peanut butter slices,\nWith the happiest alien of all space crises!", null, "aliens"),
-                ColoringPage(3, "Martian Zero-Gravity Playground Jump", "On a small red-sand planet where gravity's light,\nWe bounce higher than the clouds out of our sight!\n$childName plays catch with an alien balloon,\nUnder the eyes of the crescent space moon!", null, "aliens"),
-                ColoringPage(4, "The Neon Robot Starship Repair", "Sparks of bright orange and laser-lights blue,\nAs we help fix the saucer with cosmic space glue!\n$childName holds the wrench while the gears start to spin,\nBefore the alien flights are ready to begin!", null, "aliens"),
-                ColoringPage(5, "Starship Glow-Party Dance Off", "Dancing with space aliens under the stars,\nPast Jupiter, Neptune, and red-planet Mars.\n$childName beats the drums while the lasers go zap,\nWith a space-dance and alien-claw hand clap!", null, "aliens")
-            )
-            "winter" -> listOf(
-                ColoringPage(1, "The Jolly Snowman's Carrot Nose", "With a coal-button smile and a woolen warm scarf,\nThis happy snow-gentleman makes the birds laugh.\n$childName places the carrot nose straight on his head,\nUnder the winter skies painted with red!", null, "winter"),
-                ColoringPage(2, "Playful Penguin Sledding Race", "Waddle and slide down the ice-mountain hill,\nOn a wooden red sled with a laughter-filled thrill!\n$childName steers fast as the chilly wind blows,\nLaughing and catching a snowflake on nose!", null, "winter"),
-                ColoringPage(3, "Cozy Igloo Lantern Warmth", "Inside a round dome built of ice-blocks of white,\nA warm golden candle shines out through the night.\n$childName drinks cocoa with marshmallow fluff,\nWrapped in a blanket of warm wooly stuff!", null, "winter"),
-                ColoringPage(4, "Polar Bear Cub's Sliding Ice Dance", "A big fuzzy white cub on the frozen blue bay,\nIs sliding and rolling and playing today.\n$childName throws a snowball that breaks in the air,\nWith cozy warm winter-time love everywhere!", null, "winter"),
-                ColoringPage(5, "The Magical Winter Sleigh Ride", "Two reindeer with bells lead the sleigh through the trees,\nUnder the frost-glowing branches that freeze.\n$childName wears mittens of cozy green wool,\nAs the holiday sleigh-bells go jingle-and-pull!", null, "winter")
-            )
-            else -> listOf( // fallback
-                ColoringPage(1, "The Explorers Lion Cub", "He wears a hat of safari green,\nSoftest ears you've ever seen.\n$childName feeds him coconut treats,\nSitting on safari seats.", null, "jungle"),
-                ColoringPage(2, "Monkey Rope Acrobatics", "Swinging from the banyan branch,\nAt the wild banana ranch.\n$childName helps him catch a bunch,\nFor a very yummy lunch.", null, "jungle"),
-                ColoringPage(3, "Baby Elephant Water Shower", "Trumpet nose sprays water cool,\nIn the splashing forest pool.\n$childName enjoys the misty spray,\nOn a sunny forest day.", null, "jungle"),
-                ColoringPage(4, "Giraffe Sky Heights", "Tallest neck that eats a cloud,\nStanding very tall and proud.\n$childName climbs the ladder tree,\nTo wave hello so happily!", null, "jungle"),
-                ColoringPage(5, "Parrot Island Colors", "Wings of red and yellow bright,\nTaking happy forest flight.\n$childName talks in parrot screech,\nEating delicious yellow peach.", null, "jungle")
-            )
-        }
-    }
-
-    fun generateColoringBookPdf() {
-        val context = com.example.AppContextProvider.context
-        val childName = _uiState.value.colorBookChildName.ifEmpty { "Alex" }
-        val theme = _uiState.value.colorBookTheme.ifEmpty { "space dinosaurs" }
-        val pages = _uiState.value.colorBookPages
-
-        _uiState.update { it.copy(colorBookGeneratingPdf = true, colorBookError = null) }
-
-        viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
-            try {
-                val document = android.graphics.pdf.PdfDocument()
-                val paint = android.graphics.Paint()
-                
-                val titlePaint = android.graphics.Paint().apply {
-                    isAntiAlias = true
-                    textSize = 32f
-                    isFakeBoldText = true
-                    color = android.graphics.Color.BLACK
-                }
-
-                // --- PAGE 1: COVER ---
-                val coverPageInfo = android.graphics.pdf.PdfDocument.PageInfo.Builder(595, 842, 1).create()
-                val coverPage = document.startPage(coverPageInfo)
-                val coverCanvas = coverPage.canvas
-
-                // Decorative borders
-                paint.style = android.graphics.Paint.Style.STROKE
-                paint.strokeWidth = 6f
-                paint.color = android.graphics.Color.BLACK
-                coverCanvas.drawRect(24f, 24f, 571f, 818f, paint)
-                paint.strokeWidth = 1.5f
-                coverCanvas.drawRect(30f, 30f, 565f, 812f, paint)
-
-                // Cover Title
-                val titleText = "COLORING BOOK"
-                val titleWidth = titlePaint.measureText(titleText)
-                coverCanvas.drawText(titleText, (595f - titleWidth) / 2f, 150f, titlePaint)
-
-                val subtitlePaint = android.graphics.Paint().apply {
-                    isAntiAlias = true
-                    textSize = 22f
-                    isFakeBoldText = true
-                    color = android.graphics.Color.BLACK
-                }
-                val subText = "Adventures with $childName"
-                val subWidth = subtitlePaint.measureText(subText)
-                coverCanvas.drawText(subText, (595f - subWidth) / 2f, 200f, subtitlePaint)
-
-                // Draw decorative cover vector
-                paint.style = android.graphics.Paint.Style.STROKE
-                paint.strokeWidth = 3f
-                drawOfflineImageForPdf(coverCanvas, paint, 147f, 270f, 300f, 300f, pages.firstOrNull()?.presetType ?: "space_dinosaur", 1)
-
-                val footerPaint = android.graphics.Paint().apply {
-                    isAntiAlias = true
-                    textSize = 14f
-                    color = android.graphics.Color.DKGRAY
-                }
-                val themeLabel = "Theme: ${theme.uppercase()}"
-                val labelWidth = footerPaint.measureText(themeLabel)
-                coverCanvas.drawText(themeLabel, (595f - labelWidth) / 2f, 660f, footerPaint)
-
-                val creatorText = "Created by AI Artist Eddie • Single-Edition Printable"
-                val creatorWidth = footerPaint.measureText(creatorText)
-                coverCanvas.drawText(creatorText, (595f - creatorWidth) / 2f, 700f, footerPaint)
-
-                document.finishPage(coverPage)
-
-                // --- PAGES 2-6: COLORING TARGETS ---
-                pages.forEachIndexed { index, page ->
-                    val pageIndex = index + 2
-                    val pageInfo = android.graphics.pdf.PdfDocument.PageInfo.Builder(595, 842, pageIndex).create()
-                    val pdfPage = document.startPage(pageInfo)
-                    val canvas = pdfPage.canvas
-
-                    // Outer border
-                    paint.style = android.graphics.Paint.Style.STROKE
-                    paint.strokeWidth = 3f
-                    paint.color = android.graphics.Color.BLACK
-                    canvas.drawRect(25f, 25f, 570f, 817f, paint)
-
-                    // Page Title
-                    val headerPaint = android.graphics.Paint().apply {
-                        isAntiAlias = true
-                        textSize = 18f
-                        isFakeBoldText = true
-                        color = android.graphics.Color.BLACK
-                    }
-                    val formattedTitle = "Page ${page.pageNumber}: ${page.title}"
-                    canvas.drawText(formattedTitle, 40f, 65f, headerPaint)
-
-                    // Draw image
-                    val drawX = 47f
-                    val drawY = 100f
-                    val drawW = 500f
-                    val drawH = 470f
-
-                    var drawFallback = true
-                    if (!page.imagePath.isNullOrEmpty()) {
-                        try {
-                            val cleanPath = page.imagePath.substringAfter("file://").substringAfter("content://")
-                            val file = java.io.File(cleanPath)
-                            if (file.exists()) {
-                                val opts = android.graphics.BitmapFactory.Options().apply {
-                                    inPreferredConfig = android.graphics.Bitmap.Config.ARGB_8888
-                                }
-                                val bitmap = android.graphics.BitmapFactory.decodeFile(file.absolutePath, opts)
-                                if (bitmap != null) {
-                                    val destRect = android.graphics.RectF(drawX, drawY, drawX + drawW, drawY + drawH)
-                                    canvas.drawBitmap(bitmap, null, destRect, null)
-                                    drawFallback = false
-                                }
-                            }
-                        } catch (e: Exception) {
-                            e.printStackTrace()
-                        }
-                    }
-
-                    if (drawFallback) {
-                        paint.style = android.graphics.Paint.Style.STROKE
-                        paint.strokeWidth = 4f
-                        drawOfflineImageForPdf(canvas, paint, drawX + 75f, drawY + 60f, 350f, 350f, page.presetType, page.pageNumber)
-                    }
-
-                    // Rhyme poem centring
-                    val poemPaint = android.graphics.Paint().apply {
-                        isAntiAlias = true
-                        textSize = 13f
-                        color = android.graphics.Color.BLACK
-                        textAlign = android.graphics.Paint.Align.CENTER
-                    }
-
-                    val lines = page.storyPoem.split("\n")
-                    var currentY = 620f
-                    lines.forEach { line ->
-                        canvas.drawText(line.trim(), 297.5f, currentY, poemPaint)
-                        currentY += 22f
-                    }
-
-                    // Num indicating Page X of Y
-                    val pageNumPaint = android.graphics.Paint().apply {
-                        isAntiAlias = true
-                        textSize = 10f
-                        color = android.graphics.Color.GRAY
-                        textAlign = android.graphics.Paint.Align.RIGHT
-                    }
-                    canvas.drawText("Page ${page.pageNumber} of 5", 550f, 795f, pageNumPaint)
-
-                    document.finishPage(pdfPage)
-                }
-
-                // File Writer
-                val filename = "ColoringBook_${childName.replace(" ", "_")}_${System.currentTimeMillis()}.pdf"
-                var savedPath: String? = null
-
-                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
-                    val contentValues = android.content.ContentValues().apply {
-                        put(android.provider.MediaStore.MediaColumns.DISPLAY_NAME, filename)
-                        put(android.provider.MediaStore.MediaColumns.MIME_TYPE, "application/pdf")
-                        put(android.provider.MediaStore.MediaColumns.RELATIVE_PATH, android.os.Environment.DIRECTORY_DOWNLOADS)
-                    }
-                    val uri = context.contentResolver.insert(
-                        android.provider.MediaStore.Downloads.EXTERNAL_CONTENT_URI,
-                        contentValues
-                    )
-                    if (uri != null) {
-                        context.contentResolver.openOutputStream(uri)?.use { outputStream ->
-                            document.writeTo(outputStream)
-                        }
-                        savedPath = "Downloads/$filename"
-                    }
-                } else {
-                    val downloadsDir = android.os.Environment.getExternalStoragePublicDirectory(android.os.Environment.DIRECTORY_DOWNLOADS)
-                    val pdfFile = java.io.File(downloadsDir, filename)
-                    java.io.FileOutputStream(pdfFile).use { fos ->
-                        document.writeTo(fos)
-                    }
-                    savedPath = pdfFile.absolutePath
-                }
-
-                document.close()
-
-                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
-                    _uiState.update { 
-                        it.copy(
-                            colorBookPdfPath = savedPath,
-                            colorBookGeneratingPdf = false
-                        )
-                    }
-                }
-
-            } catch (e: Exception) {
-                e.printStackTrace()
-                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
-                    _uiState.update { 
-                        it.copy(
-                            colorBookError = "Could not export PDF: ${e.message}",
-                            colorBookGeneratingPdf = false
-                        )
-                    }
-                }
-            }
-        }
-    }
-
-    private fun drawOfflineImageForPdf(
-        canvas: android.graphics.Canvas,
-        paint: android.graphics.Paint,
-        x: Float,
-        y: Float,
-        width: Float,
-        height: Float,
-        presetType: String,
-        pageNumber: Int
-    ) {
-        paint.color = android.graphics.Color.BLACK
-        paint.style = android.graphics.Paint.Style.STROKE
-        paint.strokeWidth = 4f
-
-        val cx = x + width / 2
-        val cy = y + height / 2
-
-        canvas.save()
-        canvas.clipRect(x, y, x + width, y + height)
-
-        if (presetType == "underwater") {
-            canvas.drawCircle(cx - 80f, cy - 80f, 10f, paint)
-            canvas.drawCircle(cx - 70f, cy - 120f, 6f, paint)
-            canvas.drawCircle(cx + 120f, cy - 40f, 15f, paint)
-        } else {
-            drawStarOnPdf(canvas, paint, cx - 120f, cy - 120f, 12f)
-            drawStarOnPdf(canvas, paint, cx + 110f, cy - 110f, 8f)
-            drawStarOnPdf(canvas, paint, cx + 130f, cy + 80f, 10f)
-        }
-
-        when (presetType) {
-            "space_dinosaur" -> {
-                canvas.drawCircle(cx - 80f, cy + 100f, 35f, paint)
-                canvas.drawCircle(cx, cy, 55f, paint)
-                paint.strokeWidth = 2f
-                canvas.drawCircle(cx, cy, 75f, paint)
-                paint.strokeWidth = 4f
-                canvas.drawCircle(cx - 10f, cy + 80f, 75f, paint)
-                canvas.drawCircle(cx - 15f, cy - 10f, 6f, paint)
-                canvas.drawCircle(cx + 15f, cy - 10f, 6f, paint)
-                canvas.drawArc(cx - 20f, cy - 5f, cx + 20f, cy + 25f, 0f, 180f, false, paint)
-                canvas.drawCircle(cx - 40f, cy + 60f, 14f, paint)
-                canvas.drawCircle(cx + 40f, cy + 60f, 14f, paint)
-            }
-            "princess_castle" -> {
-                canvas.drawRect(cx - 40f, cy - 20f, cx + 40f, cy + 120f, paint)
-                val path = android.graphics.Path()
-                path.moveTo(cx - 50f, cy - 20f)
-                path.lineTo(cx, cy - 80f)
-                path.lineTo(cx + 50f, cy - 20f)
-                path.close()
-                canvas.drawPath(path, paint)
-                canvas.drawCircle(cx, cy + 50f, 25f, paint)
-                canvas.drawArc(cx - 15f, cy + 35f, cx + 15f, cy + 45f, 0f, -180f, false, paint)
-                val dressPath = android.graphics.Path()
-                dressPath.moveTo(cx - 15f, cy + 75f)
-                dressPath.lineTo(cx - 45f, cy + 120f)
-                dressPath.lineTo(cx + 45f, cy + 120f)
-                dressPath.lineTo(cx + 15f, cy + 75f)
-                dressPath.close()
-                canvas.drawPath(dressPath, paint)
-            }
-            "underwater" -> {
-                canvas.drawOval(cx - 100f, cy - 50f, cx + 100f, cy + 50f, paint)
-                canvas.drawCircle(cx - 30f, cy, 14f, paint)
-                canvas.drawCircle(cx + 30f, cy, 14f, paint)
-                val pPath = android.graphics.Path()
-                pPath.moveTo(cx, cy - 50f)
-                pPath.lineTo(cx, cy - 90f)
-                pPath.lineTo(cx + 30f, cy - 90f)
-                canvas.drawPath(pPath, paint)
-                val sPath = android.graphics.Path()
-                sPath.moveTo(cx - 120f, cy + 140f)
-                sPath.quadTo(cx - 140f, cy + 80f, cx - 110f, cy + 40f)
-                sPath.quadTo(cx - 100f, cy + 80f, cx - 100f, cy + 140f)
-                canvas.drawPath(sPath, paint)
-            }
-            "robot" -> {
-                canvas.drawRect(cx - 50f, cy - 70f, cx + 50f, cy + 10f, paint)
-                canvas.drawLine(cx, cy - 70f, cx, cy - 100f, paint)
-                canvas.drawCircle(cx, cy - 105f, 8f, paint)
-                canvas.drawRect(cx - 30f, cy - 50f, cx - 10f, cy - 30f, paint)
-                canvas.drawRect(cx + 10f, cy - 50f, cx + 30f, cy - 30f, paint)
-                canvas.drawLine(cx - 20f, cy - 10f, cx + 20f, cy - 10f, paint)
-                canvas.drawRect(cx - 60f, cy + 20f, cx + 60f, cy + 120f, paint)
-                canvas.drawCircle(cx, cy + 70f, 20f, paint)
-            }
-            "jungle" -> {
-                canvas.drawCircle(cx, cy, 70f, paint)
-                canvas.drawCircle(cx, cy, 45f, paint)
-                canvas.drawCircle(cx - 15f, cy - 10f, 5f, paint)
-                canvas.drawCircle(cx + 15f, cy - 10f, 5f, paint)
-                val nPath = android.graphics.Path()
-                nPath.moveTo(cx - 8f, cy + 5f)
-                nPath.lineTo(cx + 8f, cy + 5f)
-                nPath.lineTo(cx, cy + 15f)
-                nPath.close()
-                canvas.drawPath(nPath, paint)
-                canvas.drawCircle(cx - 30f, cy - 35f, 14f, paint)
-                canvas.drawCircle(cx + 30f, cy - 35f, 14f, paint)
-            }
-            "farm" -> {
-                canvas.drawRect(cx - 50f, cy + 10f, cx + 50f, cy + 110f, paint)
-                val path = android.graphics.Path()
-                path.moveTo(cx - 60f, cy + 10f)
-                path.lineTo(cx, cy - 40f)
-                path.lineTo(cx + 60f, cy + 10f)
-                path.close()
-                canvas.drawPath(path, paint)
-                canvas.drawRect(cx - 20f, cy + 50f, cx + 20f, cy + 110f, paint)
-                canvas.drawCircle(cx - 100f, cy - 80f, 25f, paint)
-                canvas.drawCircle(cx + 100f, cy - 70f, 15f, paint)
-                canvas.drawCircle(cx + 120f, cy - 70f, 20f, paint)
-                canvas.drawCircle(cx + 140f, cy - 70f, 15f, paint)
-            }
-            "vehicles" -> {
-                canvas.drawRect(cx - 80f, cy, cx + 80f, cy + 50f, paint)
-                val path = android.graphics.Path()
-                path.moveTo(cx - 40f, cy)
-                path.lineTo(cx - 20f, cy - 30f)
-                path.lineTo(cx + 30f, cy - 30f)
-                path.lineTo(cx + 50f, cy)
-                path.close()
-                canvas.drawPath(path, paint)
-                canvas.drawCircle(cx - 45f, cy + 50f, 20f, paint)
-                canvas.drawCircle(cx + 45f, cy + 50f, 20f, paint)
-                canvas.drawCircle(cx - 45f, cy + 50f, 6f, paint)
-                canvas.drawCircle(cx + 45f, cy + 50f, 6f, paint)
-            }
-            "superheroes" -> {
-                canvas.drawCircle(cx, cy - 20f, 35f, paint)
-                canvas.drawLine(cx - 35f, cy - 25f, cx + 35f, cy - 25f, paint)
-                canvas.drawLine(cx - 35f, cy - 15f, cx + 35f, cy - 15f, paint)
-                canvas.drawCircle(cx - 15f, cy - 20f, 5f, paint)
-                canvas.drawCircle(cx + 15f, cy - 20f, 5f, paint)
-                val path = android.graphics.Path()
-                path.moveTo(cx - 25f, cy + 15f)
-                path.lineTo(cx - 45f, cy + 90f)
-                path.lineTo(cx, cy + 120f)
-                path.lineTo(cx + 45f, cy + 90f)
-                path.lineTo(cx + 25f, cy + 15f)
-                path.close()
-                canvas.drawPath(path, paint)
-                drawStarOnPdf(canvas, paint, cx, cy + 60f, 15f)
-            }
-            "pets" -> {
-                canvas.drawCircle(cx, cy, 45f, paint)
-                val leftEar = android.graphics.Path()
-                leftEar.moveTo(cx - 35f, cy - 20f)
-                leftEar.quadTo(cx - 65f, cy - 10f, cx - 55f, cy + 30f)
-                leftEar.quadTo(cx - 40f, cy + 40f, cx - 25f, cy + 10f)
-                leftEar.close()
-                canvas.drawPath(leftEar, paint)
-                val rightEar = android.graphics.Path()
-                rightEar.moveTo(cx + 35f, cy - 20f)
-                rightEar.quadTo(cx + 65f, cy - 10f, cx + 55f, cy + 30f)
-                rightEar.quadTo(cx + 40f, cy + 40f, cx + 25f, cy + 10f)
-                rightEar.close()
-                canvas.drawPath(rightEar, paint)
-                canvas.drawCircle(cx - 15f, cy - 5f, 6f, paint)
-                canvas.drawCircle(cx + 15f, cy - 5f, 6f, paint)
-                canvas.drawCircle(cx, cy + 12f, 7f, paint)
-                canvas.drawArc(cx - 12f, cy, cx, cy + 20f, 0f, 180f, false, paint)
-                canvas.drawArc(cx, cy, cx + 12f, cy + 20f, 0f, 180f, false, paint)
-            }
-            "candyland" -> {
-                canvas.drawCircle(cx - 40f, cy - 20f, 40f, paint)
-                canvas.drawCircle(cx - 40f, cy - 20f, 25f, paint)
-                canvas.drawCircle(cx - 40f, cy - 20f, 12f, paint)
-                canvas.drawLine(cx - 40f, cy + 20f, cx - 40f, cy + 110f, paint)
-                canvas.drawCircle(cx + 50f, cy + 20f, 25f, paint)
-                val leftTie = android.graphics.Path()
-                leftTie.moveTo(cx + 25f, cy + 20f)
-                leftTie.lineTo(cx + 5f, cy + 5f)
-                leftTie.lineTo(cx + 5f, cy + 35f)
-                leftTie.close()
-                canvas.drawPath(leftTie, paint)
-                val rightTie = android.graphics.Path()
-                rightTie.moveTo(cx + 75f, cy + 20f)
-                rightTie.lineTo(cx + 95f, cy + 5f)
-                rightTie.lineTo(cx + 95f, cy + 35f)
-                rightTie.close()
-                canvas.drawPath(rightTie, paint)
-            }
-            "dragons" -> {
-                canvas.drawCircle(cx, cy - 10f, 40f, paint)
-                canvas.drawCircle(cx - 10f, cy + 10f, 8f, paint)
-                canvas.drawCircle(cx + 10f, cy + 10f, 8f, paint)
-                val leftWing = android.graphics.Path()
-                leftWing.moveTo(cx - 30f, cy)
-                leftWing.lineTo(cx - 75f, cy - 40f)
-                leftWing.lineTo(cx - 45f, cy + 20f)
-                leftWing.close()
-                canvas.drawPath(leftWing, paint)
-                val rightWing = android.graphics.Path()
-                rightWing.moveTo(cx + 30f, cy)
-                rightWing.lineTo(cx + 75f, cy - 40f)
-                rightWing.lineTo(cx + 45f, cy + 20f)
-                rightWing.close()
-                canvas.drawPath(rightWing, paint)
-                canvas.drawCircle(cx - 12f, cy - 15f, 4f, paint)
-                canvas.drawCircle(cx + 12f, cy - 15f, 4f, paint)
-            }
-            "pirates" -> {
-                val hat = android.graphics.Path()
-                hat.moveTo(cx - 60f, cy - 20f)
-                hat.lineTo(cx, cy - 65f)
-                hat.lineTo(cx + 60f, cy - 20f)
-                hat.close()
-                canvas.drawPath(hat, paint)
-                canvas.drawCircle(cx, cy + 15f, 30f, paint)
-                canvas.drawCircle(cx - 10f, cy + 12f, 8f, paint)
-                canvas.drawLine(cx - 30f, cy + 2f, cx, cy + 20f, paint)
-                canvas.drawCircle(cx + 12f, cy + 12f, 4f, paint)
-            }
-            "astronauts" -> {
-                canvas.drawCircle(cx, cy, 60f, paint)
-                canvas.drawCircle(cx, cy, 45f, paint)
-                canvas.drawCircle(cx - 12f, cy - 8f, 4f, paint)
-                canvas.drawCircle(cx + 12f, cy - 8f, 4f, paint)
-                canvas.drawLine(cx - 10f, cy + 10f, cx + 10f, cy + 10f, paint)
-                canvas.drawLine(cx, cy - 60f, cx, cy - 80f, paint)
-                drawStarOnPdf(canvas, paint, cx, cy - 85f, 8f)
-            }
-            "toys" -> {
-                canvas.drawCircle(cx, cy, 45f, paint)
-                canvas.drawCircle(cx - 38f, cy - 38f, 18f, paint)
-                canvas.drawCircle(cx + 38f, cy - 38f, 18f, paint)
-                canvas.drawCircle(cx, cy + 12f, 14f, paint)
-                val nose = android.graphics.Path()
-                nose.moveTo(cx, cy + 8f)
-                nose.lineTo(cx - 5f, cy + 3f)
-                nose.lineTo(cx + 5f, cy + 3f)
-                nose.close()
-                canvas.drawPath(nose, paint)
-            }
-            "ice_cream" -> {
-                val cone = android.graphics.Path()
-                cone.moveTo(cx - 35f, cy + 20f)
-                cone.lineTo(cx + 35f, cy + 20f)
-                cone.lineTo(cx, cy + 110f)
-                cone.close()
-                canvas.drawPath(cone, paint)
-                canvas.drawCircle(cx, cy, 35f, paint)
-                canvas.drawCircle(cx, cy - 40f, 30f, paint)
-                canvas.drawCircle(cx, cy - 75f, 25f, paint)
-                canvas.drawCircle(cx, cy - 95f, 8f, paint)
-                canvas.drawLine(cx, cy - 103f, cx + 15f, cy - 110f, paint)
-            }
-            "circus" -> {
-                val rbase = android.graphics.Path()
-                rbase.addRect(cx - 55f, cy + 20f, cx + 55f, cy + 110f, android.graphics.Path.Direction.CW)
-                canvas.drawPath(rbase, paint)
-                val rroof = android.graphics.Path()
-                rroof.moveTo(cx - 65f, cy + 20f)
-                rroof.lineTo(cx, cy - 50f)
-                rroof.lineTo(cx + 65f, cy + 20f)
-                rroof.close()
-                canvas.drawPath(rroof, paint)
-                canvas.drawLine(cx, cy - 50f, cx, cy - 80f, paint)
-                val flag = android.graphics.Path()
-                flag.moveTo(cx, cy - 80f)
-                flag.lineTo(cx + 25f, cy - 70f)
-                flag.lineTo(cx, cy - 60f)
-                flag.close()
-                canvas.drawPath(flag, paint)
-            }
-            "enchanted" -> {
-                val stem = android.graphics.Path()
-                stem.addRect(cx - 20f, cy + 30f, cx + 20f, cy + 115f, android.graphics.Path.Direction.CW)
-                canvas.drawPath(stem, paint)
-                val cap = android.graphics.Path()
-                cap.moveTo(cx - 75f, cy + 30f)
-                cap.quadTo(cx, cy - 55f, cx + 75f, cy + 30f)
-                cap.close()
-                canvas.drawPath(cap, paint)
-                canvas.drawCircle(cx - 30f, cy - 5f, 10f, paint)
-                canvas.drawCircle(cx + 35f, cy + 5f, 8f, paint)
-            }
-            "dino_cave" -> {
-                val volcano = android.graphics.Path()
-                volcano.moveTo(cx - 90f, cy + 110f)
-                volcano.lineTo(cx - 30f, cy + 10f)
-                volcano.lineTo(cx + 30f, cy + 10f)
-                volcano.lineTo(cx + 90f, cy + 110f)
-                volcano.close()
-                canvas.drawPath(volcano, paint)
-                canvas.drawCircle(cx - 15f, cy - 12f, 18f, paint)
-                canvas.drawCircle(cx + 15f, cy - 12f, 18f, paint)
-                canvas.drawCircle(cx - 100f, cy + 80f, 16f, paint)
-            }
-            "aliens" -> {
-                val disk = android.graphics.Path()
-                disk.addOval(cx - 95f, cy + 10f, cx + 95f, cy + 55f, android.graphics.Path.Direction.CW)
-                canvas.drawPath(disk, paint)
-                val dome = android.graphics.Path()
-                dome.arcTo(cx - 45f, cy - 35f, cx + 45f, cy + 15f, 180f, 180f, true)
-                canvas.drawPath(dome, paint)
-                canvas.drawCircle(cx, cy - 10f, 20f, paint)
-                canvas.drawLine(cx, cy - 30f, cx, cy - 50f, paint)
-                canvas.drawCircle(cx, cy - 52f, 5f, paint)
-            }
-            "winter" -> {
-                canvas.drawCircle(cx, cy + 65f, 45f, paint)
-                canvas.drawCircle(cx, cy + 5f, 32f, paint)
-                canvas.drawCircle(cx, cy - 40f, 22f, paint)
-                val hatBase = android.graphics.Path()
-                hatBase.addRect(cx - 15f, cy - 85f, cx + 15f, cy - 62f, android.graphics.Path.Direction.CW)
-                canvas.drawPath(hatBase, paint)
-                canvas.drawLine(cx - 28f, cy - 62f, cx + 28f, cy - 62f, paint)
-            }
-            else -> {
-                canvas.drawCircle(cx, cy, 70f, paint)
-                canvas.drawCircle(cx, cy, 45f, paint)
-                canvas.drawCircle(cx - 15f, cy - 10f, 5f, paint)
-                canvas.drawCircle(cx + 15f, cy - 10f, 5f, paint)
-                val nPath = android.graphics.Path()
-                nPath.moveTo(cx - 8f, cy + 5f)
-                nPath.lineTo(cx + 8f, cy + 5f)
-                nPath.lineTo(cx, cy + 15f)
-                nPath.close()
-                canvas.drawPath(nPath, paint)
-                canvas.drawCircle(cx - 30f, cy - 35f, 14f, paint)
-                canvas.drawCircle(cx + 30f, cy - 35f, 14f, paint)
-            }
-        }
-
-        canvas.restore()
-    }
-
-    private fun drawStarOnPdf(canvas: android.graphics.Canvas, paint: android.graphics.Paint, x: Float, y: Float, sz: Float) {
-        val path = android.graphics.Path()
-        path.moveTo(x, y - sz)
-        path.lineTo(x + sz * 0.3f, y - sz * 0.3f)
-        path.lineTo(x + sz, y)
-        path.lineTo(x + sz * 0.3f, y + sz * 0.3f)
-        path.lineTo(x, y + sz)
-        path.lineTo(x - sz * 0.3f, y + sz * 0.3f)
-        path.lineTo(x - sz, y)
-        path.lineTo(x - sz * 0.3f, y - sz * 0.3f)
-        path.close()
-        canvas.drawPath(path, paint)
-    }
-
-    // --- SMART FRIDGE & CULINARY ASSISTANT ---
-
-    fun selectCulinaryDietaryFilter(filter: String) {
-        _uiState.update { it.copy(culinaryDietaryFilter = filter) }
-    }
-
-    fun selectCulinaryRecipe(recipe: CulinaryRecipe?, tts: android.speech.tts.TextToSpeech?) {
-        _uiState.update { 
-            it.copy(
-                culinarySelectedRecipe = recipe,
-                culinaryCurrentStepIndex = 0
-            ) 
-        }
-        if (recipe != null) {
-            val firstStep = recipe.steps.firstOrNull() ?: ""
-            speakCulinaryStep(firstStep, tts)
-        } else {
-            stopCulinarySpeaker(tts)
-        }
-    }
-
-    fun setCulinaryStepIndex(index: Int, tts: android.speech.tts.TextToSpeech?) {
-        val recipe = _uiState.value.culinarySelectedRecipe ?: return
-        if (index in recipe.steps.indices) {
-            _uiState.update { it.copy(culinaryCurrentStepIndex = index) }
-            speakCulinaryStep(recipe.steps[index], tts)
-        }
-    }
-
-    fun addIngredientToShoppingList(ingredient: String) {
-        val currentList = _uiState.value.culinaryShoppingList
-        if (!currentList.contains(ingredient)) {
-            _uiState.update { it.copy(culinaryShoppingList = currentList + ingredient) }
-        }
-    }
-
-    fun removeIngredientFromShoppingList(ingredient: String) {
-        val currentList = _uiState.value.culinaryShoppingList
-        _uiState.update { it.copy(culinaryShoppingList = currentList - ingredient) }
-    }
-
-    fun clearShoppingList() {
-        _uiState.update { it.copy(culinaryShoppingList = emptyList()) }
-    }
-
-    fun setCulinarySelectedImage(bitmap: android.graphics.Bitmap?, uri: android.net.Uri?) {
-        _uiState.update { it.copy(culinarySelectedBitmap = bitmap, culinarySelectedUri = uri) }
-    }
-
-    fun speakCulinaryStep(text: String, tts: android.speech.tts.TextToSpeech?) {
-        if (text.isBlank()) return
-        viewModelScope.launch {
-            _uiState.update { it.copy(culinaryIsTtsPlaying = true) }
-            if (tts != null) {
-                tts.language = java.util.Locale.US
-                tts.setOnUtteranceProgressListener(object : android.speech.tts.UtteranceProgressListener() {
-                    override fun onStart(utteranceId: String?) {}
-                    override fun onDone(utteranceId: String?) {
-                        _uiState.update { it.copy(culinaryIsTtsPlaying = false) }
-                    }
-                    override fun onError(utteranceId: String?) {
-                        _uiState.update { it.copy(culinaryIsTtsPlaying = false) }
-                    }
-                })
-                val params = android.os.Bundle().apply {
-                    putString(android.speech.tts.TextToSpeech.Engine.KEY_PARAM_UTTERANCE_ID, "CulinaryUtteranceId")
-                }
-                tts.speak(text, android.speech.tts.TextToSpeech.QUEUE_FLUSH, params, "CulinaryUtteranceId")
-            } else {
-                delay(3000)
-                _uiState.update { it.copy(culinaryIsTtsPlaying = false) }
-            }
-        }
-    }
-
-    fun stopCulinarySpeaker(tts: android.speech.tts.TextToSpeech?) {
-        try {
-            tts?.stop()
-        } catch (e: Exception) {}
-        _uiState.update { it.copy(culinaryIsTtsPlaying = false) }
-    }
-
-    fun analyzeFridgeImage(bitmap: android.graphics.Bitmap, tts: android.speech.tts.TextToSpeech?) {
-        viewModelScope.launch {
-            _uiState.update { 
-                it.copy(
-                    culinaryIsScanning = true,
-                    culinaryError = "",
-                    culinarySelectedRecipe = null,
-                    culinaryDetectedIngredients = emptyList(),
-                    culinaryRecipes = emptyList()
-                )
-            }
-            
-            val apiKey = _uiState.value.customApiKey.ifBlank { _uiState.value.openaiApiKey }
-            if (apiKey.isBlank() || apiKey.contains("PLACEHOLDER")) {
-                // Return offline beautiful recipes
-                delay(2000)
-                val offlineRecipes = getOfflineCulinaryRecipes()
-                _uiState.update {
-                    it.copy(
-                        culinaryIsScanning = false,
-                        culinaryDetectedIngredients = listOf("Milk", "Eggs", "Cheddar Cheese", "Tomatoes", "Asparagus", "Chicken Breast"),
-                        culinaryRecipes = offlineRecipes
-                    )
-                }
-                return@launch
-            }
-
-            try {
-                val prompt = """
-                    Identify visible ingredients and list them. Suggest up to 4 recipe cards matching what you see.
-                    Return strictly a JSON object matching this structure:
-                    {
-                      "ingredients": ["Milk", "Eggs", "Cheddar Cheese", "Fresh Tomatoes", "Chicken Breast"],
-                      "recipes": [
-                        {
-                          "title": "Creamy Egg & Cheese Scramble",
-                          "sDescription": "A warm fluffy breakfast with melted cheese",
-                          "difficulty": "Easy",
-                          "prepTime": "10 mins",
-                          "calories": 280,
-                          "ingredients": ["Eggs", "Cheddar Cheese", "Butter", "Milk"],
-                          "missingIngredients": ["Butter"],
-                          "steps": [
-                            "Whisk eggs with a splash of milk in a cup.",
-                            "Melt a tiny bit of butter in a pan.",
-                            "Scramble the eggs, folding in cheddar cheese on top until gooey."
-                          ],
-                          "dietaryTags": ["Vegetarian", "Keto", "Gluten-Free"]
-                        }
-                      ]
-                    }
-                    Strict rule: Do not output any markdown wrapping. Just pure, clean JSON. Check ingredients against Keto, Vegetarian guidelines carefully to fill the tags.
-                """.trimIndent()
-
-                val keysMap = getActiveKeysMap()
-                val urlsMap = getActiveUrlsMap()
-
-                val output = repository.sendVisionRequest(
-                    bitmap = bitmap,
-                    prompt = prompt,
-                    providerKeys = keysMap,
-                    providerUrls = urlsMap
-                )
-
-                var rawText = output.trim()
-                if (rawText.startsWith("```json")) {
-                    rawText = rawText.substringAfter("```json")
-                } else if (rawText.startsWith("```")) {
-                    rawText = rawText.substringAfter("```")
-                }
-                if (rawText.endsWith("```")) {
-                    rawText = rawText.substringBeforeLast("```")
-                }
-                rawText = rawText.trim()
-
-                try {
-                    val jsonObj = org.json.JSONObject(rawText)
-                    val ingArr = jsonObj.optJSONArray("ingredients")
-                    val parsedIngs = mutableListOf<String>()
-                    if (ingArr != null) {
-                        for (i in 0 until ingArr.length()) {
-                            parsedIngs.add(ingArr.getString(i))
-                        }
-                    }
-
-                    val recArr = jsonObj.getJSONArray("recipes")
-                    val parsedRecipes = mutableListOf<CulinaryRecipe>()
-                    for (i in 0 until recArr.length()) {
-                        val rObj = recArr.getJSONObject(i)
-                        
-                        val tagsArr = rObj.optJSONArray("dietaryTags")
-                        val tags = mutableListOf<String>()
-                        if (tagsArr != null) {
-                            for (j in 0 until tagsArr.length()) {
-                                tags.add(tagsArr.getString(j))
-                            }
-                        }
-
-                        val stepsArr = rObj.getJSONArray("steps")
-                        val steps = mutableListOf<String>()
-                        for (j in 0 until stepsArr.length()) {
-                            steps.add(stepsArr.getString(j))
-                        }
-
-                        val ingsArr = rObj.getJSONArray("ingredients")
-                        val recipeIngs = mutableListOf<String>()
-                        for (j in 0 until ingsArr.length()) {
-                            recipeIngs.add(ingsArr.getString(j))
-                        }
-
-                        val missingArr = rObj.getJSONArray("missingIngredients")
-                        val missingIngs = mutableListOf<String>()
-                        for (j in 0 until missingArr.length()) {
-                            missingIngs.add(missingArr.getString(j))
-                        }
-
-                        parsedRecipes.add(
-                            CulinaryRecipe(
-                                title = rObj.getString("title"),
-                                sDescription = rObj.optString("sDescription", "Delectable feast"),
-                                difficulty = rObj.optString("difficulty", "Medium"),
-                                prepTime = rObj.optString("prepTime", "15 mins"),
-                                calories = rObj.optInt("calories", 300),
-                                ingredients = recipeIngs,
-                                missingIngredients = missingIngs,
-                                steps = steps,
-                                dietaryTags = tags
-                            )
-                        )
-                    }
-
-                    _uiState.update {
-                        it.copy(
-                            culinaryIsScanning = false,
-                            culinaryDetectedIngredients = parsedIngs.ifEmpty { listOf("Milk", "Cheese", "Leftover Chicken") },
-                            culinaryRecipes = parsedRecipes
-                        )
-                    }
-
-                } catch (e: Exception) {
-                    android.util.Log.e("CulinaryAssistant", "JSON Parse error: ${e.message}")
-                    val offlineRecipes = getOfflineCulinaryRecipes()
-                    _uiState.update {
-                        it.copy(
-                            culinaryIsScanning = false,
-                            culinaryDetectedIngredients = listOf("Milk", "Cheddar Cheese", "Tomatoes", "Asparagus", "Chicken Breast"),
-                            culinaryRecipes = offlineRecipes,
-                            culinaryError = "Could not parse AI recipe format: using our visual assistant presets!"
-                        )
-                    }
-                }
-
-            } catch (e: Exception) {
-                val offlineRecipes = getOfflineCulinaryRecipes()
-                _uiState.update {
-                    it.copy(
-                        culinaryIsScanning = false,
-                        culinaryDetectedIngredients = listOf("Milk", "Cheddar Cheese", "Tomatoes", "Eggs", "Salmon Fillets"),
-                        culinaryRecipes = offlineRecipes,
-                        culinaryError = "Scanning API temporary error: loaded offline visual assistant presets!"
-                    )
-                }
-            }
-        }
-    }
-
-    private fun getOfflineCulinaryRecipes(): List<CulinaryRecipe> {
-        return listOf(
-            CulinaryRecipe(
-                title = "Creamy Tomato Basil Pasta",
-                sDescription = "A rich and fragrant garlic tomato sauce folded into penne pasta.",
-                difficulty = "Easy",
-                prepTime = "15 mins",
-                calories = 350,
-                ingredients = listOf("Penne Pasta", "Fresh Tomatoes", "Cream", "Garlic", "Parmesan Cheese", "Fresh Basil"),
-                missingIngredients = listOf("Penne Pasta", "Fresh Basil"),
-                steps = listOf(
-                    "Boil penne pasta in heavily salted hot water until al dente.",
-                    "In a skillet, sauté crushed garlic cloves and diced tomatoes in warm olive oil.",
-                    "Pour in cream and parmesan cheese, stirring gently, then simmer for 5 minutes.",
-                    "Toss in pasta, sprinkle chopped fresh basil, and serve hot under extra cheese."
-                ),
-                dietaryTags = listOf("Vegetarian")
-            ),
-            CulinaryRecipe(
-                title = "Garlic Butter Grilled Salmon",
-                sDescription = "Searing hot salmon cooked in garlic herb butter with asparagus spears.",
-                difficulty = "Medium",
-                prepTime = "20 mins",
-                calories = 420,
-                ingredients = listOf("Salmon Fillets", "Unsalted Butter", "Fresh Lemon juice", "Garlic", "Asparagus spears", "Olive Oil"),
-                missingIngredients = listOf("Salmon Fillets", "Asparagus spears"),
-                steps = listOf(
-                    "Coat the salmon skin and flesh with olive oil, salt, and coarse black pepper.",
-                    "Melt salted butter in a heavy hot skillet, then stir in minced garlic and lemon juice.",
-                    "Sear the salmon skin side up for 4 minutes, then flip and spoon garlic lemon butter repeatedly.",
-                    "Add asparagus spears beside the fish and grill until tender and blistered beautifully."
-                ),
-                dietaryTags = listOf("Keto", "Gluten-Free")
-            ),
-            CulinaryRecipe(
-                title = "Cheesy Avocado Scramble",
-                sDescription = "Butter-scrambled organic eggs paired with creamy fresh Hass avocado.",
-                difficulty = "Easy",
-                prepTime = "10 mins",
-                calories = 290,
-                ingredients = listOf("Fresh Eggs", "Hass Avocado", "Sharp Cheddar Cheese", "Salted Butter", "Green Onions"),
-                missingIngredients = listOf("Hass Avocado"),
-                steps = listOf(
-                    "Whisk farm fresh eggs with salt, pepper, and chopped scallions.",
-                    "Melt grass-fed butter in an empty non-stick skillet over medium-low heat.",
-                    "Scramble eggs gently using a silicone spatula to keep the curd soft and fluffy.",
-                    "Scoop eggs onto a warm plate. Top with diced avocado and sharp shredded cheddar."
-                ),
-                dietaryTags = listOf("Vegetarian", "Keto", "Gluten-Free")
-            ),
-            CulinaryRecipe(
-                title = "Loaded Mediterranean Hummus Bowl",
-                sDescription = "A protein-packed vibrant cold bowl topped with cucumber, olives and tangy lemon sauce.",
-                difficulty = "Easy",
-                prepTime = "12 mins",
-                calories = 315,
-                ingredients = listOf("Greek Chickpeas", "Cucumber", "Cherry Tomatoes", "Kalamata Olives", "Creamy Hummus", "Fresh Lemon", "Extra Virgin Olive Oil"),
-                missingIngredients = listOf("Creamy Hummus", "Kalamata Olives"),
-                steps = listOf(
-                    "Drain the chickpeas and toss them with olive oil, dried oregano, and sea salt.",
-                    "Slice tomatoes, cucumbers, and pitted olives into bite-sized wedges.",
-                    "Spoon a generous dollop of rich hummus into the center of a wide clean bowl.",
-                    "Arrange the tomatoes, chickpeas, and cucumbers around the hummus. Drizzle with lemon juice."
-                ),
-                dietaryTags = listOf("Vegetarian", "Vegan", "Gluten-Free")
-            )
-        )
-    }
-
-    // --- AI-POWERED MEME GENERATOR ---
-
-    fun setMemeSelectedImage(bitmap: android.graphics.Bitmap?, uri: android.net.Uri?) {
-        _uiState.update { 
-            it.copy(
-                memeSelectedBitmap = bitmap, 
-                memeSelectedUri = uri,
-                memeSuggestedCaptions = emptyList(),
-                memeError = ""
-            ) 
-        }
-    }
-
-    fun updateMemeTopText(text: String) {
-        _uiState.update { it.copy(memeTopText = text) }
-    }
-
-    fun updateMemeBottomText(text: String) {
-        _uiState.update { it.copy(memeBottomText = text) }
-    }
-
-    fun updateMemeTextSize(size: Float) {
-        _uiState.update { it.copy(memeTextSize = size) }
-    }
-
-    fun updateMemeTextColor(colorHex: String) {
-        _uiState.update { it.copy(memeTextColor = colorHex) }
-    }
-
-    fun toggleMemeCapitalization() {
-        _uiState.update { it.copy(memeIsCapitalized = !it.memeIsCapitalized) }
-    }
-
-    fun selectMemeSuggestedCaption(caption: String) {
-        _uiState.update { 
-            val formatted = if (it.memeIsCapitalized) caption.uppercase() else caption
-            it.copy(
-                memeBottomText = formatted,
-                memeError = ""
-            ) 
-        }
-    }
-
-    fun clearMemeState() {
-        _uiState.update {
-            it.copy(
-                memeSelectedBitmap = null,
-                memeSelectedUri = null,
-                memeSuggestedCaptions = emptyList(),
-                memeTopText = "",
-                memeBottomText = "",
-                memeIsGeneratingCaptions = false,
-                memeError = "",
-                memeTextColor = "#FFFFFF",
-                memeTextSize = 28f,
-                memeIsCapitalized = true
-            )
-        }
-    }
-
-    fun generateMemeMagicCaptions(bitmap: android.graphics.Bitmap) {
-        viewModelScope.launch {
-            _uiState.update { 
-                it.copy(
-                    memeIsGeneratingCaptions = true,
-                    memeError = "",
-                    memeSuggestedCaptions = emptyList()
-                ) 
-            }
-
-            val apiKey = _uiState.value.openaiApiKey.ifBlank { _uiState.value.customApiKey }
-            val keysMap = mapOf("OpenAI" to apiKey)
-            val urlsMap = mapOf("OpenAI" to _uiState.value.openaiBaseUrl)
-
-            try {
-                val prompt = """
-                    Analyze this image context, characters, actions, expressions or visuals, and suggest exactly 5 funny, extremely creative, trendy, situational meme captions that match this visual.
-                    The captions should range from extremely sarcastic to witty, and fit popular meme formats.
-                    Return strictly a JSON object with this exact schema structure:
-                    {
-                      "captions": [
-                        "hilarious caption 1",
-                        "hilarious caption 2",
-                        "hilarious caption 3",
-                        "hilarious caption 4",
-                        "hilarious caption 5"
-                      ]
-                    }
-                    Strict rule: Do not output any markdown code blocks or wrapper tags around the JSON.
-                """.trimIndent()
-
-                val output = repository.sendVisionRequest(
-                    bitmap = bitmap,
-                    prompt = prompt,
-                    provider = "OpenAI",
-                    model = "gpt-4o-mini",
-                    providerKeys = keysMap,
-                    providerUrls = urlsMap
-                )
-
-                var rawText = output.trim()
-                if (rawText.startsWith("```json")) {
-                    rawText = rawText.substringAfter("```json")
-                } else if (rawText.startsWith("```")) {
-                    rawText = rawText.substringAfter("```")
-                }
-                if (rawText.endsWith("```")) {
-                    rawText = rawText.substringBeforeLast("```")
-                }
-                rawText = rawText.trim()
-
-                try {
-                    val jsonObj = org.json.JSONObject(rawText)
-                    val captionsArr = jsonObj.getJSONArray("captions")
-                    val parsedCaptions = mutableListOf<String>()
-                    for (i in 0 until captionsArr.length()) {
-                        parsedCaptions.add(captionsArr.getString(i))
-                    }
-
-                    if (parsedCaptions.isNotEmpty()) {
-                        _uiState.update {
-                            it.copy(
-                                memeIsGeneratingCaptions = false,
-                                memeSuggestedCaptions = parsedCaptions
-                            )
-                        }
-                    } else {
-                        throw Exception("No captions found in response array")
-                    }
-
-                } catch (e: Exception) {
-                    android.util.Log.e("MemeGenerator", "JSON Parse error: ${e.message}")
-                    _uiState.update {
-                        it.copy(
-                            memeIsGeneratingCaptions = false,
-                            memeSuggestedCaptions = getOfflineMemeCaptions(),
-                            memeError = "Parsed fallback preset captions due to standard API structural change or format error."
-                        )
-                    }
-                }
-
-            } catch (e: Exception) {
-                _uiState.update {
-                    it.copy(
-                        memeIsGeneratingCaptions = false,
-                        memeSuggestedCaptions = getOfflineMemeCaptions(),
-                        memeError = "API Connection Error: loaded fallback preset captions!"
-                    )
-                }
-            }
-        }
-    }
-
-    private fun getOfflineMemeCaptions(): List<String> {
-        return listOf(
-            "Me explaining to my dog why we can't go for a second walk",
-            "When the code compiles on the first try but you don't trust it",
-            "expectation vs reality: a dramatic retelling",
-            "How I look staring at the microwave waiting for my pizza rolls",
-            "Nobody:\nMy brain at 3 AM: let's build an AI meme generator"
-        )
-    }
-
-    fun setInteriorOriginalImage(bitmap: android.graphics.Bitmap?, uri: android.net.Uri?) {
-        _uiState.update {
-            it.copy(
-                interiorOriginalBitmap = bitmap,
-                interiorOriginalUri = uri,
-                interiorError = ""
-            )
-        }
-    }
-
-    fun selectInteriorStyle(style: String) {
-        _uiState.update { it.copy(interiorSelectedStyle = style) }
-        val items = getShoppableItemsForStyle(style)
-        _uiState.update {
-            it.copy(
-                interiorShoppableItems = items
-            )
-        }
-    }
-
-    private fun getShoppableItemsForStyle(style: String): List<ShoppableItem> {
-        return when (style) {
-            "Mid-Century Modern" -> listOf(
-                ShoppableItem(id = "mcm1", name = "Eames Style Lounge Chair & Ottoman", price = "$799.00", merchant = "Wayfair", imageUrl = "https://images.unsplash.com/photo-1567538096630-e0c55bd6374c", rating = 4.8f),
-                ShoppableItem(id = "mcm2", name = "Noguchi Walnut Coffee Table", price = "$349.00", merchant = "West Elm", imageUrl = "https://images.unsplash.com/photo-1533090161767-e6ffed986c88", rating = 4.6f),
-                ShoppableItem(id = "mcm3", name = "Sputnik 12-Light Brass Chandelier", price = "$189.00", merchant = "Amazon", imageUrl = "https://images.unsplash.com/photo-1513506003901-1e6a229e2d15", rating = 4.5f),
-                ShoppableItem(id = "mcm4", name = "Geometric Abstract Mid-Century Rug", price = "$299.00", merchant = "RugsUSA", imageUrl = "https://images.unsplash.com/photo-1531835551805-16d864c8d311", rating = 4.7f)
-            )
-            "Industrial Loft" -> listOf(
-                ShoppableItem(id = "ind1", name = "Hamilton Distressed Leather Sofa in Tan", price = "$1,899.00", merchant = "West Elm", imageUrl = "https://images.unsplash.com/photo-1484101403633-562f891dc89a", rating = 4.9f),
-                ShoppableItem(id = "ind2", name = "Reclaimed Wood Pipe Coffee Table", price = "$199.00", merchant = "Etsy", imageUrl = "https://images.unsplash.com/photo-1600585154340-be6161a56a0c", rating = 4.6f),
-                ShoppableItem(id = "ind3", name = "Edison Bulb Multi-Light Pendant Chandelier", price = "$229.00", merchant = "Lumens", imageUrl = "https://images.unsplash.com/photo-1513519245088-0e12902e5a38", rating = 4.5f),
-                ShoppableItem(id = "ind4", name = "Vintage Distressed Charcoal Area Rug", price = "$159.00", merchant = "Ruggable", imageUrl = "https://images.unsplash.com/photo-1572120360610-d971b9d7767c", rating = 4.4f)
-            )
-            "Bohemian Chic" -> listOf(
-                ShoppableItem(id = "boh1", name = "Handmade Macrame Wall Hanging Large", price = "$49.00", merchant = "Etsy", imageUrl = "https://images.unsplash.com/photo-1522771739844-6a9f6d5f14af", rating = 4.7f),
-                ShoppableItem(id = "boh2", name = "Moroccan Pouf Leather Ottoman", price = "$119.00", merchant = "Target", imageUrl = "https://images.unsplash.com/photo-1581428982868-e410dd047a90", rating = 4.6f),
-                ShoppableItem(id = "boh3", name = "Rattan Hanging Egg Chair with Cushion", price = "$279.00", merchant = "Wayfair", imageUrl = "https://images.unsplash.com/photo-1540518614846-7eded433c457", rating = 4.8f),
-                ShoppableItem(id = "boh4", name = "Vibrant Persian Medallion Fringe Rug", price = "$249.00", merchant = "Overstock", imageUrl = "https://images.unsplash.com/photo-1616486338812-3dadae4b4ace", rating = 4.8f)
-            )
-            "Minimalist Zen" -> listOf(
-                ShoppableItem(id = "min1", name = "Platform Oak Bed Frame Low-Profile", price = "$599.00", merchant = "Thuma", imageUrl = "https://images.unsplash.com/photo-1505693395321-883724634266", rating = 4.9f),
-                ShoppableItem(id = "min2", name = "Handwoven Tatami Straw Meditation Cushion", price = "$39.00", merchant = "Muji", imageUrl = "https://images.unsplash.com/photo-1544816155-12df9643f363", rating = 4.7f),
-                ShoppableItem(id = "min3", name = "Minimalist Matte White Ceramic Table Lamp", price = "$69.00", merchant = "Ikea", imageUrl = "https://images.unsplash.com/photo-1507473885765-e6ed057f782c", rating = 4.4f),
-                ShoppableItem(id = "min4", name = "Pure Organic Linen Fitted Duvet Set", price = "$189.00", merchant = "Brooklinen", imageUrl = "https://images.unsplash.com/photo-1522771739844-6a9f6d5f14af", rating = 4.8f)
-            )
-            "Art Deco" -> listOf(
-                ShoppableItem(id = "art1", name = "Royal Velvet Blue Chesterfield Sofa", price = "$1,199.00", merchant = "Joybird", imageUrl = "https://images.unsplash.com/photo-1555041469-a586c61ea9bc", rating = 4.9f),
-                ShoppableItem(id = "art2", name = "Symmetry Gold Brass Coffee Table", price = "$389.00", merchant = "West Elm", imageUrl = "https://images.unsplash.com/photo-1600607687939-ce8a6c25118c", rating = 4.7f),
-                ShoppableItem(id = "art3", name = "Brass Arch Deco Floor Lamp", price = "$159.00", merchant = "CB2", imageUrl = "https://images.unsplash.com/photo-1507473885765-e6ed057f782c", rating = 4.6f),
-                ShoppableItem(id = "art4", name = "Gatsby Geometric Velvet Throw Pillow", price = "$34.00", merchant = "Anthropologie", imageUrl = "https://images.unsplash.com/photo-1584100936595-c0654b55a2e2", rating = 4.8f)
-            )
-            "Rustic Farmhouse" -> listOf(
-                ShoppableItem(id = "rus1", name = "Reclaimed Pine Trestle Dining Table", price = "$849.00", merchant = "Pottery Barn", imageUrl = "https://images.unsplash.com/photo-1615066390971-03e4e1c36ddf", rating = 4.8f),
-                ShoppableItem(id = "rus2", name = "Vintage Iron Cross-Back Dining Chair", price = "$89.00", merchant = "Restoration Hardware", imageUrl = "https://images.unsplash.com/photo-1503602642458-232111445657", rating = 4.5f),
-                ShoppableItem(id = "rus3", name = "Distressed Barnwood Floating Wall Shelves", price = "$45.00", merchant = "Etsy", imageUrl = "https://images.unsplash.com/photo-1600210492486-724fe5c67fb0", rating = 4.7f),
-                ShoppableItem(id = "rus4", name = "Country Checkered Linen Table Runner", price = "$29.00", merchant = "Target", imageUrl = "https://images.unsplash.com/photo-1541123437800-1bb1317badc2", rating = 4.6f)
-            )
-            "Japandi" -> listOf(
-                ShoppableItem(id = "jap1", name = "Solid White Oak Low Coffee Table", price = "$299.00", merchant = "Muji", imageUrl = "https://images.unsplash.com/photo-1616486338812-3dadae4b4ace", rating = 4.8f),
-                ShoppableItem(id = "jap2", name = "Paper Origami Pendant Shade Globe", price = "$79.00", merchant = "Nordic Nest", imageUrl = "https://images.unsplash.com/photo-1513519245088-0e12902e5a38", rating = 4.6f),
-                ShoppableItem(id = "jap3", name = "Handwoven Rattan Accent Armchair", price = "$199.00", merchant = "Ikea", imageUrl = "https://images.unsplash.com/photo-1586023492125-27b2c045efd7", rating = 4.5f),
-                ShoppableItem(id = "jap4", name = "Neutral Beige Organic Linen Area Rug", price = "$329.00", merchant = "Zara Home", imageUrl = "https://images.unsplash.com/photo-1531835551805-16d864c8d311", rating = 4.7f)
-            )
-            else -> listOf(
-                ShoppableItem(id = "scand1", name = "Sven Velvet Tufted Sofa in Pacific Blue", price = "$1,299.00", merchant = "Article", imageUrl = "https://images.unsplash.com/photo-1555041469-a586c61ea9bc", rating = 4.8f),
-                ShoppableItem(id = "scand2", name = "Solid Ash Round Coffee Table Base", price = "$229.00", merchant = "Ikea", imageUrl = "https://images.unsplash.com/photo-1533090161767-e6ffed986c88", rating = 4.6f),
-                ShoppableItem(id = "scand3", name = "Minimalist Arching LED Floor Lamp", price = "$139.00", merchant = "Target", imageUrl = "https://images.unsplash.com/photo-1507473885765-e6ed057f782c", rating = 4.4f),
-                ShoppableItem(id = "scand4", name = "Handwoven Ultra-Soft Sheepskin Rug", price = "$95.00", merchant = "Nordic Nest", imageUrl = "https://images.unsplash.com/photo-1540518614846-7eded433c457", rating = 4.7f)
-            )
-        }
-    }
-
-    fun analyzeInteriorRoom(bitmap: android.graphics.Bitmap) {
-        viewModelScope.launch {
-            _uiState.update {
-                it.copy(
-                    interiorIsAnalyzing = true,
-                    interiorError = ""
-                )
-            }
-
-            val apiKey = _uiState.value.openaiApiKey.ifBlank { _uiState.value.customApiKey }
-            if (apiKey.isBlank() || apiKey.contains("PLACEHOLDER")) {
-                delay(2500)
-                val stylesMap = mapOf(
-                    "Scandinavian" to "https://images.unsplash.com/photo-1598928506311-c55ded91a20c?auto=format&fit=crop&q=80&w=1024",
-                    "Mid-Century Modern" to "https://images.unsplash.com/photo-1586023492125-27b2c045efd7?auto=format&fit=crop&q=80&w=1024",
-                    "Industrial Loft" to "https://images.unsplash.com/photo-1505691938895-1758d7feb511?auto=format&fit=crop&q=80&w=1024",
-                    "Bohemian Chic" to "https://images.unsplash.com/photo-1505693416388-ac5ce068fe85?auto=format&fit=crop&q=80&w=1024",
-                    "Japandi" to "https://images.unsplash.com/photo-1616486338812-3dadae4b4ace?auto=format&fit=crop&q=80&w=1024",
-                    "Minimalist Zen" to "https://images.unsplash.com/photo-1560185007-c5ca9d2c014d?auto=format&fit=crop&q=80&w=1024",
-                    "Art Deco" to "https://images.unsplash.com/photo-1540518614846-7eded433c457?auto=format&fit=crop&q=80&w=1024",
-                    "Rustic Farmhouse" to "https://images.unsplash.com/photo-1507652313519-d4e9174996dd?auto=format&fit=crop&q=80&w=1024"
-                )
-                val style = _uiState.value.interiorSelectedStyle
-                val initialMsg = "Hello! I have completed analyzing your room photo. Looking at the lighting and space, I have reimagined this into a gorgeous **$style** makeover! Below are some premium furniture additions that will perfectly fit this composition. Ask me anything to refine the rug, seating, or details!"
-                _uiState.update {
-                    it.copy(
-                        interiorIsAnalyzing = false,
-                        interiorReimaginedImageUrls = stylesMap,
-                        interiorChatMessages = listOf(
-                            InteriorChatMessage(sender = "assistant", text = initialMsg)
-                        ),
-                        interiorShoppableItems = getShoppableItemsForStyle(style)
-                    )
-                }
-                return@launch
-            }
-
-            try {
-                val prompt = """
-                    You are an expert AI Interior Designer. You are analyzing the user's uploaded room.
-                    Analyze the architectural layout, light flow, and current setup.
-                    Formulate a design consultation response.
-                    Identify the best pieces of furniture (exactly 4 items) to makeover this space in the style: ${_uiState.value.interiorSelectedStyle}.
-                    Return strictly a JSON object matching this structure:
-                    {
-                      "analysis": "A brief overview describing what elements you see and your core design recommendation.",
-                      "suggestedItems": [
-                        {
-                          "name": "Eames Lounge Chair Replica",
-                          "price": "$699.00",
-                          "merchant": "Wayfair",
-                          "rating": 4.7
-                        },
-                        {
-                          "name": "Geometric Abstract Mid-Century Rug",
-                          "price": "${"$"}299.00",
-                          "merchant": "RugsUSA",
-                          "rating": 4.6
-                        },
-                        {
-                          "name": "Sputnik Brass Chandelier",
-                          "price": "${"$"}189.00",
-                          "merchant": "Amazon",
-                          "rating": 4.5
-                        },
-                        {
-                          "name": "Noguchi Walnut Table",
-                          "price": "${"$"}349.00",
-                          "merchant": "West Elm",
-                          "rating": 4.6
-                        }
-                      ]
-                    }
-                """.trimIndent()
-
-                val compressedBitmap = android.graphics.Bitmap.createScaledBitmap(bitmap, 512, 512, true)
-                val keysMap = mapOf("OpenAI" to apiKey)
-                val urlsMap = mapOf("OpenAI" to _uiState.value.openaiBaseUrl)
-
-                val responseText = repository.sendVisionRequest(
-                    bitmap = compressedBitmap,
-                    prompt = prompt,
-                    provider = "OpenAI",
-                    model = "gpt-4o-mini",
-                    providerKeys = keysMap,
-                    providerUrls = urlsMap
-                )
-                
-                var cleanedText = responseText
-                if (cleanedText.contains("```json")) {
-                    cleanedText = cleanedText.substringAfter("```json")
-                } else if (cleanedText.contains("```")) {
-                    cleanedText = cleanedText.substringAfter("```")
-                }
-                if (cleanedText.endsWith("```")) {
-                    cleanedText = cleanedText.substringBeforeLast("```")
-                }
-                cleanedText = cleanedText.trim()
-
-                val jsonObj = org.json.JSONObject(cleanedText)
-                val analysisText = jsonObj.optString("analysis", "I have finished analyzing your space and prepared a lovely makeover plan.")
-                val itemsArray = jsonObj.optJSONArray("suggestedItems")
-                
-                val parsedItems = mutableListOf<ShoppableItem>()
-                val stylePresetItems = getShoppableItemsForStyle(_uiState.value.interiorSelectedStyle)
-
-                if (itemsArray != null) {
-                    for (i in 0 until itemsArray.length()) {
-                        val itemObj = itemsArray.getJSONObject(i)
-                        val presetThumbnail = stylePresetItems.getOrNull(i)?.imageUrl ?: "https://images.unsplash.com/photo-1540518614846-7eded433c457?auto=format&fit=crop&q=80&w=400"
-                        parsedItems.add(
-                            ShoppableItem(
-                                id = "ai_item_$i",
-                                name = itemObj.getString("name"),
-                                price = itemObj.optString("price", "$150.00"),
-                                merchant = itemObj.optString("merchant", "Wayfair"),
-                                rating = itemObj.optDouble("rating", 4.5).toFloat(),
-                                imageUrl = presetThumbnail
-                            )
-                        )
-                    }
-                }
-
-                val stylesMap = mapOf(
-                    "Scandinavian" to "https://images.unsplash.com/photo-1598928506311-c55ded91a20c?auto=format&fit=crop&q=80&w=1024",
-                    "Mid-Century Modern" to "https://images.unsplash.com/photo-1586023492125-27b2c045efd7?auto=format&fit=crop&q=80&w=1024",
-                    "Industrial Loft" to "https://images.unsplash.com/photo-1505691938895-1758d7feb511?auto=format&fit=crop&q=80&w=1024",
-                    "Bohemian Chic" to "https://images.unsplash.com/photo-1505693416388-ac5ce068fe85?auto=format&fit=crop&q=80&w=1024",
-                    "Japandi" to "https://images.unsplash.com/photo-1616486338812-3dadae4b4ace?auto=format&fit=crop&q=80&w=1024",
-                    "Minimalist Zen" to "https://images.unsplash.com/photo-1560185007-c5ca9d2c014d?auto=format&fit=crop&q=80&w=1024",
-                    "Art Deco" to "https://images.unsplash.com/photo-1540518614846-7eded433c457?auto=format&fit=crop&q=80&w=1024",
-                    "Rustic Farmhouse" to "https://images.unsplash.com/photo-1507652313519-d4e9174996dd?auto=format&fit=crop&q=80&w=1024"
-                )
-
-                _uiState.update {
-                    it.copy(
-                        interiorIsAnalyzing = false,
-                        interiorReimaginedImageUrls = stylesMap,
-                        interiorChatMessages = listOf(
-                            InteriorChatMessage(sender = "assistant", text = analysisText)
-                        ),
-                        interiorShoppableItems = parsedItems.ifEmpty { stylePresetItems }
-                    )
-                }
-
-            } catch (e: Exception) {
-                android.util.Log.e("InteriorDesigner", "AI analysis error: ${e.message}")
-                val stylesMap = mapOf(
-                    "Scandinavian" to "https://images.unsplash.com/photo-1598928506311-c55ded91a20c?auto=format&fit=crop&q=80&w=1024",
-                    "Mid-Century Modern" to "https://images.unsplash.com/photo-1586023492125-27b2c045efd7?auto=format&fit=crop&q=80&w=1024",
-                    "Industrial Loft" to "https://images.unsplash.com/photo-1505691938895-1758d7feb511?auto=format&fit=crop&q=80&w=1024",
-                    "Bohemian Chic" to "https://images.unsplash.com/photo-1505693416388-ac5ce068fe85?auto=format&fit=crop&q=80&w=1024",
-                    "Japandi" to "https://images.unsplash.com/photo-1616486338812-3dadae4b4ace?auto=format&fit=crop&q=80&w=1024",
-                    "Minimalist Zen" to "https://images.unsplash.com/photo-1560185007-c5ca9d2c014d?auto=format&fit=crop&q=80&w=1024",
-                    "Art Deco" to "https://images.unsplash.com/photo-1540518614846-7eded433c457?auto=format&fit=crop&q=80&w=1024",
-                    "Rustic Farmhouse" to "https://images.unsplash.com/photo-1507652313519-d4e9174996dd?auto=format&fit=crop&q=80&w=1024"
-                )
-                val style = _uiState.value.interiorSelectedStyle
-                val fallbackMsg = "Analysis completed. Here is your room makeover into **$style**. I've curated a few matching premium products that perfectly complement the natural lighting and layout of your space!"
-                _uiState.update {
-                    it.copy(
-                        interiorIsAnalyzing = false,
-                        interiorReimaginedImageUrls = stylesMap,
-                        interiorChatMessages = listOf(
-                            InteriorChatMessage(sender = "assistant", text = fallbackMsg)
-                        ),
-                        interiorShoppableItems = getShoppableItemsForStyle(style),
-                        interiorError = "Connected to offline design intelligence suite."
-                    )
-                }
-            }
-        }
-    }
-
-    fun sendInteriorChatMessage(messageText: String) {
-        if (messageText.trim().isBlank()) return
-
-        val userMsg = InteriorChatMessage(sender = "user", text = messageText)
-        val currentMessages = _uiState.value.interiorChatMessages
-        _uiState.update {
-            it.copy(
-                interiorChatMessages = currentMessages + userMsg
-            )
-        }
-
-        viewModelScope.launch {
-            delay(1000)
-            val style = _uiState.value.interiorSelectedStyle
-            val apiKey = _uiState.value.openaiApiKey.ifBlank { _uiState.value.customApiKey }
-            if (apiKey.isBlank() || apiKey.contains("PLACEHOLDER")) {
-                val answer = getOfflineInteriorChatResponse(messageText, style)
-                _uiState.update {
-                    it.copy(
-                        interiorChatMessages = it.interiorChatMessages + InteriorChatMessage(sender = "assistant", text = answer)
-                    )
-                }
-                return@launch
-            }
-
-            try {
-                val chatLogStr = _uiState.value.interiorChatMessages.joinToString("\n") { "${it.sender}: ${it.text}" }
-                val prompt = """
-                    You are Eddie, an expert AI Interior Design Consultant.
-                    The current design style selected is: $style.
-                    We are analyzing a room makeover project.
-                    
-                    Conversation Log:
-                    $chatLogStr
-                    
-                    User's newest query: "$messageText"
-                    
-                    Answer them professionally with cozy interior design advice. Keep it compact (2-3 paragraphs max) and focus on shoppable elements, textures, or lighting.
-                    If they requested modifications (e.g., changing colors or adding a rug), encourage their choice and describe how it elevates the space.
-                """.trimIndent()
-
-                val keysMap = mapOf("OpenAI" to apiKey)
-                val urlsMap = mapOf("OpenAI" to _uiState.value.openaiBaseUrl)
-
-                val answer = repository.sendMessage(
-                    history = emptyList(),
-                    newPrompt = prompt,
-                    model = "gpt-4o-mini",
-                    provider = "OpenAI",
-                    customSystemInstruction = "You are Eddie, a professional Interior Design Consultant.",
-                    providerKeys = keysMap,
-                    providerUrls = urlsMap
-                )
-                _uiState.update {
-                    it.copy(
-                        interiorChatMessages = it.interiorChatMessages + InteriorChatMessage(sender = "assistant", text = answer)
-                    )
-                }
-            } catch (e: Exception) {
-                val answer = getOfflineInteriorChatResponse(messageText, style)
-                _uiState.update {
-                    it.copy(
-                        interiorChatMessages = it.interiorChatMessages + InteriorChatMessage(sender = "assistant", text = answer)
-                    )
-                }
-            }
-        }
-    }
-
-    private fun getOfflineInteriorChatResponse(query: String, style: String): String {
-        val qLower = query.lowercase()
-        return when {
-            qLower.contains("rug") || qLower.contains("carpet") -> {
-                "That's an excellent choice! Swapping in a custom rug will add visual warmth to this $style design. I recommend a low-pile organic cotton rug in soft slate blue or geometric navy to tie the space together while maintaining the spacious, airy character."
-            }
-            qLower.contains("blue") || qLower.contains("color") || qLower.contains("paint") -> {
-                "Adding blue accents is a brilliant way to add depth! For a $style theme, choosing a deep navy, soft powder blue, or muted turquoise for the throws, accent cushions, or even a statement wall will contrast beautifully with the warm oak materials."
-            }
-            qLower.contains("layout") || qLower.contains("arrange") || qLower.contains("space") -> {
-                "For the layout in this $style composition, keeping the seating centered around the primary light source is key. This maximizes natural daylighting and frames the focal points elegantly. Try adding an asymmetric side table or plant to balance the corners."
-            }
-            qLower.contains("buy") || qLower.contains("price") || qLower.contains("where") || qLower.contains("shop") -> {
-                "You can view and secure matching pieces right in the curated product catalog below! I have matched each piece to reputable online merchants with competitive prices so you can implement this makeover directly."
-            }
-            else -> {
-                "That's a wonderful styling direction! In a typical $style setting, subtle organic details—like linen drapes, tactile woven baskets, and minimalist lighting fixtures—make a tremendous difference. Let me know if you would like me to adjust the item checklist below!"
-            }
-        }
-    }
-
-    fun saveCurrentInteriorDesign(title: String) {
-        val bitmap = _uiState.value.interiorOriginalBitmap
-        val style = _uiState.value.interiorSelectedStyle
-        val curMessages = _uiState.value.interiorChatMessages
-        val curItems = _uiState.value.interiorShoppableItems
-        val reimaginedUrls = _uiState.value.interiorReimaginedImageUrls
-        val email = _uiState.value.currentUserProfile?.email
-
-        viewModelScope.launch {
-            var base64Img: String? = null
-            if (bitmap != null) {
-                try {
-                    val baos = java.io.ByteArrayOutputStream()
-                    bitmap.compress(android.graphics.Bitmap.CompressFormat.JPEG, 70, baos)
-                    val bytes = baos.toByteArray()
-                    base64Img = android.util.Base64.encodeToString(bytes, android.util.Base64.NO_WRAP)
-                } catch (e: Exception) {
-                    android.util.Log.e("InteriorDesigner", "Failed to compress bitmap for save", e)
-                }
-            }
-
-            val messagesJson = org.json.JSONArray().apply {
-                curMessages.forEach { msg ->
-                    put(org.json.JSONObject().apply {
-                        put("id", msg.id)
-                        put("sender", msg.sender)
-                        put("text", msg.text)
-                        put("timestamp", msg.timestamp)
-                    })
-                }
-            }.toString()
-
-            val itemsJson = org.json.JSONArray().apply {
-                curItems.forEach { item ->
-                    put(org.json.JSONObject().apply {
-                        put("id", item.id)
-                        put("name", item.name)
-                        put("price", item.price)
-                        put("merchant", item.merchant)
-                        put("imageUrl", item.imageUrl)
-                        put("rating", item.rating.toDouble())
-                        put("shopUrl", item.shopUrl)
-                    })
-                }
-            }.toString()
-
-            val activeReimaginedUrl = reimaginedUrls[style] ?: "https://images.unsplash.com/photo-1598928506311-c55ded91a20c?auto=format&fit=crop&q=80&w=1024"
-
-            val entity = com.example.data.db.InteriorDesignEntity(
-                id = java.util.UUID.randomUUID().toString(),
-                title = title.ifBlank { "$style Makeover Project" },
-                originalImageUri = base64Img,
-                selectedStyle = style,
-                reimaginedImageUrl = activeReimaginedUrl,
-                chatHistoryJson = messagesJson,
-                shoppableItemsJson = itemsJson,
-                userEmail = email
-            )
-
-            chatDao.insertInteriorDesign(entity)
-        }
-    }
-
-    fun deleteInteriorDesign(id: String) {
-        viewModelScope.launch {
-            chatDao.deleteInteriorDesignById(id)
-        }
-    }
-
-    fun loadInteriorDesign(entity: com.example.data.db.InteriorDesignEntity) {
-        val parsedMessages = mutableListOf<InteriorChatMessage>()
-        try {
-            val mArr = org.json.JSONArray(entity.chatHistoryJson)
-            for (i in 0 until mArr.length()) {
-                val mObj = mArr.getJSONObject(i)
-                parsedMessages.add(
-                    InteriorChatMessage(
-                        id = mObj.getString("id"),
-                        sender = mObj.getString("sender"),
-                        text = mObj.getString("text"),
-                        timestamp = mObj.optLong("timestamp", System.currentTimeMillis())
-                    )
-                )
-            }
-        } catch (e: Exception) {
-            android.util.Log.e("InteriorDesigner", "Failed to parse messages JSON", e)
-        }
-
-        val parsedItems = mutableListOf<ShoppableItem>()
-        try {
-            val iArr = org.json.JSONArray(entity.shoppableItemsJson)
-            for (i in 0 until iArr.length()) {
-                val iObj = iArr.getJSONObject(i)
-                parsedItems.add(
-                    ShoppableItem(
-                        id = iObj.getString("id"),
-                        name = iObj.getString("name"),
-                        price = iObj.getString("price"),
-                        merchant = iObj.getString("merchant"),
-                        imageUrl = iObj.getString("imageUrl"),
-                        rating = iObj.optDouble("rating", 4.5).toFloat(),
-                        shopUrl = iObj.optString("shopUrl", "https://www.google.com/search?tbm=shop&q=")
-                    )
-                )
-            }
-        } catch (e: Exception) {
-            android.util.Log.e("InteriorDesigner", "Failed to parse shoppable items JSON", e)
-        }
-
-        var restoredBitmap: android.graphics.Bitmap? = null
-        if (!entity.originalImageUri.isNullOrBlank()) {
-            try {
-                val bytes = android.util.Base64.decode(entity.originalImageUri, android.util.Base64.DEFAULT)
-                val opts = android.graphics.BitmapFactory.Options().apply {
-                    inPreferredConfig = android.graphics.Bitmap.Config.ARGB_8888
-                }
-                restoredBitmap = android.graphics.BitmapFactory.decodeByteArray(bytes, 0, bytes.size, opts)
-            } catch (e: Exception) {
-                android.util.Log.e("InteriorDesigner", "Failed to decode restored base64 bitmap", e)
-            }
-        }
-
-        val stylesMap = mapOf(
-            "Scandinavian" to "https://images.unsplash.com/photo-1598928506311-c55ded91a20c?auto=format&fit=crop&q=80&w=1024",
-            "Mid-Century Modern" to "https://images.unsplash.com/photo-1586023492125-27b2c045efd7?auto=format&fit=crop&q=80&w=1024",
-            "Industrial Loft" to "https://images.unsplash.com/photo-1505691938895-1758d7feb511?auto=format&fit=crop&q=80&w=1024",
-            "Bohemian Chic" to "https://images.unsplash.com/photo-1505693416388-ac5ce068fe85?auto=format&fit=crop&q=80&w=1024",
-            "Japandi" to "https://images.unsplash.com/photo-1616486338812-3dadae4b4ace?auto=format&fit=crop&q=80&w=1024",
-            "Minimalist Zen" to "https://images.unsplash.com/photo-1560185007-c5ca9d2c014d?auto=format&fit=crop&q=80&w=1024",
-            "Art Deco" to "https://images.unsplash.com/photo-1540518614846-7eded433c457?auto=format&fit=crop&q=80&w=1024",
-            "Rustic Farmhouse" to "https://images.unsplash.com/photo-1507652313519-d4e9174996dd?auto=format&fit=crop&q=80&w=1024"
-        ).toMutableMap().apply {
-            put(entity.selectedStyle, entity.reimaginedImageUrl)
-        }
-
-        _uiState.update {
-            it.copy(
-                interiorSelectedDesignId = entity.id,
-                interiorSelectedStyle = entity.selectedStyle,
-                interiorOriginalBitmap = restoredBitmap,
-                interiorOriginalUri = null,
-                interiorChatMessages = parsedMessages,
-                interiorShoppableItems = parsedItems,
-                interiorReimaginedImageUrls = stylesMap,
-                interiorError = ""
-            )
-        }
-    }
-
-    fun resetActiveInteriorDesign() {
-        _uiState.update {
-            it.copy(
-                interiorSelectedDesignId = null,
-                interiorOriginalBitmap = null,
-                interiorOriginalUri = null,
-                interiorSelectedStyle = "Scandinavian",
-                interiorIsAnalyzing = false,
-                interiorError = "",
-                interiorChatMessages = emptyList(),
-                interiorShoppableItems = emptyList(),
-                interiorReimaginedImageUrls = emptyMap()
-            )
-        }
-    }
-
-    // --- MAP CHATBOT LOGIC ---
-    
-    fun selectMapPlace(place: com.example.ui.chat.MapPlace) {
-        _uiState.update { it.copy(mapSelectedPlace = place) }
-    }
-    
-    fun toggleMapBookmark(placeId: String) {
-        _uiState.update { state ->
-            val updated = if (state.mapBookmarkedIds.contains(placeId)) {
-                state.mapBookmarkedIds - placeId
-            } else {
-                state.mapBookmarkedIds + placeId
-            }
-            state.copy(mapBookmarkedIds = updated)
-        }
-    }
-    
-    fun setMapTheme(theme: String) {
-        _uiState.update { it.copy(mapTheme = theme) }
-    }
-    
-    fun clearMapChat() {
-        _uiState.update { it.copy(mapChatMessages = emptyList()) }
-    }
-    
-    fun searchMapLocation(query: String) {
-        if (query.isBlank()) return
-        viewModelScope.launch {
-            _uiState.update { it.copy(mapIsSearching = true, mapError = "", mapSearchQuery = query) }
-            val keysMap = getActiveKeysMap()
-            val urlsMap = getActiveUrlsMap()
-            
-            val prompt = """
-                You are a real-time Google Maps data assistant. 
-                Generate a list of 5 real, popular places/landmarks/cafes/restaurants/museums matching or in: "$query".
-                Provide realistic geographic coordinates (latitude and longitude) and local details.
-                
-                You MUST respond ONLY with a raw JSON array matching this structure, with NO markdown formatting, NO ```json wrapping, and NO additional text:
-                [
-                  {
-                    "id": "place_unique_1",
-                    "name": "Eiffel Tower",
-                    "category": "Landmark",
-                    "latOffset": 0.12,
-                    "lngOffset": -0.34,
-                    "latitude": 48.8584,
-                    "longitude": 2.2945,
-                    "rating": 4.7,
-                    "reviewsCount": 12500,
-                    "address": "Champ de Mars, 5 Avenue Anatole France, 75007 Paris, France",
-                    "description": "An iconic 19th-century iron lattice tower on the Champ de Mars in Paris.",
-                    "highlights": "Panoramic city views & historical architecture",
-                    "openHours": "9:30 AM - 11:45 PM",
-                    "funFact": "It was originally built as a temporary installation for the 1889 World's Fair."
-                  }
-                ]
-                
-                For latOffset and lngOffset, distribute them between -0.8 and 0.8 so they plot nicely on a 2D map space.
-                Do not include markdown or code blocks. Return purely the raw JSON array.
-            """.trimIndent()
-
-            try {
-                val responseText = repository.sendMessage(
-                    history = emptyList(),
-                    newPrompt = prompt,
-                    model = "gpt-5-mini",
-                    provider = "OpenAI",
-                    customSystemInstruction = "You are a precise JSON generator. Output only JSON array.",
-                    providerKeys = keysMap,
-                    providerUrls = urlsMap
-                )
-                
-                var cleanedText = responseText.trim()
-                if (cleanedText.contains("```json")) {
-                    cleanedText = cleanedText.substringAfter("```json").substringBefore("```")
-                } else if (cleanedText.contains("```")) {
-                    cleanedText = cleanedText.substringAfter("```").substringBefore("```")
-                }
-                cleanedText = cleanedText.trim()
-
-                val jsonArray = org.json.JSONArray(cleanedText)
-                val parsedPlaces = mutableListOf<com.example.ui.chat.MapPlace>()
-                for (i in 0 until jsonArray.length()) {
-                    val obj = jsonArray.getJSONObject(i)
-                    parsedPlaces.add(
-                        com.example.ui.chat.MapPlace(
-                            id = obj.optString("id", "place_$i"),
-                            name = obj.optString("name", ""),
-                            category = obj.optString("category", ""),
-                            latOffset = obj.optDouble("latOffset", 0.0).toFloat(),
-                            lngOffset = obj.optDouble("lngOffset", 0.0).toFloat(),
-                            latitude = obj.optDouble("latitude", 0.0),
-                            longitude = obj.optDouble("longitude", 0.0),
-                            rating = obj.optDouble("rating", 4.5).toFloat(),
-                            reviewsCount = obj.optInt("reviewsCount", 100),
-                            address = obj.optString("address", ""),
-                            description = obj.optString("description", ""),
-                            highlights = obj.optString("highlights", ""),
-                            openHours = obj.optString("openHours", ""),
-                            funFact = obj.optString("funFact", "")
-                        )
-                    )
-                }
-                
-                _uiState.update {
-                    it.copy(
-                        mapPlaces = parsedPlaces,
-                        mapSelectedPlace = parsedPlaces.firstOrNull(),
-                        mapIsSearching = false,
-                        mapChatMessages = listOf(
-                            com.example.ui.chat.MapChatMessage(
-                                sender = "assistant",
-                                text = "Welcome to ${query}! I've loaded ${parsedPlaces.size} real-time locations on the interactive map. Tap any marker to explore local highlights or ask me anything!"
-                            )
-                        )
-                    )
-                }
-            } catch (e: Exception) {
-                e.printStackTrace()
-                val fallbacks = generateFallbackPlaces(query)
-                _uiState.update {
-                    it.copy(
-                        mapPlaces = fallbacks,
-                        mapSelectedPlace = fallbacks.firstOrNull(),
-                        mapIsSearching = false,
-                        mapChatMessages = listOf(
-                            com.example.ui.chat.MapChatMessage(
-                                sender = "assistant",
-                                text = "I've plotted 5 popular spots in ${query} for you on our high-fidelity map! (Using offline intelligence mode)."
-                            )
-                        )
-                    )
-                }
-            }
-        }
-    }
-    
-    private fun generateFallbackPlaces(query: String): List<com.example.ui.chat.MapPlace> {
-        val q = query.lowercase()
-        return if (q.contains("tokyo") || q.contains("japan")) {
-            listOf(
-                com.example.ui.chat.MapPlace("f_tokyo_1", "Senso-ji Temple", "Museum", 0.1f, -0.4f, 35.7148, 139.7967, 4.6f, 8500, "2 Chome-3-1 Asakusa, Taito City, Tokyo", "Tokyo's oldest Buddhist temple completed in 645 AD.", "Ancient pagodas & Nakamise shopping street", "6:00 AM - 5:00 PM", "It is dedicated to the Bodhisattva Kannon."),
-                com.example.ui.chat.MapPlace("f_tokyo_2", "Tokyo Skytree", "Landmark", -0.3f, 0.5f, 35.7101, 139.8107, 4.5f, 12000, "1 Chome-1-2 Oshiage, Sumida City, Tokyo", "The tallest structure in Japan and tallest tower in the world.", "A panoramic observation deck with spectacular glass floors", "10:00 AM - 9:00 PM", "Its design combines futuristic design with traditional pagoda beauty."),
-                com.example.ui.chat.MapPlace("f_tokyo_3", "Shibuya Crossing", "Landmark", -0.6f, -0.2f, 35.6595, 139.7005, 4.4f, 25000, "Shibuya, Tokyo", "The world's busiest pedestrian scramble crossing.", "Vibrant neon billboards and incredible foot traffic", "Open 24 Hours", "Up to 3,000 people cross at the same time during peak hours."),
-                com.example.ui.chat.MapPlace("f_tokyo_4", "Harajuku Cafe Reissue", "Cafe", 0.4f, 0.2f, 35.6708, 139.7061, 4.6f, 980, "3 Chome-25-7 Jingumae, Shibuya City, Tokyo", "Charming cafe famous for incredible custom 3D latte art.", "Customized 3D foam designs of cats, anime, or selfies", "10:00 AM - 6:00 PM", "The baristas can draw almost any photo you show them in under 10 minutes!"),
-                com.example.ui.chat.MapPlace("f_tokyo_5", "Shinjuku Gyoen", "Park", 0.2f, 0.6f, 35.6852, 139.7101, 4.7f, 15000, "11 Naitomachi, Shinjuku City, Tokyo", "A vast and beautiful imperial garden blending English, French, and Japanese styles.", "Cherry blossom viewing & tranquil tea houses", "9:00 AM - 4:00 PM", "It was originally a residence of the Naito family in the Edo period.")
-            )
-        } else if (q.contains("new york") || q.contains("ny") || q.contains("manhattan")) {
-            listOf(
-                com.example.ui.chat.MapPlace("f_ny_1", "Central Park", "Park", -0.1f, 0.7f, 40.7851, -73.9682, 4.8f, 50000, "Manhattan, NY", "A massive urban park in the heart of NYC.", "Bethesda Fountain, Sheep Meadow, Bow Bridge", "6:00 AM - 1:00 AM", "It is the most filmed location in the world."),
-                com.example.ui.chat.MapPlace("f_ny_2", "Times Square", "Landmark", -0.3f, 0.1f, 40.7580, -73.9855, 4.6f, 120000, "Broadway & 7th Ave, New York, NY", "The bustling digital and theatrical heart of Broadway.", "Mega neon billboards & street performances", "Open 24 Hours", "It was named Times Square in 1904 after the NY Times Tower."),
-                com.example.ui.chat.MapPlace("f_ny_3", "The Metropolitan Museum of Art", "Museum", 0.3f, 0.5f, 40.7794, -73.9632, 4.8f, 32000, "1000 5th Ave, New York, NY", "One of the world's finest and largest art museums.", "Temple of Dendur & European Masterpieces", "10:00 AM - 5:00 PM", "It contains over 2 million works of art spanning 5,000 years."),
-                com.example.ui.chat.MapPlace("f_ny_4", "Katz's Delicatessen", "Restaurant", 0.5f, -0.6f, 40.7222, -73.9874, 4.5f, 18000, "205 E Houston St, New York, NY", "Legendary kosher-style delicatessen established in 1888.", "World-famous hand-carved pastrami on rye", "8:00 AM - 11:00 PM", "It is the site of the famous 'I'll have what she's having' movie scene."),
-                com.example.ui.chat.MapPlace("f_ny_5", "Joe's Pizza", "Restaurant", -0.4f, -0.3f, 40.7305, -74.0022, 4.6f, 9500, "7 Carmine St, New York, NY", "Classic Greenwich Village corner slice joint.", "Authentic, thin-crust NY style cheese pizza slice", "10:00 AM - 4:00 AM", "Established in 1975 by Joe Pozzuoli, who still runs it today.")
-            )
-        } else {
-            listOf(
-                com.example.ui.chat.MapPlace("f_gen_1", "Eiffel Tower", "Landmark", 0.12f, -0.34f, 48.8584, 2.2945, 4.7f, 12500, "Champ de Mars, 5 Avenue Anatole France, 75007 Paris, France", "An iconic 19th-century iron lattice tower on the Champ de Mars in Paris.", "Panoramic city views & historical architecture", "9:30 AM - 11:45 PM", "It was originally built as a temporary installation for the 1889 World's Fair."),
-                com.example.ui.chat.MapPlace("f_gen_2", "Louvre Museum", "Museum", 0.35f, 0.22f, 48.8606, 2.3376, 4.7f, 95000, "Rue de Rivoli, 75001 Paris, France", "The world's largest art museum and a historic monument.", "Mona Lisa, Venus de Milo, glass Louvre Pyramid", "9:00 AM - 6:00 PM", "It was originally built as a fortress in the late 12th century."),
-                com.example.ui.chat.MapPlace("f_gen_3", "Café de Flore", "Cafe", -0.2f, -0.15f, 48.8542, 2.3294, 4.2f, 4100, "172 Boulevard Saint-Germain, 75006 Paris, France", "One of the oldest and most prestigious coffee houses in Paris, famous for its intellectual history.", "Rich hot chocolate & traditional French pastries", "7:30 AM - 1:30 AM", "It was a famous hangout for Jean-Paul Sartre, Simone de Beauvoir, and Albert Camus."),
-                com.example.ui.chat.MapPlace("f_gen_4", "Notre-Dame Cathedral", "Landmark", 0.5f, 0.1f, 48.8530, 2.3499, 4.8f, 38000, "6 Parvis Notre-Dame - Pl. Jean-Paul II, 75004 Paris, France", "A masterpiece of French Gothic architecture on the Île de la Cité.", "Stunning stained-glass rose windows & gargoyles", "Temporarily Closed (Reopening Soon)", "It features the largest organ in France and historic medieval bells."),
-                com.example.ui.chat.MapPlace("f_gen_5", "Jardin du Luxembourg", "Park", -0.4f, -0.6f, 48.8462, 2.3371, 4.7f, 19000, "75006 Paris, France", "A beautiful, peaceful 25-hectare garden created in 1612 by Marie de' Medici.", "Luxembourg Palace, sailboat model pond, Medici Fountain", "7:30 AM - 9:30 PM", "The park contains over 100 statues spread throughout the grounds.")
-            )
-        }
-    }
-    
-    fun sendMapChatMessage(messageText: String) {
-        if (messageText.isBlank()) return
-        
-        val userMsg = com.example.ui.chat.MapChatMessage(sender = "user", text = messageText)
-        _uiState.update {
-            it.copy(
-                mapChatMessages = it.mapChatMessages + userMsg
-            )
-        }
-        
-        viewModelScope.launch {
-            _uiState.update { it.copy(mapIsSearching = true) }
-            val apiKey = if (_uiState.value.openaiApiKey.isNotBlank()) _uiState.value.openaiApiKey else _uiState.value.customApiKey
-            
-            val activePlace = _uiState.value.mapSelectedPlace
-            val placesContext = _uiState.value.mapPlaces.joinToString("\n") { 
-                "- ${it.name} (${it.category}): ${it.description}. Address: ${it.address}. Open: ${it.openHours}."
-            }
-            
-            val chatHistoryStr = _uiState.value.mapChatMessages.takeLast(10).joinToString("\n") { 
-                "${it.sender.uppercase()}: ${it.text}"
-            }
-            
-            val prompt = """
-                You are Atlas, a charismatic AI Geographical Consultant and local travel advisor. 
-                We are exploring an interactive map of: "${_uiState.value.mapSearchQuery}".
-                
-                The loaded locations on the map are:
-                $placesContext
-                
-                ${if (activePlace != null) "The user has selected: ${activePlace.name} (${activePlace.category}). Specific Highlight: ${activePlace.highlights}. Fun Fact: ${activePlace.funFact}." else "No specific place is selected on the map yet."}
-                
-                Chat History:
-                $chatHistoryStr
-                
-                Respond to the user's latest query: "$messageText"
-                Keep your response helpful, conversational, and filled with expert advice about these locations (e.g., historical tidbits, culinary tips, crowd avoidance, or custom walking itineraries). 
-                Keep it under 3 short paragraphs. Be precise and warm!
-            """.trimIndent()
-
-            try {
-                val keysMap = getActiveKeysMap()
-                val urlsMap = getActiveUrlsMap()
-
-                val answer = repository.sendMessage(
-                    history = emptyList(),
-                    newPrompt = prompt,
-                    model = "gpt-5-mini",
-                    provider = "OpenAI",
-                    customSystemInstruction = "You are Atlas, a professional and charismatic Geographical Travel Advisor.",
-                    providerKeys = keysMap,
-                    providerUrls = urlsMap
-                )
-
-                _uiState.update {
-                    it.copy(
-                        mapChatMessages = it.mapChatMessages + com.example.ui.chat.MapChatMessage(sender = "assistant", text = answer),
-                        mapIsSearching = false
-                    )
-                }
-            } catch (e: Exception) {
-                e.printStackTrace()
-                _uiState.update {
-                    it.copy(
-                        mapChatMessages = it.mapChatMessages + com.example.ui.chat.MapChatMessage(
-                            sender = "assistant", 
-                            text = "I'm having a brief issue connecting to my geographical database, but I highly recommend visiting ${activePlace?.name ?: "the places on the map"}! What other details would you like to explore?"
-                        ),
-                        mapIsSearching = false
-                    )
-                }
-            }
-        }
-    }
-
     fun setAppSkinTheme(skinId: String) {
         _uiState.update { it.copy(appSkinThemeId = skinId) }
         try {
@@ -8394,6 +6293,11 @@ class ChatViewModel(
             prefs.edit().putString("app_skin_theme", skinId).apply()
         } catch (e: Exception) {
             android.util.Log.e("ChatViewModel", "Failed to save skin theme", e)
+        }
+        if (firestoreSync != null && authenticatedUid.isNotBlank()) {
+            viewModelScope.launch {
+                firestoreSync.updateUserPreferences(appSkinThemeId = skinId)
+            }
         }
     }
 }

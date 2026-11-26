@@ -31,7 +31,8 @@ fun SubscriptionFlowDialog(
     onDismiss: () -> Unit,
     onActivate: (String) -> Unit,
     onCancel: () -> Unit,
-    onRequireAuth: () -> Unit
+    onRequireAuth: () -> Unit,
+    onOpenTopUp: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
@@ -149,15 +150,38 @@ fun SubscriptionFlowDialog(
                             )
 
                             Spacer(modifier = Modifier.height(20.dp))
+                            OutlinedButton(
+                                onClick = onOpenTopUp,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text("🪙 Top Up Token Tambahan")
+                            }
+                            Spacer(modifier = Modifier.height(10.dp))
                             Button(
-                                onClick = onCancel,
+                                onClick = {
+                                    onCancel()
+                                    Toast.makeText(
+                                        context,
+                                        "Subscription canceled. Your account returned to Free Tier.",
+                                        Toast.LENGTH_LONG
+                                    ).show()
+                                },
                                 colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
                             ) {
-                                Text("Cancel Subscription (Simulation)")
+                                Text("Cancel Subscription (Downgrade to Free)")
                             }
                         }
                     }
                 } else {
+                    OutlinedButton(
+                        onClick = onOpenTopUp,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(bottom = 14.dp)
+                    ) {
+                        Text("🪙 Atau Top Up Token Satuan (5 Paket)")
+                    }
+
                     // Subscription Flow Scheme
                     Text(
                         text = "PAYMENT SYSTEM FLOW SCHEME",

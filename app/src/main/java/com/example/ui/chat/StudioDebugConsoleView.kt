@@ -23,6 +23,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
@@ -54,6 +55,7 @@ fun StudioDebugToggleBar(
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
             Row(
+                modifier = Modifier.weight(1f),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
@@ -74,7 +76,10 @@ fun StudioDebugToggleBar(
                 Text(
                     text = title,
                     style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.SemiBold),
-                    color = MaterialTheme.colorScheme.onSurface
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f, fill = false)
                 )
 
                 if (isLoading) {
@@ -89,7 +94,8 @@ fun StudioDebugToggleBar(
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 9.sp,
                                 color = Color(0xFF00E676)
-                            )
+                            ),
+                            maxLines = 1
                         )
                     }
                 } else if (hasLogs) {
@@ -104,24 +110,29 @@ fun StudioDebugToggleBar(
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 9.sp,
                                 color = Color(0xFF00B0FF)
-                            )
+                            ),
+                            maxLines = 1
                         )
                     }
                 }
             }
+
+            Spacer(modifier = Modifier.width(8.dp))
 
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(4.dp)
             ) {
                 Text(
-                    text = if (isOpen) "Sembunyikan" else "Buka Debug Console",
+                    text = if (isOpen) "Hide" else "Open Console",
                     style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.primary
+                    color = MaterialTheme.colorScheme.primary,
+                    maxLines = 1,
+                    softWrap = false
                 )
                 Icon(
                     imageVector = if (isOpen) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
-                    contentDescription = if (isOpen) "Tutup" else "Buka",
+                    contentDescription = if (isOpen) "Close" else "Open",
                     tint = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.size(18.dp)
                 )
@@ -201,13 +212,13 @@ fun StudioDebugConsole(
                         IconButton(
                             onClick = {
                                 clipboardManager.setText(AnnotatedString(logText))
-                                Toast.makeText(context, "Log disalin ke clipboard", Toast.LENGTH_SHORT).show()
+                                Toast.makeText(context, "Log copied to clipboard", Toast.LENGTH_SHORT).show()
                             },
                             modifier = Modifier.size(28.dp)
                         ) {
                             Icon(
                                 imageVector = Icons.Default.Share,
-                                contentDescription = "Salin Log",
+                                contentDescription = "Copy Log",
                                 tint = Color(0xFF8B949E),
                                 modifier = Modifier.size(15.dp)
                             )
@@ -222,7 +233,7 @@ fun StudioDebugConsole(
                         ) {
                             Icon(
                                 imageVector = Icons.Default.Delete,
-                                contentDescription = "Hapus Log",
+                                contentDescription = "Clear Log",
                                 tint = Color(0xFF8B949E),
                                 modifier = Modifier.size(15.dp)
                             )
@@ -237,7 +248,7 @@ fun StudioDebugConsole(
                         ) {
                             Icon(
                                 imageVector = Icons.Default.Close,
-                                contentDescription = "Tutup Console",
+                                contentDescription = "Close Console",
                                 tint = Color(0xFF8B949E),
                                 modifier = Modifier.size(15.dp)
                             )
@@ -261,13 +272,13 @@ fun StudioDebugConsole(
                 if (logText.isBlank()) {
                     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                         Text(
-                            text = "> Terminal debug $title aktif.",
+                            text = "> $title terminal active.",
                             fontFamily = FontFamily.Monospace,
                             fontSize = 11.sp,
                             color = Color(0xFF58A6FF)
                         )
                         Text(
-                            text = "> Menunggu request generasi AI dimulai...\n> Setiap tahapan koneksi API, negosiasi parameter, status token, dan respons render akan tercatat di sini secara langsung.",
+                            text = "> Waiting for AI generation request...\n> Every API connection step, parameter negotiation, token status, and render response will be logged here in real time.",
                             fontFamily = FontFamily.Monospace,
                             fontSize = 11.sp,
                             color = Color(0xFF8B949E),
@@ -321,7 +332,7 @@ fun StudioDebugConsole(
                             color = Color(0xFF00E676)
                         )
                         Text(
-                            text = "Pipeline AI sedang aktif mengeksekusi di server...",
+                            text = "AI pipeline is actively executing on the server...",
                             fontFamily = FontFamily.Monospace,
                             fontSize = 10.sp,
                             color = Color(0xFF7EE787)

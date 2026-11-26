@@ -5,7 +5,7 @@ import android.net.Uri
 import android.util.Base64
 import android.util.Log
 import com.example.AppContextProvider
-import com.example.BuildConfig
+import com.example.data.BackendProxyClient.withProxyAuth
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
@@ -142,20 +142,14 @@ class FalKlingQueueClient {
         onRequestIdReceived: (String) -> Unit = {},
         onLogMessage: (String) -> Unit = {}
     ): String = withContext(Dispatchers.IO) {
-        val isProxy = !proxyUrl.isNullOrBlank() && (proxyUrl.contains("api/video") || proxyUrl.contains("gemini") || proxyUrl.contains("vercel") || proxyUrl.contains("workers.dev"))
-        val resolvedProxyUrl = if (isProxy) {
-            val p = proxyUrl!!.trim()
-            if (p.endsWith("/api/video")) p
-            else if (p.endsWith("/")) "${p}api/video"
-            else "$p/api/video"
-        } else null
-
-        val apiKey = getApiKey(customApiKey, resolvedProxyUrl != null)
+        val resolvedProxyUrl = BackendProxyClient.resolveEndpoint(proxyUrl, "/api/video")
+        val firebaseToken = BackendProxyClient.getFirebaseIdToken()
+        val apiKey = firebaseToken ?: "proxy_active"
         
         // Ensure modelId is cleaned
         val finalModelId = modelId.trim().removePrefix("/").removeSuffix("/")
         
-        onLogMessage("> [Kling Engine] Initializing asynchronous rendering pipeline for '$finalModelId'...\n")
+        onLogMessage("> [Kling Engine] Initializing asynchronous rendering pipeline for '$finalModelId' via secure backend proxy...\n")
         
         // 1. Submit text-to-video request to Fal AI
         val submitResponse = submitToQueue(
@@ -235,7 +229,8 @@ class FalKlingQueueClient {
         proxyUrl: String? = null,
         onLog: (String) -> Unit
     ): KlingQueueSubmitResponse {
-        val submitUrl = proxyUrl ?: "https://queue.fal.run/$modelId"
+        val resolvedProxy = BackendProxyClient.resolveEndpoint(proxyUrl, "/api/video")
+        val submitUrl = resolvedProxy
         
         onLog("> [Kling API] POST submission initiated to queue endpoint: $submitUrl...\n")
         
@@ -247,9 +242,7 @@ class FalKlingQueueClient {
         }
         
         val requestJson = JSONObject().apply {
-            if (proxyUrl != null) {
-                put("model", modelId)
-            }
+            put("model", modelId)
             if (!multiPromptJson.isNullOrBlank()) {
                 onLog("> [Kling Engine] Serialization of 'multi_prompt' storyboard list...\n")
                 put("multi_prompt", org.json.JSONArray(multiPromptJson))
@@ -311,9 +304,10 @@ class FalKlingQueueClient {
         
         val requestBody = requestJson.toString().toRequestBody("application/json".toMediaTypeOrNull())
         
+        val firebaseToken = apiKey.takeIf { it != "proxy_active" }
         val request = Request.Builder()
             .url(submitUrl)
-            .header("Authorization", "Key $apiKey")
+            .withProxyAuth("Key", firebaseToken)
             .header("Content-Type", "application/json")
             .post(requestBody)
             .build()
@@ -363,15 +357,13 @@ class FalKlingQueueClient {
             
             delay(pollIntervalMs)
             
-            val targetStatusUrl = if (proxyUrl != null) {
-                "$proxyUrl?statusUrl=" + java.net.URLEncoder.encode(statusUrl, "UTF-8")
-            } else {
-                statusUrl
-            }
+            val resolvedProxy = BackendProxyClient.resolveEndpoint(proxyUrl, "/api/video")
+            val targetStatusUrl = "$resolvedProxy?statusUrl=" + java.net.URLEncoder.encode(statusUrl, "UTF-8")
+            val firebaseToken = apiKey.takeIf { it != "proxy_active" }
             
             val statusRequest = Request.Builder()
                 .url(targetStatusUrl)
-                .header("Authorization", "Key $apiKey")
+                .withProxyAuth("Key", firebaseToken)
                 .get()
                 .build()
                 
@@ -415,15 +407,13 @@ class FalKlingQueueClient {
         proxyUrl: String? = null,
         onLog: (String) -> Unit
     ): String {
-        val targetResultUrl = if (proxyUrl != null) {
-            "$proxyUrl?statusUrl=" + java.net.URLEncoder.encode(responseUrl, "UTF-8")
-        } else {
-            responseUrl
-        }
+        val resolvedProxy = BackendProxyClient.resolveEndpoint(proxyUrl, "/api/video")
+        val targetResultUrl = "$resolvedProxy?statusUrl=" + java.net.URLEncoder.encode(responseUrl, "UTF-8")
+        val firebaseToken = apiKey.takeIf { it != "proxy_active" }
 
         val resultRequest = Request.Builder()
             .url(targetResultUrl)
-            .header("Authorization", "Key $apiKey")
+            .withProxyAuth("Key", firebaseToken)
             .get()
             .build()
             
@@ -518,15 +508,8 @@ class FalKlingQueueClient {
      * Resolves the correct Fal API Key from parameter or BuildConfig.
      * Implements requirement #13.
      */
-    private fun getApiKey(customKey: String?, isProxy: Boolean = false): String {
-        val key = if (!customKey.isNullOrBlank()) customKey.trim() else BuildConfig.FAL_API_KEY
-        if (isProxy && (key.isBlank() || key.contains("PLACEHOLDER"))) {
-            return "proxy_active"
-        }
-        if (key.isBlank() || key.contains("PLACEHOLDER")) {
-            throw IllegalStateException("Fal.ai API Key is missing. Please configure FAL_API_KEY in the Secrets panel or select a Video Proxy in Settings.")
-        }
-        return key
+    private fun getApiKey(customKey: String?, isProxy: Boolean = true): String {
+        return "proxy_active"
     }
 
     /**

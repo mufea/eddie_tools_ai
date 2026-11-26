@@ -1,0 +1,224 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "Authenticated user profile, theme preference, custom instruction, subscription status, and token balance.",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "description": "Firebase Auth UID of the owner."
+        },
+        "email": {
+          "type": "string",
+          "description": "User Google email address."
+        },
+        "username": {
+          "type": "string",
+          "description": "User display name."
+        },
+        "photoUrl": {
+          "type": "string",
+          "description": "User avatar photo URL."
+        },
+        "appSkinThemeId": {
+          "type": "string",
+          "description": "Selected UI skin theme identifier."
+        },
+        "customSystemInstruction": {
+          "type": "string",
+          "description": "Custom assistant system instruction."
+        },
+        "activeSubscriptionPlan": {
+          "type": "string",
+          "description": "Active subscription plan name."
+        },
+        "subscriptionExpiryDate": {
+          "type": "string",
+          "description": "Subscription expiry display text."
+        },
+        "subscribed": {
+          "type": "boolean",
+          "description": "Whether subscription is active."
+        },
+        "userTokens": {
+          "type": "number",
+          "description": "Current user token balance."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp when created (FieldValue.serverTimestamp())."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp when last updated (FieldValue.serverTimestamp())."
+        }
+      },
+      "required": ["userId", "username", "createdAt", "updatedAt"]
+    },
+    "ChatSession": {
+      "title": "ChatSession",
+      "description": "A user chat conversation session.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "title": { "type": "string" },
+        "modelValue": { "type": "string" },
+        "clientTimestamp": { "type": "integer" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "title", "modelValue", "clientTimestamp", "createdAt", "updatedAt"]
+    },
+    "ChatMessage": {
+      "title": "ChatMessage",
+      "description": "A single message within a user chat session.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "sessionId": { "type": "string" },
+        "role": { "type": "string", "enum": ["USER", "MODEL"] },
+        "text": { "type": "string" },
+        "bookmarked": { "type": "boolean" },
+        "clientTimestamp": { "type": "integer" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "sessionId", "role", "text", "bookmarked", "clientTimestamp", "createdAt", "updatedAt"]
+    },
+    "GeneratedImage": {
+      "title": "GeneratedImage",
+      "description": "An AI-generated or edited artwork saved by the user.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "prompt": { "type": "string" },
+        "imageUrl": { "type": "string" },
+        "style": { "type": "string" },
+        "aspectRatio": { "type": "string" },
+        "model": { "type": "string" },
+        "clientTimestamp": { "type": "integer" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "prompt", "imageUrl", "style", "aspectRatio", "model", "clientTimestamp", "createdAt"]
+    },
+    "GeneratedVideo": {
+      "title": "GeneratedVideo",
+      "description": "An AI-generated or edited video saved by the user.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "prompt": { "type": "string" },
+        "videoUrl": { "type": "string" },
+        "style": { "type": "string" },
+        "aspectRatio": { "type": "string" },
+        "resolution": { "type": "string" },
+        "duration": { "type": "string" },
+        "model": { "type": "string" },
+        "clientTimestamp": { "type": "integer" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "prompt", "videoUrl", "style", "aspectRatio", "resolution", "duration", "model", "clientTimestamp", "createdAt"]
+    },
+    "GeneratedMusic": {
+      "title": "GeneratedMusic",
+      "description": "An AI-generated or edited audio track saved by the user.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "prompt": { "type": "string" },
+        "musicUrl": { "type": "string" },
+        "genre": { "type": "string" },
+        "duration": { "type": "string" },
+        "tempo": { "type": "string" },
+        "clientTimestamp": { "type": "integer" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "prompt", "musicUrl", "genre", "duration", "tempo", "clientTimestamp", "createdAt"]
+    },
+    "UserMemory": {
+      "title": "UserMemory",
+      "description": "Long-term personal memory note saved by or for the user.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "key": { "type": "string" },
+        "content": { "type": "string" },
+        "clientTimestamp": { "type": "integer" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "key", "content", "clientTimestamp", "createdAt"]
+    },
+    "TokenUsage": {
+      "title": "TokenUsage",
+      "description": "A token consumption record for the user.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "featureType": { "type": "string" },
+        "detail": { "type": "string" },
+        "tokenCost": { "type": "number" },
+        "clientTimestamp": { "type": "integer" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "featureType", "detail", "tokenCost", "clientTimestamp", "createdAt"]
+    },
+    "InteriorDesign": {
+      "title": "InteriorDesign",
+      "description": "Saved AI interior design project.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "title": { "type": "string" },
+        "originalImageUri": { "type": "string" },
+        "selectedStyle": { "type": "string" },
+        "reimaginedImageUrl": { "type": "string" },
+        "chatHistoryJson": { "type": "string" },
+        "shoppableItemsJson": { "type": "string" },
+        "clientTimestamp": { "type": "integer" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "title", "selectedStyle", "reimaginedImageUrl", "chatHistoryJson", "shoppableItemsJson", "clientTimestamp", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/UserProfile" },
+      "description": "Owner-only user profile and preferences."
+    },
+    "/users/{userId}/sessions/{sessionId}": {
+      "schema": { "$ref": "#/entities/ChatSession" },
+      "description": "User-scoped chat sessions."
+    },
+    "/users/{userId}/messages/{messageId}": {
+      "schema": { "$ref": "#/entities/ChatMessage" },
+      "description": "User-scoped chat messages across sessions."
+    },
+    "/users/{userId}/generated_images/{imageId}": {
+      "schema": { "$ref": "#/entities/GeneratedImage" },
+      "description": "User-scoped generated artwork gallery."
+    },
+    "/users/{userId}/generated_videos/{videoId}": {
+      "schema": { "$ref": "#/entities/GeneratedVideo" },
+      "description": "User-scoped generated video collection."
+    },
+    "/users/{userId}/generated_music/{musicId}": {
+      "schema": { "$ref": "#/entities/GeneratedMusic" },
+      "description": "User-scoped generated music collection."
+    },
+    "/users/{userId}/memories/{memoryId}": {
+      "schema": { "$ref": "#/entities/UserMemory" },
+      "description": "User-scoped long-term memories."
+    },
+    "/users/{userId}/token_usages/{usageId}": {
+      "schema": { "$ref": "#/entities/TokenUsage" },
+      "description": "User-scoped token usage audit log."
+    },
+    "/users/{userId}/interior_designs/{designId}": {
+      "schema": { "$ref": "#/entities/InteriorDesign" },
+      "description": "User-scoped interior design studio projects."
+    }
+  }
+}
