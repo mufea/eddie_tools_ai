@@ -14,6 +14,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -79,6 +80,8 @@ fun EddieAiCodeStudioView(
         modifier = Modifier
             .fillMaxSize()
             .padding(paddingValues)
+            .navigationBarsPadding()
+            .imePadding()
             .background(Color.Transparent)
     ) {
         Column(
@@ -86,8 +89,7 @@ fun EddieAiCodeStudioView(
                 .weight(1f)
                 .fillMaxWidth()
                 .verticalScroll(scrollState)
-                .padding(horizontal = 16.dp, vertical = 8.dp)
-                .imePadding(),
+                .padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 24.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             // Header Developer Area (Non-Sticky Header)
@@ -431,7 +433,8 @@ fun EddieAiCodeStudioView(
                 },
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(48.dp),
+                    .height(48.dp)
+                    .testTag("run_code_intelligence_button"),
                 shape = RoundedCornerShape(12.dp),
                 colors = ButtonDefaults.buttonColors(
                     containerColor = MaterialTheme.colorScheme.primary,
@@ -584,6 +587,8 @@ fun EddieAiCodeStudioView(
                     }
                 }
             }
+
+            Spacer(modifier = Modifier.height(24.dp))
         }
     }
 }

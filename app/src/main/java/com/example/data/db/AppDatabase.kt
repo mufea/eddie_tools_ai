@@ -71,7 +71,8 @@ data class GeneratedMusicEntity(
     val duration: String,
     val tempo: String,
     val timestamp: Long = System.currentTimeMillis(),
-    val userEmail: String? = null
+    val userEmail: String? = null,
+    val model: String = "Unknown"
 )
 
 @Entity(tableName = "user_memories")
@@ -158,6 +159,9 @@ interface ChatDao {
     @Query("SELECT * FROM generated_music WHERE userEmail = :email ORDER BY timestamp DESC")
     fun getGeneratedMusicForUser(email: String): Flow<List<GeneratedMusicEntity>>
 
+    @Query("SELECT * FROM generated_music WHERE id = :musicId LIMIT 1")
+    suspend fun getGeneratedMusicById(musicId: String): GeneratedMusicEntity?
+
     @Query("DELETE FROM generated_music WHERE id = :musicId")
     suspend fun deleteGeneratedMusicById(musicId: String)
 
@@ -204,7 +208,7 @@ interface ChatDao {
         UserMemoryEntity::class,
         TokenUsageEntity::class
     ],
-    version = 9,
+    version = 10,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -213,6 +217,12 @@ abstract class AppDatabase : RoomDatabase() {
     companion object {
         @Volatile
         private var INSTANCE: AppDatabase? = null
+
+        private val MIGRATION_9_10 = object : androidx.room.migration.Migration(9, 10) {
+            override fun migrate(db: androidx.sqlite.db.SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE generated_music ADD COLUMN model TEXT NOT NULL DEFAULT 'Unknown'")
+            }
+        }
 
         fun getDatabase(context: Context): AppDatabase {
             try {
@@ -229,6 +239,7 @@ abstract class AppDatabase : RoomDatabase() {
                         AppDatabase::class.java,
                         "ai_chat_database"
                     )
+                    .addMigrations(MIGRATION_9_10)
                     .allowMainThreadQueries()
                     .fallbackToDestructiveMigration()
                     .build()
@@ -241,6 +252,7 @@ abstract class AppDatabase : RoomDatabase() {
                             AppDatabase::class.java,
                             "ai_chat_database"
                         )
+                        .addMigrations(MIGRATION_9_10)
                         .allowMainThreadQueries()
                         .fallbackToDestructiveMigration()
                         .build()

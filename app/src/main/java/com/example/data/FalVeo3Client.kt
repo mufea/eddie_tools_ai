@@ -137,7 +137,7 @@ class FalVeo3Client {
             }
         }
 
-        onLog("> Submitting job to video pipeline: $submitEndpoint\n")
+        onLog("> Submitting job to secure video proxy pipeline...\n")
         val requestBody = requestJson.toString().toRequestBody("application/json".toMediaTypeOrNull())
 
         val submitRequest = Request.Builder()
@@ -225,7 +225,8 @@ class FalVeo3Client {
                     }
                 }
             } catch (e: Exception) {
-                onLog("> Polling warning: ${e.localizedMessage}. Continuing loop...\n")
+                val safeMsg = BackendProxyClient.sanitizeForDisplay(e.localizedMessage.orEmpty(), proxyUrl)
+                onLog("> Polling warning: $safeMsg. Continuing loop...\n")
             }
         }
 
@@ -285,12 +286,14 @@ class FalVeo3Client {
                     }
 
                     // Non-retriable or final failure
-                    throw IllegalStateException("API Error Code ${response.code}: $bodyStr")
+                    val safeBody = BackendProxyClient.sanitizeForDisplay(bodyStr, null)
+                    throw IllegalStateException("API Error Code ${response.code}: $safeBody")
                 }
             } catch (e: IOException) {
                 lastException = e
                 if (attempt < maxRetries) {
-                    onLog("> Connection anomaly during $actionName: ${e.localizedMessage}. Retry $attempt/$maxRetries...\n")
+                    val safeMsg = BackendProxyClient.sanitizeForDisplay(e.localizedMessage.orEmpty(), null)
+                    onLog("> Connection anomaly during $actionName: $safeMsg. Retry $attempt/$maxRetries...\n")
                     delay(2000L * attempt)
                 }
             } catch (e: Exception) {

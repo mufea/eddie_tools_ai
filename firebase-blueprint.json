@@ -133,6 +133,7 @@
         "genre": { "type": "string" },
         "duration": { "type": "string" },
         "tempo": { "type": "string" },
+        "model": { "type": "string" },
         "clientTimestamp": { "type": "integer" },
         "createdAt": { "type": "string", "format": "date-time" }
       },

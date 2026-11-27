@@ -259,7 +259,6 @@ fun ChatGptSidebar(
                     emoji = "🎨",
                     title = "Image Studio",
                     selected = activeTab == "image_gen",
-                    badgeText = if (!uiState.isSubscribed) "PRO" else null,
                     onClick = {
                         onSelectTab("image_gen")
                         onCloseDrawer()
@@ -270,7 +269,6 @@ fun ChatGptSidebar(
                     emoji = "🎬",
                     title = "Video Studio",
                     selected = activeTab == "video_gen",
-                    badgeText = if (!uiState.isSubscribed) "PRO" else null,
                     onClick = {
                         onSelectTab("video_gen")
                         onCloseDrawer()

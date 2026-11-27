@@ -232,7 +232,7 @@ class FalKlingQueueClient {
         val resolvedProxy = BackendProxyClient.resolveEndpoint(proxyUrl, "/api/video")
         val submitUrl = resolvedProxy
         
-        onLog("> [Kling API] POST submission initiated to queue endpoint: $submitUrl...\n")
+        onLog("> [Kling API] POST submission initiated to secure queue proxy endpoint...\n")
         
         val durationClean = duration.replace("s", "").replace(" seconds", "").trim()
         val durationVal = durationClean.toIntOrNull() ?: if (duration.contains("10")) 10 else 5
@@ -297,7 +297,8 @@ class FalKlingQueueClient {
                     onLog("> [Kling Elements] Injecting ${elementsArray.length()} custom visual elements into parameters...\n")
                     put("elements", elementsArray)
                 } catch (e: Exception) {
-                    onLog("> [Kling Elements Error] Failed to parse custom elements list: ${e.localizedMessage}\n")
+                    val safeMsg = BackendProxyClient.sanitizeForDisplay(e.localizedMessage.orEmpty(), proxyUrl)
+                    onLog("> [Kling Elements Error] Failed to parse custom elements list: $safeMsg\n")
                 }
             }
         }
@@ -392,7 +393,8 @@ class FalKlingQueueClient {
                     }
                 }
             } catch (e: Exception) {
-                onLog("> [Kling Polling] Connection warning: ${e.localizedMessage}. Continuing retry-polling...\n")
+                val safeMsg = BackendProxyClient.sanitizeForDisplay(e.localizedMessage.orEmpty(), proxyUrl)
+                onLog("> [Kling Polling] Connection warning: $safeMsg. Continuing retry-polling...\n")
             }
         }
     }
@@ -466,12 +468,14 @@ class FalKlingQueueClient {
                     }
                     
                     // Non-retriable client errors or final failed attempt
-                    throw IllegalStateException("API returned HTTP ${response.code}: $responseBody")
+                    val safeBody = BackendProxyClient.sanitizeForDisplay(responseBody)
+                    throw IllegalStateException("API returned HTTP ${response.code}: $safeBody")
                 }
             } catch (e: IOException) {
                 lastException = e
                 if (attempt < maxRetries) {
-                    onLog("> [Kling Connection Anomaly] Failed $actionName: ${e.localizedMessage}. Retrying in ${currentDelayMs / 1000}s (Attempt $attempt/$maxRetries)...\n")
+                    val safeMsg = BackendProxyClient.sanitizeForDisplay(e.localizedMessage.orEmpty())
+                    onLog("> [Kling Connection Anomaly] Failed $actionName: $safeMsg. Retrying in ${currentDelayMs / 1000}s (Attempt $attempt/$maxRetries)...\n")
                     delay(currentDelayMs)
                     currentDelayMs *= 2 // Exponential backoff
                 }

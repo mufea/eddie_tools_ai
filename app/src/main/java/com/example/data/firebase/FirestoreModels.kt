@@ -90,6 +90,7 @@ data class FirestoreGeneratedMusic(
     val genre: String = "",
     val duration: String = "",
     val tempo: String = "",
+    val model: String = "Unknown",
     val clientTimestamp: Long = 0L,
     @ServerTimestamp val createdAt: Timestamp? = null
 )

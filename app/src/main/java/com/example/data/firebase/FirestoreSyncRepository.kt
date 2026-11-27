@@ -473,6 +473,7 @@ class FirestoreSyncRepository(
         genre: String,
         duration: String,
         tempo: String,
+        model: String = "Unknown",
         clientTimestamp: Long
     ): Result<Unit> {
         var docPath = "users/${auth.currentUser?.uid ?: "unauthenticated"}/generated_music/$id"
@@ -489,6 +490,7 @@ class FirestoreSyncRepository(
                     "genre" to genre.take(120),
                     "duration" to duration.take(40),
                     "tempo" to tempo.take(40),
+                    "model" to model.trim().ifBlank { "Unknown" }.take(120),
                     "clientTimestamp" to clientTimestamp.coerceAtLeast(0L),
                     "createdAt" to FieldValue.serverTimestamp()
                 )

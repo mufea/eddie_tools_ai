@@ -143,7 +143,7 @@ fun SubscriptionFlowDialog(
                             Spacer(modifier = Modifier.height(12.dp))
 
                             Text(
-                                text = "With Premium, you have unlocked the full power of Eddie Pro with superior intelligence for complex reasoning, unlimited art generation in Eddie AI Art Studio (unlimited access to Pro styles and HD ratios), and full access to Eddie Video Studio (no free limits, 10s-30s durations, Full HD & 4K resolution, cinematic shapes and aspect ratios).",
+                                text = "With Eddie Pro, you have unlocked all PRO-badged flagship AI models (GPT Image, Flux Pro, Ideogram, Veo 3/3.1, Kling Pro/4K, Seedance 2.0, Eleven Music v2.5), Pro styles, multi-variation rendering, HD/4K resolutions, and extended durations, plus monthly bonus tokens.",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 textAlign = TextAlign.Center
@@ -203,7 +203,7 @@ fun SubscriptionFlowDialog(
                             planName = "Weekly",
                             price = "$0.99",
                             period = "/ week",
-                            description = "Perfect for trying Eddie Pro's chat, artwork, and premium video features.",
+                            description = "7 days access to all PRO-badged AI models, Pro styles, HD ratios & +250 bonus tokens.",
                             isSelected = selectedPlan == "Weekly",
                             onSelect = { selectedPlan = "Weekly" }
                         )
@@ -211,7 +211,7 @@ fun SubscriptionFlowDialog(
                             planName = "Monthly",
                             price = "$3.99",
                             period = "/ month",
-                            description = "Best choice. Unlimited priority chat, unlimited HD painting in Art Studio, and unlimited Ultra HD video rendering.",
+                            description = "Most popular. Unlocks all PRO models (Veo 3.1, Kling 4K, Flux Pro, Music v2.5), 1080p/4K & +1,200 tokens.",
                             badge = "POPULAR",
                             isSelected = selectedPlan == "Monthly",
                             onSelect = { selectedPlan = "Monthly" }
@@ -220,7 +220,7 @@ fun SubscriptionFlowDialog(
                             planName = "Yearly",
                             price = "$24.99",
                             period = "/ year",
-                            description = "Best value. Full year of premium chat, artistic AI drawing, and high-resolution video generation.",
+                            description = "Best value. Full year of all PRO models, 4K rendering, Pro audio/image controls & +7,500 bonus tokens.",
                             badge = "SAVER 50%",
                             isSelected = selectedPlan == "Yearly",
                             onSelect = { selectedPlan = "Yearly" }

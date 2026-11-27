@@ -127,7 +127,7 @@ fun EddieConversationalVoiceView(
                         color = MaterialTheme.colorScheme.onSurface
                     )
 
-                    val availableModels = listOf("gpt-4o-mini", "gpt-4o", "gpt-4.5-preview", "gpt-3.5-turbo")
+                    val availableModels = listOf("gpt-4o-mini", "gpt-4o")
 
                     Row(
                         modifier = Modifier.horizontalScroll(rememberScrollState()),

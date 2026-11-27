@@ -237,6 +237,36 @@ test("Media, memories, token usages & interior designs: valid creates & deletes 
       genre: "Lo-Fi",
       duration: "30s",
       tempo: "90 BPM",
+      model: "music_v2_5",
+      clientTimestamp: 1700000000000,
+      createdAt: ts,
+    })
+  );
+
+  // Backward-compatible legacy document without model field also succeeds
+  await assertSucceeds(
+    aliceDb.collection("users").doc(ALICE_UID).collection("generated_music").doc("mus_legacy").set({
+      userId: ALICE_UID,
+      prompt: "Acoustic sunrise",
+      musicUrl: "https://example.com/legacy.mp3",
+      genre: "Acoustic",
+      duration: "15s",
+      tempo: "100 BPM",
+      clientTimestamp: 1700000000000,
+      createdAt: ts,
+    })
+  );
+
+  // Reject oversized model field
+  await assertFails(
+    aliceDb.collection("users").doc(ALICE_UID).collection("generated_music").doc("mus_bad").set({
+      userId: ALICE_UID,
+      prompt: "Lo-fi beat",
+      musicUrl: "https://example.com/m.mp3",
+      genre: "Lo-Fi",
+      duration: "30s",
+      tempo: "90 BPM",
+      model: "x".repeat(121),
       clientTimestamp: 1700000000000,
       createdAt: ts,
     })

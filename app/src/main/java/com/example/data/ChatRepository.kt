@@ -24,6 +24,45 @@ data class ChatMessage(
     val timestamp: Long = System.currentTimeMillis()
 )
 
+data class FluxSchnellInput(
+    val numInferenceSteps: Int = 4,
+    val imageSize: String = "landscape_4_3",
+    val customWidth: Int = 1280,
+    val customHeight: Int = 720,
+    val seed: Int? = null,
+    val guidanceScale: Double = 3.5,
+    val syncMode: Boolean = false,
+    val numImages: Int = 1,
+    val enableSafetyChecker: Boolean = true,
+    val outputFormat: String = "jpeg",
+    val acceleration: String = "none"
+)
+
+data class FluxProV11Input(
+    val imageSize: String = "landscape_4_3",
+    val customWidth: Int = 1280,
+    val customHeight: Int = 720,
+    val seed: Int? = null,
+    val syncMode: Boolean = false,
+    val numImages: Int = 1,
+    val outputFormat: String = "jpeg",
+    val safetyTolerance: String = "2",
+    val enhancePrompt: Boolean = false
+)
+
+data class Flux2FlexInput(
+    val imageSize: String = "landscape_4_3",
+    val customWidth: Int = 1280,
+    val customHeight: Int = 720,
+    val seed: Int? = null,
+    val safetyTolerance: String = "2",
+    val enableSafetyChecker: Boolean = true,
+    val outputFormat: String = "jpeg",
+    val syncMode: Boolean = false,
+    val guidanceScale: Double = 3.5,
+    val numInferenceSteps: Int = 28
+)
+
 class ChatRepository {
     private val defaultSystemInstruction = "You are Prof Eddie, a helpful and expert AI Assistant. Please use Indonesian if requested, or Markdown formatting for easy reading."
     
@@ -89,7 +128,7 @@ class ChatRepository {
                     }
                 }
             } catch (e: Exception) {
-                Pair(false, "Failed to connect to proxy: ${e.localizedMessage}")
+                Pair(false, "Failed to connect to proxy: ${BackendProxyClient.sanitizeForDisplay(e.localizedMessage.orEmpty(), baseUrl)}")
             }
         }
     }
@@ -512,7 +551,7 @@ class ChatRepository {
                 }
             }
         } catch (e: Exception) {
-            "Failed to make API request: ${e.localizedMessage}"
+            "Failed to make API request: ${BackendProxyClient.sanitizeForDisplay(e.localizedMessage.orEmpty(), baseUrl)}"
         }
     }
 
@@ -640,7 +679,7 @@ class ChatRepository {
                     }
                 }
             } catch (e: Exception) {
-                "Error Vision Proxy API: ${e.localizedMessage}"
+                "Error Vision Proxy API: ${BackendProxyClient.sanitizeForDisplay(e.localizedMessage.orEmpty(), customUrl)}"
             }
         }
     }
@@ -688,7 +727,7 @@ class ChatRepository {
             client.newCall(request).execute().use { response ->
                 val bodyStr = response.body?.string() ?: ""
                 if (!response.isSuccessful) {
-                    throw IllegalStateException("OpenAI Error ${response.code}: $bodyStr")
+                    throw IllegalStateException("OpenAI Error ${response.code}: ${BackendProxyClient.sanitizeForDisplay(bodyStr, customBaseUrl)}")
                 }
                 val responseJson = JSONObject(bodyStr)
                 
@@ -889,7 +928,7 @@ class ChatRepository {
                 }
             }.toString()
             
-            onLogMessage("> Starting generation via secure backend proxy...\n> Sending POST request to: $resolvedUrl\n")
+            onLogMessage("> Starting generation via secure backend proxy...\n> Sending POST request to secure video endpoint...\n")
 
             val requestBody = postBody.toRequestBody("application/json".toMediaTypeOrNull())
             val request = Request.Builder()
@@ -905,7 +944,7 @@ class ChatRepository {
             client.newCall(request).execute().use { response ->
                 val bodyStr = response.body?.string() ?: ""
                 if (!response.isSuccessful) {
-                    throw IllegalStateException("Start generation failed (HTTP ${response.code}): $bodyStr")
+                    throw IllegalStateException("Start generation failed (HTTP ${response.code}): ${BackendProxyClient.sanitizeForDisplay(bodyStr, customBaseUrl)}")
                 }
                 
                 val responseJson = JSONObject(bodyStr)
@@ -969,7 +1008,7 @@ class ChatRepository {
                     }
                 } catch (e: Exception) {
                     if (e is IllegalStateException) throw e
-                    onLogMessage("> Transient polling error: ${e.message}. Retrying...\n")
+                    onLogMessage("> Transient polling error: ${BackendProxyClient.sanitizeForDisplay(e.message.orEmpty(), customBaseUrl)}. Retrying...\n")
                 }
             }
             
@@ -1036,9 +1075,34 @@ class ChatRepository {
         prompt: String,
         endpointUrl: String = "fal-ai/flux/schnell",
         aspectRatio: String = "1:1",
+        fluxSchnellInput: FluxSchnellInput? = null,
+        fluxProV11Input: FluxProV11Input? = null,
+        flux2FlexInput: Flux2FlexInput? = null,
         customApiKey: String? = null,
         customBaseUrl: String? = null
     ): String {
+        return generateFalImages(
+            prompt = prompt,
+            endpointUrl = endpointUrl,
+            aspectRatio = aspectRatio,
+            fluxSchnellInput = fluxSchnellInput,
+            fluxProV11Input = fluxProV11Input,
+            flux2FlexInput = flux2FlexInput,
+            customApiKey = customApiKey,
+            customBaseUrl = customBaseUrl
+        ).firstOrNull().orEmpty()
+    }
+
+    suspend fun generateFalImages(
+        prompt: String,
+        endpointUrl: String = "fal-ai/flux/schnell",
+        aspectRatio: String = "1:1",
+        fluxSchnellInput: FluxSchnellInput? = null,
+        fluxProV11Input: FluxProV11Input? = null,
+        flux2FlexInput: Flux2FlexInput? = null,
+        customApiKey: String? = null,
+        customBaseUrl: String? = null
+    ): List<String> {
         return withContext(Dispatchers.IO) {
             val firebaseToken = BackendProxyClient.getFirebaseIdToken()
             val resolvedProxyUrl = BackendProxyClient.resolveEndpoint(customBaseUrl, "/api/image")
@@ -1050,23 +1114,121 @@ class ChatRepository {
                 .trim('/')
                 .ifBlank { "fal-ai/flux/schnell" }
 
-            val resolvedImageSize = when (aspectRatio.trim()) {
-                "16:9" -> "16:9"
-                "9:16" -> "9:16"
-                "3:2", "1536:1024" -> "3:2"
-                "2:3", "1024:1536" -> "2:3"
-                "4:5" -> "4:5"
-                "21:9" -> "21:9"
-                "9:21" -> "9:21"
-                else -> "square_hd"
-            }
+            val isFluxSchnell = modelPath == "fal-ai/flux/schnell"
+            val isFluxProV11 = modelPath == "fal-ai/flux-pro/v1.1"
+            val isFlux2Flex = modelPath == "fal-ai/flux-2-flex"
 
             val jsonBody = JSONObject().apply {
                 put("provider", "fal")
                 put("model", modelPath)
                 put("prompt", prompt)
-                put("image_size", resolvedImageSize)
-                put("sync_mode", true)
+                if (isFluxSchnell) {
+                    val opts = fluxSchnellInput ?: FluxSchnellInput()
+                    put("num_inference_steps", opts.numInferenceSteps.coerceIn(1, 50))
+                    if (opts.imageSize.equals("custom", ignoreCase = true)) {
+                        put("image_size", JSONObject().apply {
+                            put("width", opts.customWidth.coerceIn(256, 2048))
+                            put("height", opts.customHeight.coerceIn(256, 2048))
+                        })
+                    } else {
+                        val validEnum = opts.imageSize.trim().takeIf {
+                            it in setOf(
+                                "square_hd",
+                                "square",
+                                "portrait_4_3",
+                                "portrait_16_9",
+                                "landscape_4_3",
+                                "landscape_16_9"
+                            )
+                        } ?: "landscape_4_3"
+                        put("image_size", validEnum)
+                    }
+                    opts.seed?.let { put("seed", it) }
+                    put("guidance_scale", opts.guidanceScale.coerceIn(0.0, 20.0))
+                    put("sync_mode", opts.syncMode)
+                    put("num_images", opts.numImages.coerceIn(1, 4))
+                    put("enable_safety_checker", opts.enableSafetyChecker)
+                    val safeFormat = if (opts.outputFormat.equals("png", ignoreCase = true)) "png" else "jpeg"
+                    put("output_format", safeFormat)
+                    val safeAcceleration = opts.acceleration.lowercase().takeIf {
+                        it in setOf("none", "regular", "high")
+                    } ?: "none"
+                    put("acceleration", safeAcceleration)
+                } else if (isFluxProV11) {
+                    val opts = fluxProV11Input ?: FluxProV11Input()
+                    if (opts.imageSize.equals("custom", ignoreCase = true)) {
+                        put("image_size", JSONObject().apply {
+                            put("width", opts.customWidth.coerceIn(256, 2048))
+                            put("height", opts.customHeight.coerceIn(256, 2048))
+                        })
+                    } else {
+                        val validEnum = opts.imageSize.trim().takeIf {
+                            it in setOf(
+                                "square_hd",
+                                "square",
+                                "portrait_4_3",
+                                "portrait_16_9",
+                                "landscape_4_3",
+                                "landscape_16_9"
+                            )
+                        } ?: "landscape_4_3"
+                        put("image_size", validEnum)
+                    }
+                    opts.seed?.let { put("seed", it) }
+                    put("sync_mode", opts.syncMode)
+                    put("num_images", opts.numImages.coerceIn(1, 4))
+                    val safeFormat = if (opts.outputFormat.equals("png", ignoreCase = true)) "png" else "jpeg"
+                    put("output_format", safeFormat)
+                    val safeTolerance = opts.safetyTolerance.trim().takeIf {
+                        it in setOf("1", "2", "3", "4", "5", "6")
+                    } ?: "2"
+                    put("safety_tolerance", safeTolerance)
+                    put("enhance_prompt", opts.enhancePrompt)
+                } else if (isFlux2Flex) {
+                    val opts = flux2FlexInput ?: Flux2FlexInput()
+                    if (opts.imageSize.equals("custom", ignoreCase = true)) {
+                        put("image_size", JSONObject().apply {
+                            put("width", opts.customWidth.coerceIn(256, 2048))
+                            put("height", opts.customHeight.coerceIn(256, 2048))
+                        })
+                    } else {
+                        val validEnum = opts.imageSize.trim().takeIf {
+                            it in setOf(
+                                "square_hd",
+                                "square",
+                                "portrait_4_3",
+                                "portrait_16_9",
+                                "landscape_4_3",
+                                "landscape_16_9"
+                            )
+                        } ?: "landscape_4_3"
+                        put("image_size", validEnum)
+                    }
+                    opts.seed?.let { put("seed", it) }
+                    val safeTolerance = opts.safetyTolerance.trim().takeIf {
+                        it in setOf("1", "2", "3", "4", "5")
+                    } ?: "2"
+                    put("safety_tolerance", safeTolerance)
+                    put("enable_safety_checker", opts.enableSafetyChecker)
+                    val safeFormat = if (opts.outputFormat.equals("png", ignoreCase = true)) "png" else "jpeg"
+                    put("output_format", safeFormat)
+                    put("sync_mode", opts.syncMode)
+                    put("guidance_scale", opts.guidanceScale.coerceIn(0.0, 20.0))
+                    put("num_inference_steps", opts.numInferenceSteps.coerceIn(1, 60))
+                } else {
+                    val resolvedImageSize = when (aspectRatio.trim()) {
+                        "16:9" -> "16:9"
+                        "9:16" -> "9:16"
+                        "3:2", "1536:1024" -> "3:2"
+                        "2:3", "1024:1536" -> "2:3"
+                        "4:5" -> "4:5"
+                        "21:9" -> "21:9"
+                        "9:21" -> "9:21"
+                        else -> "square_hd"
+                    }
+                    put("image_size", resolvedImageSize)
+                    put("sync_mode", true)
+                }
             }
 
             val requestBody = jsonBody.toString().toRequestBody("application/json".toMediaTypeOrNull())
@@ -1078,21 +1240,33 @@ class ChatRepository {
                 .post(requestBody)
                 .build()
 
+            fun extractImageUrls(json: JSONObject): List<String> {
+                val urls = mutableListOf<String>()
+                val imagesArray = json.optJSONArray("images")
+                if (imagesArray != null) {
+                    for (idx in 0 until imagesArray.length()) {
+                        val u = imagesArray.optJSONObject(idx)?.optString("url").orEmpty()
+                        if (u.isNotBlank()) urls.add(u)
+                    }
+                }
+                if (urls.isEmpty()) {
+                    val directUrl = json.optString("url").ifBlank { json.optString("image_url") }
+                    if (directUrl.isNotBlank()) urls.add(directUrl)
+                }
+                return urls
+            }
+
             client.newCall(request).execute().use { response ->
                 val bodyStr = response.body?.string() ?: ""
                 if (!response.isSuccessful) {
-                    throw IllegalStateException("Fal.ai Proxy Error ${response.code}: $bodyStr")
+                    throw IllegalStateException("Fal.ai Proxy Error ${response.code}: ${BackendProxyClient.sanitizeForDisplay(bodyStr, customBaseUrl)}")
                 }
                 val responseJson = JSONObject(bodyStr)
 
-                // If the response yielded immediate image data, return it
-                val imagesArray = responseJson.optJSONArray("images")
-                if (imagesArray != null && imagesArray.length() > 0) {
-                    return@withContext imagesArray.getJSONObject(0).getString("url")
-                }
-                val directUrl = responseJson.optString("url").ifBlank { responseJson.optString("image_url") }
-                if (directUrl.isNotBlank()) {
-                    return@withContext directUrl
+                // If the response yielded immediate image data, return all URLs
+                val immediateUrls = extractImageUrls(responseJson)
+                if (immediateUrls.isNotEmpty()) {
+                    return@withContext immediateUrls
                 }
 
                 // If immediate results are not present but queue details are provided, poll via backend proxy
@@ -1123,7 +1297,7 @@ class ChatRepository {
                                 if (status == "COMPLETED") {
                                     completed = true
                                 } else if (status == "FAILED") {
-                                    throw IllegalStateException("Fal.ai Queue Job Failed: $statusBody")
+                                    throw IllegalStateException("Fal.ai Queue Job Failed: ${BackendProxyClient.sanitizeForDisplay(statusBody, customBaseUrl)}")
                                 }
                             }
                         }
@@ -1140,21 +1314,21 @@ class ChatRepository {
                         client.newCall(resultRequest).execute().use { resultResponse ->
                             val resultBody = resultResponse.body?.string() ?: ""
                             if (!resultResponse.isSuccessful) {
-                                throw IllegalStateException("Failed to fetch final Fal.ai results: $resultBody")
+                                throw IllegalStateException("Failed to fetch final Fal.ai results: ${BackendProxyClient.sanitizeForDisplay(resultBody, customBaseUrl)}")
                             }
                             val resultJson = JSONObject(resultBody)
-                            val finalImages = resultJson.optJSONArray("images")
-                            if (finalImages != null && finalImages.length() > 0) {
-                                return@withContext finalImages.getJSONObject(0).getString("url")
+                            val finalUrls = extractImageUrls(resultJson)
+                            if (finalUrls.isNotEmpty()) {
+                                return@withContext finalUrls
                             } else {
-                                throw IllegalStateException("No images found in completed Fal.ai response: $resultBody")
+                                throw IllegalStateException("No images found in completed Fal.ai response: ${BackendProxyClient.sanitizeForDisplay(resultBody, customBaseUrl)}")
                             }
                         }
                     } else {
                         throw IllegalStateException("Fal.ai Generation timed out after 60 seconds.")
                     }
                 } else {
-                    throw IllegalStateException("No image generated by Fal.ai. Response: $bodyStr")
+                    throw IllegalStateException("No image generated by Fal.ai. Response: ${BackendProxyClient.sanitizeForDisplay(bodyStr, customBaseUrl)}")
                 }
             }
         }
@@ -1249,7 +1423,7 @@ class ChatRepository {
                 val contentType = response.header("Content-Type").orEmpty().lowercase()
                 if (!response.isSuccessful) {
                     val bodyStr = response.body?.string() ?: ""
-                    throw IllegalStateException("Stability AI Proxy Error ${response.code}: $bodyStr")
+                    throw IllegalStateException("Stability AI Proxy Error ${response.code}: ${BackendProxyClient.sanitizeForDisplay(bodyStr, customBaseUrl)}")
                 }
 
                 if (contentType.startsWith("image/")) {
@@ -1912,7 +2086,7 @@ class ChatRepository {
             jsonBody.put("provider", "fal")
             jsonBody.put("model", resolvedFalModelId)
 
-            onLogMessage("> Connecting to secure video proxy ($resolvedProxyUrl) for model $resolvedFalModelId...\n")
+            onLogMessage("> Connecting to secure video proxy for model $resolvedFalModelId...\n")
             val requestBody = jsonBody.toString().toRequestBody("application/json".toMediaTypeOrNull())
             
             val request = Request.Builder()
@@ -1925,7 +2099,7 @@ class ChatRepository {
             client.newCall(request).execute().use { response ->
                 val bodyStr = response.body?.string() ?: ""
                 if (!response.isSuccessful) {
-                    throw IllegalStateException("Video API Error ${response.code}: $bodyStr")
+                    throw IllegalStateException("Video API Error ${response.code}: ${BackendProxyClient.sanitizeForDisplay(bodyStr, customBaseUrl)}")
                 }
                 val responseJson = JSONObject(bodyStr)
                 
@@ -2065,7 +2239,7 @@ class ChatRepository {
 
             val useDirectElevenLabs = !resolvedApiKey.isNullOrBlank()
             val targetUrl = if (useDirectElevenLabs) {
-                "https://api.elevenlabs.io/v1/music?output_format=auto"
+                "https://api.elevenlabs.io/v1/music?output_format=mp3_44100_128"
             } else {
                 resolvedProxyUrl
             }
@@ -2073,9 +2247,9 @@ class ChatRepository {
             onLogMessage(
                 if (useDirectElevenLabs) {
                     "> ELEVENLABS_API_KEY resolved.\n" +
-                        "> Endpoint: POST https://api.elevenlabs.io/v1/music?output_format=auto\n"
+                        "> Endpoint: POST https://api.elevenlabs.io/v1/music?output_format=mp3_44100_128\n"
                 } else {
-                    "> Proxy key kept server-side; routing via $resolvedProxyUrl (provider: elevenlabs)\n"
+                    "> Proxy key kept server-side; routing via secure backend proxy (provider: elevenlabs)\n"
                 }
             )
             onLogMessage("> Model ID: $resolvedModelId | Length: ${musicLengthMs}ms\n")
@@ -2093,7 +2267,7 @@ class ChatRepository {
             val requestBuilder = Request.Builder()
                 .url(targetUrl)
                 .header("Content-Type", "application/json")
-                .header("Accept", "audio/mpeg, application/json")
+                .header("Accept", "audio/mpeg, audio/*, application/json")
                 .post(requestBody)
 
             if (useDirectElevenLabs) {
@@ -2130,6 +2304,40 @@ class ChatRepository {
                 }
             }
 
+            fun saveAudioBytesToLocalFile(bytes: ByteArray): String {
+                if (bytes.size < 128) {
+                    val previewText = runCatching { String(bytes) }.getOrDefault("")
+                    throw IllegalStateException("Invalid audio payload (${bytes.size} bytes): $previewText")
+                }
+                val headStr = runCatching { String(bytes, 0, minOf(bytes.size, 64)).trimStart().lowercase() }.getOrDefault("")
+                if (headStr.startsWith("<!doctype") || headStr.startsWith("<html")) {
+                    throw IllegalStateException("Server returned HTML instead of audio data.")
+                }
+                if (headStr.startsWith("{") && headStr.contains("\"error\"")) {
+                    throw IllegalStateException("Server returned JSON error instead of audio: ${extractElevenLabsError(String(bytes), "Unknown error")}")
+                }
+                val ext = when {
+                    bytes.size >= 4 && bytes[0] == 'R'.code.toByte() && bytes[1] == 'I'.code.toByte() && bytes[2] == 'F'.code.toByte() && bytes[3] == 'F'.code.toByte() -> "wav"
+                    bytes.size >= 4 && bytes[0] == 'O'.code.toByte() && bytes[1] == 'g'.code.toByte() && bytes[2] == 'g'.code.toByte() && bytes[3] == 'S'.code.toByte() -> "ogg"
+                    bytes.size >= 4 && bytes[0] == 'f'.code.toByte() && bytes[1] == 'L'.code.toByte() && bytes[2] == 'a'.code.toByte() && bytes[3] == 'C'.code.toByte() -> "flac"
+                    bytes.size >= 8 && bytes[4] == 'f'.code.toByte() && bytes[5] == 't'.code.toByte() && bytes[6] == 'y'.code.toByte() && bytes[7] == 'p'.code.toByte() -> "m4a"
+                    else -> "mp3"
+                }
+                val musicDir = java.io.File(com.example.AppContextProvider.context.filesDir, "generated_music")
+                if (!musicDir.exists()) {
+                    musicDir.mkdirs()
+                }
+                val outFile = java.io.File(
+                    musicDir,
+                    "elevenlabs_${System.currentTimeMillis()}_${java.util.UUID.randomUUID()}.$ext"
+                )
+                java.io.FileOutputStream(outFile).use { out ->
+                    out.write(bytes)
+                }
+                onLogMessage("> Saved ${bytes.size} bytes (.$ext) locally for playback.\n")
+                return "file://${outFile.absolutePath}"
+            }
+
             musicClient.newCall(request).execute().use { response ->
                 val contentType = response.header("Content-Type").orEmpty().lowercase()
                 if (!response.isSuccessful) {
@@ -2141,7 +2349,7 @@ class ChatRepository {
                         401, 403 -> " (API key ElevenLabs tidak valid atau akun ElevenLabs belum berlangganan Music API)"
                         else -> ""
                     }
-                    throw IllegalStateException("ElevenLabs Error HTTP ${response.code}: $parsedMsg$hint")
+                    throw IllegalStateException("ElevenLabs Error HTTP ${response.code}: ${BackendProxyClient.sanitizeForDisplay(parsedMsg, customBaseUrl)}$hint")
                 }
 
                 val body = response.body ?: throw IllegalStateException("Backend proxy returned an empty response body.")
@@ -2150,31 +2358,44 @@ class ChatRepository {
                 if (contentType.contains("application/json") || (rawBytes.isNotEmpty() && rawBytes[0] == '{'.code.toByte())) {
                     val jsonStr = runCatching { String(rawBytes) }.getOrDefault("")
                     val json = JSONObject(jsonStr)
+                    val nestedData = json.optJSONObject("data") ?: json.optJSONObject("result")
                     val remoteUrl = json.optString("url")
                         .ifBlank { json.optString("audioUrl") }
                         .ifBlank { json.optString("audio_url") }
-                    if (remoteUrl.isNotBlank()) {
-                        onLogMessage("> Received music URL from proxy.\n")
-                        return@withContext remoteUrl
+                        .ifBlank { nestedData?.optString("url").orEmpty() }
+                        .ifBlank { nestedData?.optString("audioUrl").orEmpty() }
+                        .ifBlank { nestedData?.optString("audio_url").orEmpty() }
+
+                    if (remoteUrl.startsWith("data:", ignoreCase = true)) {
+                        val cleanB64 = remoteUrl.substringAfter("base64,", "")
+                        if (cleanB64.isNotBlank()) {
+                            val decodedBytes = android.util.Base64.decode(cleanB64, android.util.Base64.DEFAULT)
+                            return@withContext saveAudioBytesToLocalFile(decodedBytes)
+                        }
+                    }
+
+                    if (remoteUrl.startsWith("http://", ignoreCase = true) || remoteUrl.startsWith("https://", ignoreCase = true)) {
+                        onLogMessage("> Received music URL from proxy; caching audio locally...\n")
+                        val localFromUrl = runCatching {
+                            val dlReq = Request.Builder().url(remoteUrl).get().build()
+                            musicClient.newCall(dlReq).execute().use { dlResp ->
+                                if (dlResp.isSuccessful) {
+                                    dlResp.body?.bytes()?.let { saveAudioBytesToLocalFile(it) }
+                                } else null
+                            }
+                        }.getOrNull()
+                        return@withContext localFromUrl ?: remoteUrl
                     }
 
                     val audioBase64 = json.optString("audio_base64")
                         .ifBlank { json.optString("audio") }
                         .ifBlank { json.optString("b64_json") }
+                        .ifBlank { nestedData?.optString("audio_base64").orEmpty() }
+                        .ifBlank { nestedData?.optString("audio").orEmpty() }
                     if (audioBase64.isNotBlank()) {
                         val cleanB64 = audioBase64.substringAfter("base64,", audioBase64)
                         val decodedBytes = android.util.Base64.decode(cleanB64, android.util.Base64.DEFAULT)
-                        val musicDir = java.io.File(com.example.AppContextProvider.context.filesDir, "generated_music")
-                        if (!musicDir.exists()) musicDir.mkdirs()
-                        val outFile = java.io.File(
-                            musicDir,
-                            "elevenlabs_${System.currentTimeMillis()}_${java.util.UUID.randomUUID()}.mp3"
-                        )
-                        java.io.FileOutputStream(outFile).use { out ->
-                            out.write(decodedBytes)
-                        }
-                        onLogMessage("> Saved ${decodedBytes.size} bytes of decoded audio/mpeg.\n")
-                        return@withContext "file://${outFile.absolutePath}"
+                        return@withContext saveAudioBytesToLocalFile(decodedBytes)
                     }
 
                     if (json.has("detail") || json.has("error") || json.optBoolean("success", true).not()) {
@@ -2185,24 +2406,7 @@ class ChatRepository {
                     throw IllegalStateException("Unexpected JSON response from music proxy: ${jsonStr.take(300)}")
                 }
 
-                if (rawBytes.size < 128) {
-                    val previewText = runCatching { String(rawBytes) }.getOrDefault("")
-                    throw IllegalStateException("Invalid audio payload from ElevenLabs proxy (${rawBytes.size} bytes): $previewText")
-                }
-
-                val musicDir = java.io.File(com.example.AppContextProvider.context.filesDir, "generated_music")
-                if (!musicDir.exists()) {
-                    musicDir.mkdirs()
-                }
-                val outFile = java.io.File(
-                    musicDir,
-                    "elevenlabs_${System.currentTimeMillis()}_${java.util.UUID.randomUUID()}.mp3"
-                )
-                java.io.FileOutputStream(outFile).use { out ->
-                    out.write(rawBytes)
-                }
-                onLogMessage("> Received ${rawBytes.size} bytes of audio/mpeg via backend proxy.\n")
-                "file://${outFile.absolutePath}"
+                saveAudioBytesToLocalFile(rawBytes)
             }
         }
     }

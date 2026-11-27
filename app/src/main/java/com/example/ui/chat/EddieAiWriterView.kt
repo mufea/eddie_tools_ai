@@ -118,15 +118,16 @@ fun EddieAiWriterView(
         modifier = Modifier
             .fillMaxSize()
             .padding(paddingValues)
-            .background(Color.Transparent)
+            .navigationBarsPadding()
             .imePadding()
+            .background(Color.Transparent)
     ) {
         Column(
             modifier = Modifier
                 .weight(1f)
                 .fillMaxWidth()
                 .verticalScroll(scrollState)
-                .padding(horizontal = 16.dp, vertical = 8.dp),
+                .padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 24.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             // Header Card (Non-sticky)
@@ -521,6 +522,8 @@ fun EddieAiWriterView(
                     }
                 }
             }
+
+            Spacer(modifier = Modifier.height(24.dp))
         }
     }
 }

@@ -72,6 +72,8 @@ import androidx.compose.animation.slideOutVertically
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextStyle
@@ -685,136 +687,132 @@ fun ChatScreen(
                     )
                 }
             } else if (activeTab == "image_gen") {
-                if (!uiState.isSubscribed) {
-                    ProStudioGateScreen(
-                        paddingValues = paddingValues,
-                        emoji = "🎨",
-                        title = "Eddie AI Image Studio",
-                        description = "Image Studio is exclusively available for Eddie Pro subscribers. Upgrade to unlock OpenAI GPT Image, Fal.ai Flux, Imagen, Ideogram, Stability AI, all Pro styles, HD ratios, and your Artwork Collection.",
-                        features = listOf(
-                            "Multi-provider AI image engines (OpenAI, Fal.ai, Stability AI)",
-                            "All Pro artistic styles & HD aspect ratios",
-                            "Multi-variant generation & in-app image editor",
-                            "Cloud-synced Premium Artwork Collection"
-                        ),
-                        onUpgradeClick = { showSubscriptionDialog = true },
-                        onBackToChat = { activeTab = "chat" }
-                    )
-                } else {
-                    EddieImageGeneratorView(
-                        uiState = uiState,
-                        paddingValues = paddingValues,
-                        onGenerate = { prompt, style, ratio, provider, model, numImages, background ->
-                            viewModel.generateImage(prompt, style, ratio, provider, model, numImages, background, onSubscriptionRequired = {
+                EddieImageGeneratorView(
+                    uiState = uiState,
+                    paddingValues = paddingValues,
+                    onGenerate = { prompt, style, ratio, provider, model, numImages, background, fluxSchnellInput, fluxProV11Input, flux2FlexInput ->
+                        viewModel.generateImage(
+                            prompt = prompt,
+                            style = style,
+                            aspectRatio = ratio,
+                            provider = provider,
+                            model = model,
+                            numImages = numImages,
+                            background = background,
+                            fluxSchnellInput = fluxSchnellInput,
+                            fluxProV11Input = fluxProV11Input,
+                            flux2FlexInput = flux2FlexInput,
+                            onSubscriptionRequired = {
                                 showSubscriptionDialog = true
-                                Toast.makeText(context, "Eddie Premium subscription and sufficient tokens are required for Image Studio!", Toast.LENGTH_LONG).show()
-                            })
-                        },
-                        onDeleteImage = { id ->
-                            viewModel.deleteGeneratedImage(id)
-                            Toast.makeText(context, "Artwork successfully removed from collection.", Toast.LENGTH_SHORT).show()
-                        },
-                        onSaveEditedImage = { originalId, prompt, style, ratio, editedUrl ->
-                            viewModel.saveEditedImage(originalId, prompt, style, ratio, editedUrl)
-                        },
-                        onProviderChange = { provider ->
-                            viewModel.selectImageProvider(provider)
-                        },
-                        onModelChange = { model ->
-                            viewModel.selectImageModel(model)
-                        },
-                        onClearLog = {
-                            viewModel.clearImageGenLog()
-                        },
-                        onOpenSubscription = {
-                            showSubscriptionDialog = true
-                        }
-                    )
-                }
+                                Toast.makeText(context, "Fitur atau model berlabel PRO membutuhkan langganan Eddie Pro!", Toast.LENGTH_LONG).show()
+                            },
+                            onTopUpRequired = {
+                                viewModel.fetchTopUpPackagesFromProxy()
+                                showTopUpDialog = true
+                                Toast.makeText(context, "Saldo token Anda tidak mencukupi. Silakan Top Up token!", Toast.LENGTH_LONG).show()
+                            }
+                        )
+                    },
+                    onDeleteImage = { id ->
+                        viewModel.deleteGeneratedImage(id)
+                        Toast.makeText(context, "Artwork successfully removed from collection.", Toast.LENGTH_SHORT).show()
+                    },
+                    onSaveEditedImage = { originalId, prompt, style, ratio, editedUrl ->
+                        viewModel.saveEditedImage(originalId, prompt, style, ratio, editedUrl)
+                    },
+                    onProviderChange = { provider ->
+                        viewModel.selectImageProvider(provider)
+                    },
+                    onModelChange = { model ->
+                        viewModel.selectImageModel(model)
+                    },
+                    onClearLog = {
+                        viewModel.clearImageGenLog()
+                    },
+                    onOpenSubscription = {
+                        showSubscriptionDialog = true
+                    },
+                    onOpenTopUp = {
+                        viewModel.fetchTopUpPackagesFromProxy()
+                        showTopUpDialog = true
+                    }
+                )
             } else if (activeTab == "video_gen") {
-                if (!uiState.isSubscribed) {
-                    ProStudioGateScreen(
-                        paddingValues = paddingValues,
-                        emoji = "🎬",
-                        title = "Eddie AI Video Studio",
-                        description = "Video Studio is exclusively available for Eddie Pro subscribers. Upgrade to unlock Veo, Kling, OpenAI Sora, Luma, PixVerse, ByteDance, Alibaba Wan, 1080p/4K rendering, and your Video Collection.",
-                        features = listOf(
-                            "Text-to-Video & Image-to-Video multi-provider pipeline",
-                            "Veo, Kling, Sora, Luma, PixVerse, ByteDance & Alibaba Wan",
-                            "Up to 1080p / 4K resolution, 10s–30s duration & audio sync",
-                            "Cloud-synced AI Video Collection & offline caching"
-                        ),
-                        onUpgradeClick = { showSubscriptionDialog = true },
-                        onBackToChat = { activeTab = "chat" }
-                    )
-                } else {
-                    EddieVideoGeneratorView(
-                        uiState = uiState,
-                        paddingValues = paddingValues,
-                        chatViewModel = vm,
-                        onGenerateVideo = { prompt, style, ratio, res, dur, audio, personGen, negPrompt, sampleCount, imageUrl, cfgScale, shotType, multiPrompt, seed, enhancePrompt, autoFix, tolerance, endImg, elemJson, vControl, voiceIds, startImgUrl, bitrateMode, endUserId, pixverseMultiClip, pixverseThinkingType, lumaLoop, lumaHdr, lumaExrExport, alibAudioUrl, alibMultiShots, alibVideoUrl, hunySteps, hunyFrames ->
-                            viewModel.generateVideo(
-                                prompt = prompt,
-                                style = style,
-                                aspectRatio = ratio,
-                                resolution = res,
-                                duration = dur,
-                                generateAudio = audio,
-                                personGeneration = personGen,
-                                negativePrompt = negPrompt,
-                                sampleCount = sampleCount,
-                                imageUrl = imageUrl,
-                                cfgScale = cfgScale,
-                                shotType = shotType,
-                                multiPromptJson = multiPrompt,
-                                seed = seed,
-                                enhancePrompt = enhancePrompt,
-                                autoFix = autoFix,
-                                safetyTolerance = tolerance,
-                                endImageUrl = endImg,
-                                elementsJson = elemJson,
-                                voiceControl = vControl ?: false,
-                                voiceIds = voiceIds,
-                                startImageUrl = startImgUrl,
-                                bitrateMode = bitrateMode,
-                                endUserId = endUserId,
-                                pixverseMultiClip = pixverseMultiClip ?: false,
-                                pixverseThinkingType = pixverseThinkingType ?: "auto",
-                                lumaLoop = lumaLoop ?: false,
-                                lumaHdr = lumaHdr ?: false,
-                                lumaExrExport = lumaExrExport ?: false,
-                                alibabaAudioUrl = alibAudioUrl,
-                                alibabaMultiShots = alibMultiShots,
-                                alibabaVideoUrl = alibVideoUrl,
-                                hunyuanInferenceSteps = hunySteps,
-                                hunyuanFrames = hunyFrames,
-                                onSubscriptionRequired = {
-                                    showSubscriptionDialog = true
-                                    Toast.makeText(context, "Eddie Premium subscription and sufficient tokens are required for Video Studio!", Toast.LENGTH_LONG).show()
-                                }
-                            )
-                        },
-                        onDeleteVideo = { id ->
-                            viewModel.deleteGeneratedVideo(id)
-                            Toast.makeText(context, "Video successfully removed from local collection.", Toast.LENGTH_SHORT).show()
-                        },
-                        onSaveEditedVideo = { originalId, prompt, style, ratio, res, dur, editedUrl, model ->
-                            viewModel.saveEditedVideo(originalId, prompt, style, ratio, res, dur, editedUrl, model)
-                        },
-                        onModeChange = { mode ->
-                            viewModel.selectVideoMode(mode)
-                        },
-                        onProviderChange = { provider ->
-                            viewModel.selectVideoProvider(provider)
-                        },
-                        onModelChange = { model ->
-                            viewModel.selectVideoModel(model)
-                        },
-                        onOpenSubscription = {
-                            showSubscriptionDialog = true
-                        }
-                    )
-                }
+                EddieVideoGeneratorView(
+                    uiState = uiState,
+                    paddingValues = paddingValues,
+                    chatViewModel = vm,
+                    onGenerateVideo = { prompt, style, ratio, res, dur, audio, personGen, negPrompt, sampleCount, imageUrl, cfgScale, shotType, multiPrompt, seed, enhancePrompt, autoFix, tolerance, endImg, elemJson, vControl, voiceIds, startImgUrl, bitrateMode, endUserId, pixverseMultiClip, pixverseThinkingType, lumaLoop, lumaHdr, lumaExrExport, alibAudioUrl, alibMultiShots, alibVideoUrl, hunySteps, hunyFrames ->
+                        viewModel.generateVideo(
+                            prompt = prompt,
+                            style = style,
+                            aspectRatio = ratio,
+                            resolution = res,
+                            duration = dur,
+                            generateAudio = audio,
+                            personGeneration = personGen,
+                            negativePrompt = negPrompt,
+                            sampleCount = sampleCount,
+                            imageUrl = imageUrl,
+                            cfgScale = cfgScale,
+                            shotType = shotType,
+                            multiPromptJson = multiPrompt,
+                            seed = seed,
+                            enhancePrompt = enhancePrompt,
+                            autoFix = autoFix,
+                            safetyTolerance = tolerance,
+                            endImageUrl = endImg,
+                            elementsJson = elemJson,
+                            voiceControl = vControl ?: false,
+                            voiceIds = voiceIds,
+                            startImageUrl = startImgUrl,
+                            bitrateMode = bitrateMode,
+                            endUserId = endUserId,
+                            pixverseMultiClip = pixverseMultiClip ?: false,
+                            pixverseThinkingType = pixverseThinkingType ?: "auto",
+                            lumaLoop = lumaLoop ?: false,
+                            lumaHdr = lumaHdr ?: false,
+                            lumaExrExport = lumaExrExport ?: false,
+                            alibabaAudioUrl = alibAudioUrl,
+                            alibabaMultiShots = alibMultiShots,
+                            alibabaVideoUrl = alibVideoUrl,
+                            hunyuanInferenceSteps = hunySteps,
+                            hunyuanFrames = hunyFrames,
+                            onSubscriptionRequired = {
+                                showSubscriptionDialog = true
+                                Toast.makeText(context, "Model, resolusi, durasi, atau gaya berlabel PRO membutuhkan langganan Eddie Pro!", Toast.LENGTH_LONG).show()
+                            },
+                            onTopUpRequired = {
+                                viewModel.fetchTopUpPackagesFromProxy()
+                                showTopUpDialog = true
+                                Toast.makeText(context, "Saldo token Anda tidak mencukupi. Silakan Top Up token!", Toast.LENGTH_LONG).show()
+                            }
+                        )
+                    },
+                    onDeleteVideo = { id ->
+                        viewModel.deleteGeneratedVideo(id)
+                        Toast.makeText(context, "Video successfully removed from local collection.", Toast.LENGTH_SHORT).show()
+                    },
+                    onSaveEditedVideo = { originalId, prompt, style, ratio, res, dur, editedUrl, model ->
+                        viewModel.saveEditedVideo(originalId, prompt, style, ratio, res, dur, editedUrl, model)
+                    },
+                    onModeChange = { mode ->
+                        viewModel.selectVideoMode(mode)
+                    },
+                    onProviderChange = { provider ->
+                        viewModel.selectVideoProvider(provider)
+                    },
+                    onModelChange = { model ->
+                        viewModel.selectVideoModel(model)
+                    },
+                    onOpenSubscription = {
+                        showSubscriptionDialog = true
+                    },
+                    onOpenTopUp = {
+                        viewModel.fetchTopUpPackagesFromProxy()
+                        showTopUpDialog = true
+                    }
+                )
             } else if (activeTab == "ai_code") {
                 EddieAiCodeStudioView(
                     uiState = uiState,
@@ -838,10 +836,21 @@ fun ChatScreen(
                     uiState = uiState,
                     paddingValues = paddingValues,
                     onGenerateMusic = { prompt, genre, duration, tempo ->
-                        viewModel.generateMusic(prompt, genre, duration, tempo, onSubscriptionRequired = {
-                            showSubscriptionDialog = true
-                            Toast.makeText(context, "Free limit reached (max 2) or Eddie Premium is required for this premium genre or duration!", Toast.LENGTH_LONG).show()
-                        })
+                        viewModel.generateMusic(
+                            prompt = prompt,
+                            genre = genre,
+                            duration = duration,
+                            tempo = tempo,
+                            onSubscriptionRequired = {
+                                showSubscriptionDialog = true
+                                Toast.makeText(context, "Model, genre, atau durasi berlabel PRO membutuhkan langganan Eddie Pro!", Toast.LENGTH_LONG).show()
+                            },
+                            onTopUpRequired = {
+                                viewModel.fetchTopUpPackagesFromProxy()
+                                showTopUpDialog = true
+                                Toast.makeText(context, "Saldo token Anda tidak mencukupi. Silakan Top Up token!", Toast.LENGTH_LONG).show()
+                            }
+                        )
                     },
                     onDeleteMusic = { id ->
                         viewModel.deleteGeneratedMusic(id)
@@ -861,6 +870,10 @@ fun ChatScreen(
                     },
                     onOpenSubscription = {
                         showSubscriptionDialog = true
+                    },
+                    onOpenTopUp = {
+                        viewModel.fetchTopUpPackagesFromProxy()
+                        showTopUpDialog = true
                     }
                 )
             } else if (activeTab == "voice_ai") {
@@ -2933,13 +2946,14 @@ fun ProStudioGateScreen(
 fun EddieImageGeneratorView(
     uiState: ChatUiState,
     paddingValues: PaddingValues,
-    onGenerate: (prompt: String, style: String, ratio: String, provider: String, model: String, numImages: Int, background: String) -> Unit,
+    onGenerate: (prompt: String, style: String, ratio: String, provider: String, model: String, numImages: Int, background: String, fluxSchnellInput: com.example.data.FluxSchnellInput?, fluxProV11Input: com.example.data.FluxProV11Input?, flux2FlexInput: com.example.data.Flux2FlexInput?) -> Unit,
     onDeleteImage: (String) -> Unit,
     onSaveEditedImage: (String, String, String, String, String) -> Unit,
     onProviderChange: (String) -> Unit,
     onModelChange: (String) -> Unit,
     onClearLog: () -> Unit,
-    onOpenSubscription: () -> Unit = {}
+    onOpenSubscription: () -> Unit = {},
+    onOpenTopUp: () -> Unit = onOpenSubscription
 ) {
     val context = LocalContext.current
     var prompt by remember { mutableStateOf("") }
@@ -2947,11 +2961,45 @@ fun EddieImageGeneratorView(
     var selectedAspectRatio by remember { mutableStateOf("1024:1024") }
     
     // Providers & Models
-    var activeProvider by remember { mutableStateOf("OpenAI") }
-    var activeModelID by remember { mutableStateOf("gpt-image-1.5") }
+    var activeProvider by remember { mutableStateOf(if (uiState.isSubscribed) "OpenAI" else "Fal AI") }
+    var activeModelID by remember { mutableStateOf(if (uiState.isSubscribed) "gpt-image-2" else "flux/schnell") }
 
     var numImages by remember { mutableStateOf(1) }
     var selectedBackground by remember { mutableStateOf("Auto") }
+
+    // Fal AI Flux Schnell Input Schema States
+    var schnellNumInferenceSteps by remember { mutableStateOf(4) }
+    var schnellImageSize by remember { mutableStateOf("landscape_4_3") }
+    var schnellCustomWidthText by remember { mutableStateOf("1280") }
+    var schnellCustomHeightText by remember { mutableStateOf("720") }
+    var schnellSeedText by remember { mutableStateOf("") }
+    var schnellGuidanceScale by remember { mutableStateOf(3.5f) }
+    var schnellSyncMode by remember { mutableStateOf(false) }
+    var schnellEnableSafetyChecker by remember { mutableStateOf(true) }
+    var schnellOutputFormat by remember { mutableStateOf("jpeg") }
+    var schnellAcceleration by remember { mutableStateOf("none") }
+
+    // Fal AI Flux Pro v1.1 Input Schema States
+    var proV11ImageSize by remember { mutableStateOf("landscape_4_3") }
+    var proV11CustomWidthText by remember { mutableStateOf("1280") }
+    var proV11CustomHeightText by remember { mutableStateOf("720") }
+    var proV11SeedText by remember { mutableStateOf("") }
+    var proV11SyncMode by remember { mutableStateOf(false) }
+    var proV11OutputFormat by remember { mutableStateOf("jpeg") }
+    var proV11SafetyTolerance by remember { mutableStateOf("2") }
+    var proV11EnhancePrompt by remember { mutableStateOf(false) }
+
+    // Fal AI Flux 2 Flex Input Schema States
+    var flex2ImageSize by remember { mutableStateOf("landscape_4_3") }
+    var flex2CustomWidthText by remember { mutableStateOf("1280") }
+    var flex2CustomHeightText by remember { mutableStateOf("720") }
+    var flex2SeedText by remember { mutableStateOf("") }
+    var flex2SafetyTolerance by remember { mutableStateOf("2") }
+    var flex2EnableSafetyChecker by remember { mutableStateOf(true) }
+    var flex2OutputFormat by remember { mutableStateOf("jpeg") }
+    var flex2SyncMode by remember { mutableStateOf(false) }
+    var flex2GuidanceScale by remember { mutableStateOf(3.5f) }
+    var flex2NumInferenceSteps by remember { mutableStateOf(28) }
 
     // Debug window state
     var showDebugWindow by remember { mutableStateOf(false) }
@@ -3051,30 +3099,49 @@ fun EddieImageGeneratorView(
                 Spacer(modifier = Modifier.height(4.dp))
                 if (uiState.isSubscribed) {
                     Surface(
+                        onClick = onOpenTopUp,
                         color = Color(0xFFFFB100).copy(alpha = 0.15f),
                         border = BorderStroke(1.dp, Color(0xFFFFB100)),
                         shape = RoundedCornerShape(6.dp)
                     ) {
                         Text(
-                            text = "🪙 ${uiState.getFormattedTokens()} Tokens",
+                            text = "👑 PRO • 🪙 ${uiState.getFormattedTokens()} Tokens (+ Top Up)",
                             modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
                             style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold, fontSize = 10.sp),
                             color = Color(0xFFFFB100)
                         )
                     }
                 } else {
-                    Surface(
-                        onClick = onOpenSubscription,
-                        color = Color(0xFFFFB100).copy(alpha = 0.12f),
-                        border = BorderStroke(1.dp, Color(0xFFFFB100).copy(alpha = 0.6f)),
-                        shape = RoundedCornerShape(6.dp)
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text(
-                            text = "⚡ Free Tier (Max 3 Artworks) • Upgrade PRO",
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
-                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold, fontSize = 10.sp),
-                            color = Color(0xFFD48200)
-                        )
+                        Surface(
+                            onClick = onOpenTopUp,
+                            color = Color(0xFFFFB100).copy(alpha = 0.14f),
+                            border = BorderStroke(1.dp, Color(0xFFFFB100).copy(alpha = 0.7f)),
+                            shape = RoundedCornerShape(6.dp)
+                        ) {
+                            Text(
+                                text = "🪙 ${uiState.getFormattedTokens()} Tokens • Top Up",
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+                                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold, fontSize = 10.sp),
+                                color = Color(0xFFD48200)
+                            )
+                        }
+                        Surface(
+                            onClick = onOpenSubscription,
+                            color = MaterialTheme.colorScheme.primaryContainer,
+                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)),
+                            shape = RoundedCornerShape(6.dp)
+                        ) {
+                            Text(
+                                text = "👑 Unlock PRO",
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+                                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold, fontSize = 10.sp),
+                                color = MaterialTheme.colorScheme.onPrimaryContainer
+                            )
+                        }
                     }
                 }
                 Spacer(modifier = Modifier.height(6.dp))
@@ -3165,7 +3232,6 @@ fun EddieImageGeneratorView(
 
                 val groupedPresets = listOf(
                     Pair("OpenAI" to "🧠", listOf(
-                        Triple("GPT Image 1.5 (50 Tokens)", "gpt-image-1.5", "OpenAI"),
                         Triple("GPT Image 2 (52.75 Tokens)", "gpt-image-2", "OpenAI")
                     )),
 
@@ -3186,9 +3252,7 @@ fun EddieImageGeneratorView(
                         Triple("Nano Banana (9.75 Tokens)", "nano-banana", "Fal AI"),
                         Triple("Nano Banana Pro (9.75 Tokens)", "nano-banana-pro", "Fal AI"),
                         Triple("Nano Banana 2 (9.75 Tokens)", "nano-banana-2", "Fal AI"),
-                        Triple("Flux Realism (10 Tokens)", "flux-realism", "Fal AI"),
-                        Triple("Imagen 4 (10 Tokens)", "imagen4", "Fal AI"),
-                        Triple("Flux Pro (100 Tokens)", "flux-pro", "Fal AI"),
+                        Triple("Flux Pro v1.1 (100 Tokens)", "flux-pro/v1.1", "Fal AI"),
                         Triple("Flux 2 Flex (100 Tokens)", "flux-2-flex", "Fal AI"),
                         Triple("Ideogram V2 (150 Tokens)", "ideogram-v2", "Fal AI")
                     ))
@@ -3222,7 +3286,6 @@ fun EddieImageGeneratorView(
                             models.forEach { (displayName, modelId, provider) ->
                                 val isSelected = activeProvider == provider && activeModelID == modelId
                                 val tokenCost = when {
-                                    modelId == "gpt-image-1.5" -> 50.0
                                     modelId == "gpt-image-2" -> 52.75
                                     modelId == "imagen3" -> 0.0
                                     modelId == "sd3-turbo" -> 30.0
@@ -3232,13 +3295,11 @@ fun EddieImageGeneratorView(
                                     modelId == "sd3.5-large" -> 37.5
                                     modelId == "sd3.5-medium" -> 25.0
                                     modelId == "sd3-large" -> 25.0
-                                    modelId == "flux-pro" -> 100.0
+                                    modelId == "flux-pro/v1.1" || modelId == "flux-pro" -> 100.0
                                     modelId == "flux-2-flex" -> 100.0
                                     modelId == "ideogram-v2" -> 150.0
                                     modelId == "sd3" || modelId == "core" || modelId == "ultra" -> 15.0
-                                    modelId == "flux-realism" -> 10.0
                                     modelId == "nano-banana" || modelId == "nano-banana-pro" || modelId == "nano-banana-2" -> 9.75
-                                    modelId == "imagen4" -> 10.0
                                     modelId == "flux/schnell" || modelId == "flux-schnell" -> 0.75
                                     else -> 0.0
                                 }
@@ -3309,7 +3370,6 @@ fun EddieImageGeneratorView(
                             val activeModelDesc = when (providerName) {
                                 "OpenAI" -> {
                                     when (activeModelID) {
-                                        "gpt-image-1.5" -> "DALL-E 3 based high-fidelity prompt compliance engine by OpenAI. Excellent text rendering inside images and layout consistency."
                                         "gpt-image-2" -> "Next-generation OpenAI canvas engine featuring superior spatial logic, cinematic photo styling, and precise color-matching."
                                         else -> null
                                     }
@@ -3335,9 +3395,7 @@ fun EddieImageGeneratorView(
                                         "nano-banana" -> "Super artistic illustrative engine on Fal.AI designed for stylized vector graphics, cartoon aesthetics, and vibrant branding."
                                         "nano-banana-pro" -> "Pro upgrade of the illustrative engine with fine-grained control over lighting, depth of field, and artistic compositions."
                                         "nano-banana-2" -> "Next-generation stylized engine by Fal.AI with advanced text drawing, neon lighting, and high action poses."
-                                        "flux-realism" -> "A fine-tuned version of Flux Dev specialized in photorealism, capturing warm natural lighting, dynamic motion, and lifelike skin textures."
-                                        "imagen4" -> "Advanced flagship Google Imagen 4 engine hosted on Fal.Ai. Exceptional photo aesthetics, high-definition textures, and styling flexibility."
-                                        "flux-pro" -> "Premium Black Forest Labs model on Fal.AI. Offers state-of-the-art realism, incredible structural layout, and prompt accuracy."
+                                        "flux-pro/v1.1", "flux-pro" -> "Premium Black Forest Labs Flux Pro v1.1 model on Fal.AI. Offers state-of-the-art realism, incredible structural layout, and prompt accuracy."
                                         "flux-2-flex" -> "Highly customizable version of Flux customizable for dynamic aspect ratios, artistic styles, and abstract concepts."
                                         "ideogram-v2" -> "The undisputed king of text rendering in images. Features unbeatable typographic control, logo design, and graphic design templates."
                                         else -> null
@@ -3349,7 +3407,6 @@ fun EddieImageGeneratorView(
                             val activeModelName = when (providerName) {
                                 "OpenAI" -> {
                                     when (activeModelID) {
-                                        "gpt-image-1.5" -> "GPT Image 1.5"
                                         "gpt-image-2" -> "GPT Image 2"
                                         else -> activeModelID
                                     }
@@ -3375,9 +3432,7 @@ fun EddieImageGeneratorView(
                                         "nano-banana" -> "Nano Banana"
                                         "nano-banana-pro" -> "Nano Banana Pro"
                                         "nano-banana-2" -> "Nano Banana 2"
-                                        "flux-realism" -> "Flux Realism"
-                                        "imagen4" -> "Imagen 4"
-                                        "flux-pro" -> "Flux Pro"
+                                        "flux-pro/v1.1", "flux-pro" -> "Flux Pro v1.1"
                                         "flux-2-flex" -> "Flux 2 Flex"
                                         "ideogram-v2" -> "Ideogram V2"
                                         else -> activeModelID
@@ -3439,6 +3494,82 @@ fun EddieImageGeneratorView(
             }
         }
 
+        val isFluxSchnellSelected = activeProvider == "Fal AI" && activeModelID == "flux/schnell"
+        val isFluxProV11Selected = activeProvider == "Fal AI" && (activeModelID == "flux-pro/v1.1" || activeModelID == "flux-pro")
+        val isFlux2FlexSelected = activeProvider == "Fal AI" && activeModelID == "flux-2-flex"
+
+        if (isFluxSchnellSelected) {
+            FluxSchnellParametersCard(
+                numInferenceSteps = schnellNumInferenceSteps,
+                onNumInferenceStepsChange = { schnellNumInferenceSteps = it },
+                imageSize = schnellImageSize,
+                onImageSizeChange = { schnellImageSize = it },
+                customWidthText = schnellCustomWidthText,
+                onCustomWidthTextChange = { schnellCustomWidthText = it },
+                customHeightText = schnellCustomHeightText,
+                onCustomHeightTextChange = { schnellCustomHeightText = it },
+                seedText = schnellSeedText,
+                onSeedTextChange = { schnellSeedText = it },
+                guidanceScale = schnellGuidanceScale,
+                onGuidanceScaleChange = { schnellGuidanceScale = it },
+                syncMode = schnellSyncMode,
+                onSyncModeChange = { schnellSyncMode = it },
+                numImages = numImages,
+                onNumImagesChange = { numImages = it },
+                enableSafetyChecker = schnellEnableSafetyChecker,
+                onEnableSafetyCheckerChange = { schnellEnableSafetyChecker = it },
+                outputFormat = schnellOutputFormat,
+                onOutputFormatChange = { schnellOutputFormat = it },
+                acceleration = schnellAcceleration,
+                onAccelerationChange = { schnellAcceleration = it },
+                isSubscribed = uiState.isSubscribed
+            )
+        } else if (isFluxProV11Selected) {
+            FluxProV11ParametersCard(
+                imageSize = proV11ImageSize,
+                onImageSizeChange = { proV11ImageSize = it },
+                customWidthText = proV11CustomWidthText,
+                onCustomWidthTextChange = { proV11CustomWidthText = it },
+                customHeightText = proV11CustomHeightText,
+                onCustomHeightTextChange = { proV11CustomHeightText = it },
+                seedText = proV11SeedText,
+                onSeedTextChange = { proV11SeedText = it },
+                syncMode = proV11SyncMode,
+                onSyncModeChange = { proV11SyncMode = it },
+                numImages = numImages,
+                onNumImagesChange = { numImages = it },
+                outputFormat = proV11OutputFormat,
+                onOutputFormatChange = { proV11OutputFormat = it },
+                safetyTolerance = proV11SafetyTolerance,
+                onSafetyToleranceChange = { proV11SafetyTolerance = it },
+                enhancePrompt = proV11EnhancePrompt,
+                onEnhancePromptChange = { proV11EnhancePrompt = it },
+                isSubscribed = uiState.isSubscribed
+            )
+        } else if (isFlux2FlexSelected) {
+            Flux2FlexParametersCard(
+                imageSize = flex2ImageSize,
+                onImageSizeChange = { flex2ImageSize = it },
+                customWidthText = flex2CustomWidthText,
+                onCustomWidthTextChange = { flex2CustomWidthText = it },
+                customHeightText = flex2CustomHeightText,
+                onCustomHeightTextChange = { flex2CustomHeightText = it },
+                seedText = flex2SeedText,
+                onSeedTextChange = { flex2SeedText = it },
+                safetyTolerance = flex2SafetyTolerance,
+                onSafetyToleranceChange = { flex2SafetyTolerance = it },
+                enableSafetyChecker = flex2EnableSafetyChecker,
+                onEnableSafetyCheckerChange = { flex2EnableSafetyChecker = it },
+                outputFormat = flex2OutputFormat,
+                onOutputFormatChange = { flex2OutputFormat = it },
+                syncMode = flex2SyncMode,
+                onSyncModeChange = { flex2SyncMode = it },
+                guidanceScale = flex2GuidanceScale,
+                onGuidanceScaleChange = { flex2GuidanceScale = it },
+                numInferenceSteps = flex2NumInferenceSteps,
+                onNumInferenceStepsChange = { flex2NumInferenceSteps = it }
+            )
+        } else {
         // Image Count and Background Configuration
         Card(
             modifier = Modifier.fillMaxWidth(),
@@ -3468,6 +3599,9 @@ fun EddieImageGeneratorView(
                     val numbers = listOf(1, 2, 3, 4)
                     numbers.forEach { num ->
                         val isSelected = numImages == num
+                        val isProVar = num > 1
+                        val badgeColor = if (uiState.isSubscribed) MaterialTheme.colorScheme.primary else Color(0xFFFFB100)
+                        val badgeTextColor = if (uiState.isSubscribed) MaterialTheme.colorScheme.onPrimary else Color(0xFF111111)
                         Surface(
                             modifier = Modifier
                                 .weight(1f)
@@ -3479,16 +3613,29 @@ fun EddieImageGeneratorView(
                                 color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)
                             )
                         ) {
-                            Box(
-                                contentAlignment = Alignment.Center,
-                                modifier = Modifier.fillMaxWidth().padding(vertical = 10.dp)
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.Center,
+                                modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp, horizontal = 4.dp)
                             ) {
                                 Text(
-                                    text = "$num Variation" + (if (num > 1) "s" else ""),
+                                    text = "$num Var" + (if (num > 1) "s" else ""),
                                     style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
                                     color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface,
                                     textAlign = TextAlign.Center
                                 )
+                                if (isProVar) {
+                                    Spacer(modifier = Modifier.height(2.dp))
+                                    Surface(color = badgeColor, shape = RoundedCornerShape(4.dp)) {
+                                        Text(
+                                            text = "PRO",
+                                            color = badgeTextColor,
+                                            fontSize = 7.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            modifier = Modifier.padding(horizontal = 3.dp, vertical = 1.dp)
+                                        )
+                                    }
+                                }
                             }
                         }
                     }
@@ -3511,6 +3658,9 @@ fun EddieImageGeneratorView(
                     val backgroundOptions = listOf("Auto", "Transparent", "Opaque")
                     backgroundOptions.forEach { bg ->
                         val isSelected = selectedBackground == bg
+                        val isProBg = bg == "Transparent"
+                        val badgeColor = if (uiState.isSubscribed) MaterialTheme.colorScheme.primary else Color(0xFFFFB100)
+                        val badgeTextColor = if (uiState.isSubscribed) MaterialTheme.colorScheme.onPrimary else Color(0xFF111111)
                         Surface(
                             modifier = Modifier
                                 .weight(1f)
@@ -3522,20 +3672,34 @@ fun EddieImageGeneratorView(
                                 color = if (isSelected) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)
                             )
                         ) {
-                            Box(
-                                contentAlignment = Alignment.Center,
-                                modifier = Modifier.padding(vertical = 10.dp)
+                            Row(
+                                horizontalArrangement = Arrangement.Center,
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.padding(vertical = 10.dp, horizontal = 4.dp)
                             ) {
                                 Text(
                                     text = bg,
                                     style = MaterialTheme.typography.labelMedium,
                                     color = if (isSelected) MaterialTheme.colorScheme.onSecondaryContainer else MaterialTheme.colorScheme.onSurface
                                 )
+                                if (isProBg) {
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Surface(color = badgeColor, shape = RoundedCornerShape(4.dp)) {
+                                        Text(
+                                            text = "PRO",
+                                            color = badgeTextColor,
+                                            fontSize = 7.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            modifier = Modifier.padding(horizontal = 3.dp, vertical = 1.dp)
+                                        )
+                                    }
+                                }
                             }
                         }
                     }
                 }
             }
+        }
         }
 
         // Styles Section
@@ -3582,7 +3746,8 @@ fun EddieImageGeneratorView(
             }
         }
 
-        // Aspect Ratio Section
+        // Aspect Ratio Section (non-Flux Schnell / Flux Pro v1.1 / Flux 2 Flex models; those use image_size schema above)
+        if (!isFluxSchnellSelected && !isFluxProV11Selected && !isFlux2FlexSelected) {
         Column {
             Text(
                 text = "4. Resolution Canvas Specs",
@@ -3668,6 +3833,7 @@ fun EddieImageGeneratorView(
                 }
             }
         }
+        }
 
         // Action Button
         if (uiState.imageGenIsLoading) {
@@ -3701,8 +3867,79 @@ fun EddieImageGeneratorView(
             )
         } else {
             Button(
-                onClick = { 
-                    onGenerate(prompt, selectedStyle, selectedAspectRatio, activeProvider, activeModelID, numImages, selectedBackground)
+                onClick = {
+                    val fluxInput = if (isFluxSchnellSelected) {
+                        val parsedWidth = schnellCustomWidthText.toIntOrNull()?.coerceIn(256, 2048) ?: 1280
+                        val parsedHeight = schnellCustomHeightText.toIntOrNull()?.coerceIn(256, 2048) ?: 720
+                        val parsedSeed = schnellSeedText.trim().toIntOrNull()
+                        val roundedGuidance = Math.round(schnellGuidanceScale * 10.0) / 10.0
+                        com.example.data.FluxSchnellInput(
+                            numInferenceSteps = schnellNumInferenceSteps,
+                            imageSize = schnellImageSize,
+                            customWidth = parsedWidth,
+                            customHeight = parsedHeight,
+                            seed = parsedSeed,
+                            guidanceScale = roundedGuidance,
+                            syncMode = schnellSyncMode,
+                            numImages = numImages,
+                            enableSafetyChecker = schnellEnableSafetyChecker,
+                            outputFormat = schnellOutputFormat,
+                            acceleration = schnellAcceleration
+                        )
+                    } else null
+                    val fluxProInput = if (isFluxProV11Selected) {
+                        val parsedWidth = proV11CustomWidthText.toIntOrNull()?.coerceIn(256, 2048) ?: 1280
+                        val parsedHeight = proV11CustomHeightText.toIntOrNull()?.coerceIn(256, 2048) ?: 720
+                        val parsedSeed = proV11SeedText.trim().toIntOrNull()
+                        com.example.data.FluxProV11Input(
+                            imageSize = proV11ImageSize,
+                            customWidth = parsedWidth,
+                            customHeight = parsedHeight,
+                            seed = parsedSeed,
+                            syncMode = proV11SyncMode,
+                            numImages = numImages,
+                            outputFormat = proV11OutputFormat,
+                            safetyTolerance = proV11SafetyTolerance,
+                            enhancePrompt = proV11EnhancePrompt
+                        )
+                    } else null
+                    val flux2FlexInput = if (isFlux2FlexSelected) {
+                        val parsedWidth = flex2CustomWidthText.toIntOrNull()?.coerceIn(256, 2048) ?: 1280
+                        val parsedHeight = flex2CustomHeightText.toIntOrNull()?.coerceIn(256, 2048) ?: 720
+                        val parsedSeed = flex2SeedText.trim().toIntOrNull()
+                        val roundedGuidance = Math.round(flex2GuidanceScale * 10.0) / 10.0
+                        com.example.data.Flux2FlexInput(
+                            imageSize = flex2ImageSize,
+                            customWidth = parsedWidth,
+                            customHeight = parsedHeight,
+                            seed = parsedSeed,
+                            safetyTolerance = flex2SafetyTolerance,
+                            enableSafetyChecker = flex2EnableSafetyChecker,
+                            outputFormat = flex2OutputFormat,
+                            syncMode = flex2SyncMode,
+                            guidanceScale = roundedGuidance,
+                            numInferenceSteps = flex2NumInferenceSteps
+                        )
+                    } else null
+                    val effectiveRatio = when {
+                        isFluxSchnellSelected -> {
+                            val w = schnellCustomWidthText.toIntOrNull()?.coerceIn(256, 2048) ?: 1280
+                            val h = schnellCustomHeightText.toIntOrNull()?.coerceIn(256, 2048) ?: 720
+                            if (schnellImageSize == "custom") "${w}x${h}" else schnellImageSize
+                        }
+                        isFluxProV11Selected -> {
+                            val w = proV11CustomWidthText.toIntOrNull()?.coerceIn(256, 2048) ?: 1280
+                            val h = proV11CustomHeightText.toIntOrNull()?.coerceIn(256, 2048) ?: 720
+                            if (proV11ImageSize == "custom") "${w}x${h}" else proV11ImageSize
+                        }
+                        isFlux2FlexSelected -> {
+                            val w = flex2CustomWidthText.toIntOrNull()?.coerceIn(256, 2048) ?: 1280
+                            val h = flex2CustomHeightText.toIntOrNull()?.coerceIn(256, 2048) ?: 720
+                            if (flex2ImageSize == "custom") "${w}x${h}" else flex2ImageSize
+                        }
+                        else -> selectedAspectRatio
+                    }
+                    onGenerate(prompt, selectedStyle, effectiveRatio, activeProvider, activeModelID, if (isFlux2FlexSelected) 1 else numImages, selectedBackground, fluxInput, fluxProInput, flux2FlexInput)
                 },
                 enabled = prompt.isNotBlank(),
                 modifier = Modifier.fillMaxWidth().height(52.dp),
@@ -5873,7 +6110,8 @@ fun EddieVideoGeneratorView(
     onModeChange: (String) -> Unit,
     onProviderChange: (String) -> Unit,
     onModelChange: (String) -> Unit,
-    onOpenSubscription: () -> Unit = {}
+    onOpenSubscription: () -> Unit = {},
+    onOpenTopUp: () -> Unit = onOpenSubscription
 ) {
     val context = LocalContext.current
     var prompt by remember { mutableStateOf("") }
@@ -6416,15 +6654,15 @@ fun EddieVideoGeneratorView(
             )
         } else if ((uiState.selectedVideoProvider == "FalAI" || uiState.selectedVideoProvider == "Minimax") && uiState.selectedVideoModel == "fal-ai/minimax/hailuo-2.3/pro/text-to-video") {
             listOf(
-                "1080p" to true to "1080p Pro"
+                "1080p" to false to "1080p Full HD"
             )
         } else if ((uiState.selectedVideoProvider == "FalAI" || uiState.selectedVideoProvider == "Minimax") && uiState.selectedVideoModel == "fal-ai/minimax/hailuo-2.3/pro/image-to-video") {
             listOf(
-                "1080p" to true to "1080p Pro (140 tokens)"
+                "1080p" to false to "1080p Full HD (140 tokens)"
             )
         } else if ((uiState.selectedVideoProvider == "FalAI" || uiState.selectedVideoProvider == "Minimax") && uiState.selectedVideoModel == "fal-ai/minimax/hailuo-02/pro/image-to-video") {
             listOf(
-                "1080p" to true to "1080p Pro"
+                "1080p" to false to "1080p Full HD"
             )
         } else if ((uiState.selectedVideoProvider == "FalAI" || uiState.selectedVideoProvider == "Minimax") && (uiState.selectedVideoModel == "fal-ai/minimax/hailuo-2.3/standard/image-to-video" || uiState.selectedVideoModel == "fal-ai/minimax/hailuo-2.3/standard/text-to-video")) {
             listOf(
@@ -6441,7 +6679,7 @@ fun EddieVideoGeneratorView(
             )
         } else if ((uiState.selectedVideoProvider == "FalAI" || uiState.selectedVideoProvider == "Minimax") && uiState.selectedVideoModel == "fal-ai/minimax/hailuo-02/pro/text-to-video") {
             listOf(
-                "1080p" to true to "1080p Pro"
+                "1080p" to false to "1080p Full HD"
             )
         } else if (isAlibabaVideo && (uiState.selectedVideoModel.lowercase().trim().contains("wan/v2.6") || uiState.selectedVideoModel.lowercase().trim().contains("wan/v2.7") || uiState.selectedVideoModel.lowercase().trim().contains("happy-horse"))) {
             listOf(
@@ -6558,7 +6796,7 @@ fun EddieVideoGeneratorView(
                 "768P"
             } else if ((isSora2ImageToVideo || isSora2ProImageToVideo) && "auto" in availableRes) {
                 "auto"
-            } else if (uiState.selectedVideoModel.lowercase().trim().contains("happy-horse") && "1080p" in availableRes) {
+            } else if (uiState.selectedVideoModel.lowercase().trim().contains("happy-horse") && uiState.isSubscribed && "1080p" in availableRes) {
                 "1080p"
             } else if ("720p" in availableRes) {
                 "720p"
@@ -7234,30 +7472,49 @@ fun EddieVideoGeneratorView(
                 Spacer(modifier = Modifier.height(4.dp))
                 if (uiState.isSubscribed) {
                     Surface(
+                        onClick = onOpenTopUp,
                         color = Color(0xFFFFB100).copy(alpha = 0.15f),
                         border = BorderStroke(1.dp, Color(0xFFFFB100)),
                         shape = RoundedCornerShape(6.dp)
                     ) {
                         Text(
-                            text = "🪙 ${uiState.getFormattedTokens()} Tokens",
+                            text = "👑 PRO • 🪙 ${uiState.getFormattedTokens()} Tokens (+ Top Up)",
                             modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
                             style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold, fontSize = 10.sp),
                             color = Color(0xFFFFB100)
                         )
                     }
                 } else {
-                    Surface(
-                        onClick = onOpenSubscription,
-                        color = Color(0xFFFFB100).copy(alpha = 0.12f),
-                        border = BorderStroke(1.dp, Color(0xFFFFB100).copy(alpha = 0.6f)),
-                        shape = RoundedCornerShape(6.dp)
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text(
-                            text = "⚡ Free Tier (Max 2 Videos) • Upgrade PRO",
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
-                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold, fontSize = 10.sp),
-                            color = Color(0xFFD48200)
-                        )
+                        Surface(
+                            onClick = onOpenTopUp,
+                            color = Color(0xFFFFB100).copy(alpha = 0.14f),
+                            border = BorderStroke(1.dp, Color(0xFFFFB100).copy(alpha = 0.7f)),
+                            shape = RoundedCornerShape(6.dp)
+                        ) {
+                            Text(
+                                text = "🪙 ${uiState.getFormattedTokens()} Tokens • Top Up",
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+                                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold, fontSize = 10.sp),
+                                color = Color(0xFFD48200)
+                            )
+                        }
+                        Surface(
+                            onClick = onOpenSubscription,
+                            color = MaterialTheme.colorScheme.primaryContainer,
+                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)),
+                            shape = RoundedCornerShape(6.dp)
+                        ) {
+                            Text(
+                                text = "👑 Unlock PRO",
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+                                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold, fontSize = 10.sp),
+                                color = MaterialTheme.colorScheme.onPrimaryContainer
+                            )
+                        }
                     }
                 }
                 Spacer(modifier = Modifier.height(6.dp))
@@ -9524,7 +9781,8 @@ fun EddieMusicGeneratorView(
     onProviderChange: (String) -> Unit,
     onModelChange: (String) -> Unit,
     onClearLog: () -> Unit = {},
-    onOpenSubscription: () -> Unit = {}
+    onOpenSubscription: () -> Unit = {},
+    onOpenTopUp: () -> Unit = onOpenSubscription
 ) {
     val context = LocalContext.current
     var prompt by remember { mutableStateOf("") }
@@ -9532,6 +9790,12 @@ fun EddieMusicGeneratorView(
     var selectedDuration by remember { mutableStateOf("15s") }
     var selectedTempo by remember { mutableStateOf("Medium") }
     var showMusicDebugWindow by remember { mutableStateOf(false) }
+
+    LaunchedEffect(uiState.isSubscribed) {
+        if (!uiState.isSubscribed && uiState.selectedMusicModel == "music_v2_5") {
+            onModelChange("music_v2")
+        }
+    }
 
     LaunchedEffect(uiState.musicGenLog, uiState.musicGenIsLoading) {
         if (!uiState.musicGenIsLoading && uiState.musicGenLog.contains("❌")) {
@@ -9559,122 +9823,172 @@ fun EddieMusicGeneratorView(
         ).shuffled().take(4)
     }
 
-    // Audio player state
-    var mediaPlayer by remember { mutableStateOf<android.media.MediaPlayer?>(null) }
+    // Audio player state (Media3 ExoPlayer for reliable MP3/WAV/AAC/OGG & streaming playback)
+    val exoPlayer = remember(context) {
+        androidx.media3.exoplayer.ExoPlayer.Builder(context)
+            .setAudioAttributes(
+                androidx.media3.common.AudioAttributes.Builder()
+                    .setUsage(androidx.media3.common.C.USAGE_MEDIA)
+                    .setContentType(androidx.media3.common.C.AUDIO_CONTENT_TYPE_MUSIC)
+                    .build(),
+                true
+            )
+            .build()
+    }
     var playingMusicId by remember { mutableStateOf<String?>(null) }
     var isAudioPlaying by remember { mutableStateOf(false) }
+    var isAudioBuffering by remember { mutableStateOf(false) }
+    var playbackError by remember { mutableStateOf<String?>(null) }
     var playPercent by remember { mutableStateOf(0f) }
 
     var editingMusicItem by remember { mutableStateOf<com.example.data.db.GeneratedMusicEntity?>(null) }
 
     val musicScrollState = rememberScrollState()
 
-    // Disposable effect to release media player when composable is disposed or player instance changes
-    DisposableEffect(mediaPlayer) {
-        onDispose {
-            try {
-                mediaPlayer?.release()
-            } catch (e: Exception) {
-                // Ignore
+    // Attach ExoPlayer listener and release on dispose
+    DisposableEffect(exoPlayer) {
+        val listener = object : androidx.media3.common.Player.Listener {
+            override fun onIsPlayingChanged(isPlaying: Boolean) {
+                isAudioPlaying = isPlaying
             }
+
+            override fun onPlaybackStateChanged(playbackState: Int) {
+                when (playbackState) {
+                    androidx.media3.common.Player.STATE_BUFFERING -> {
+                        isAudioBuffering = true
+                    }
+                    androidx.media3.common.Player.STATE_READY -> {
+                        isAudioBuffering = false
+                        playbackError = null
+                    }
+                    androidx.media3.common.Player.STATE_ENDED -> {
+                        isAudioBuffering = false
+                        isAudioPlaying = false
+                        playPercent = 0f
+                        playingMusicId = null
+                        exoPlayer.seekTo(0)
+                        exoPlayer.pause()
+                    }
+                    androidx.media3.common.Player.STATE_IDLE -> {
+                        isAudioBuffering = false
+                    }
+                }
+            }
+
+            override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
+                android.util.Log.e("EddieMusic", "ExoPlayer error: ${error.errorCodeName} - ${error.message}", error)
+                isAudioBuffering = false
+                isAudioPlaying = false
+                playingMusicId = null
+                playPercent = 0f
+                val detail = "Gagal memutar audio (${error.errorCodeName}): ${error.localizedMessage ?: "Format atau sumber audio tidak valid"}"
+                playbackError = detail
+                Toast.makeText(context, detail, Toast.LENGTH_LONG).show()
+            }
+        }
+        exoPlayer.addListener(listener)
+        onDispose {
+            exoPlayer.removeListener(listener)
+            exoPlayer.release()
         }
     }
 
     // Launch a coroutine to poll current track play position for progress animation!
-    LaunchedEffect(playingMusicId, isAudioPlaying) {
+    LaunchedEffect(playingMusicId, isAudioPlaying, exoPlayer) {
         if (playingMusicId != null && isAudioPlaying) {
             while (true) {
-                val mp = mediaPlayer
                 try {
-                    if (mp != null && mp.isPlaying) {
-                        val durationMs = mp.duration.toFloat()
-                        if (durationMs > 0) {
-                            playPercent = mp.currentPosition.toFloat() / durationMs
-                        }
+                    val durationMs = exoPlayer.duration
+                    if (durationMs > 0 && durationMs != androidx.media3.common.C.TIME_UNSET) {
+                        playPercent = (exoPlayer.currentPosition.toFloat() / durationMs.toFloat()).coerceIn(0f, 1f)
                     }
-                } catch (e: Exception) {
-                    // ignore mp exceptions
+                } catch (_: Exception) {
                 }
-                kotlinx.coroutines.delay(250)
+                kotlinx.coroutines.delay(200)
             }
-        } else {
+        } else if (playingMusicId == null) {
             playPercent = 0f
         }
     }
 
     fun togglePlayMusic(id: String, url: String) {
-        if (playingMusicId == id) {
-            val mp = mediaPlayer
-            if (isAudioPlaying) {
-                mp?.pause()
-                isAudioPlaying = false
+        playbackError = null
+        if (playingMusicId == id && exoPlayer.playbackState != androidx.media3.common.Player.STATE_IDLE) {
+            if (exoPlayer.isPlaying) {
+                exoPlayer.pause()
             } else {
-                try {
-                    mp?.start()
-                    isAudioPlaying = true
-                } catch (e: Exception) {
-                    android.util.Log.e("EddieMusic", "Failed to resume audio", e)
+                if (exoPlayer.playbackState == androidx.media3.common.Player.STATE_ENDED) {
+                    exoPlayer.seekTo(0)
                 }
+                exoPlayer.play()
             }
-        } else {
-            // Stop and release previous
-            try {
-                mediaPlayer?.stop()
-            } catch (e: Exception) {
-                // Ignore exception if already stopped/uninitialized
+            return
+        }
+
+        try {
+            val trimmedUrl = url.trim()
+            if (trimmedUrl.isBlank()) {
+                playbackError = "URL audio kosong — musik tidak memiliki sumber audio."
+                Toast.makeText(context, playbackError, Toast.LENGTH_SHORT).show()
+                return
             }
-            try {
-                mediaPlayer?.release()
-            } catch (e: Exception) {
-                // Ignore
+
+            val resolvedUri: Uri = when {
+                trimmedUrl.startsWith("data:", ignoreCase = true) -> {
+                    val b64 = trimmedUrl.substringAfter("base64,", "")
+                    if (b64.isBlank()) {
+                        throw IllegalArgumentException("Data audio base64 tidak valid.")
+                    }
+                    val decoded = android.util.Base64.decode(b64, android.util.Base64.DEFAULT)
+                    val tempFile = java.io.File(context.cacheDir, "music_play_${id}.mp3")
+                    java.io.FileOutputStream(tempFile).use { it.write(decoded) }
+                    Uri.fromFile(tempFile)
+                }
+                trimmedUrl.startsWith("file://", ignoreCase = true) || trimmedUrl.startsWith("/") -> {
+                    val filePath = if (trimmedUrl.startsWith("file://", ignoreCase = true)) {
+                        Uri.parse(trimmedUrl).path.orEmpty()
+                    } else {
+                        trimmedUrl
+                    }
+                    val localFile = java.io.File(filePath)
+                    if (!localFile.exists() || localFile.length() == 0L) {
+                        val msg = "File audio tidak ditemukan di penyimpanan lokal perangkat ini."
+                        playbackError = msg
+                        Toast.makeText(context, msg, Toast.LENGTH_LONG).show()
+                        return
+                    }
+                    val headerBytes = ByteArray(minOf(localFile.length().toInt(), 64))
+                    java.io.FileInputStream(localFile).use { it.read(headerBytes) }
+                    val headerPreview = runCatching { String(headerBytes).trimStart().lowercase() }.getOrDefault("")
+                    if (headerPreview.startsWith("<!doctype") || headerPreview.startsWith("<html") || headerPreview.startsWith("{")) {
+                        val msg = "File audio rusak atau berisi respons error server (bukan file audio valid)."
+                        playbackError = msg
+                        Toast.makeText(context, msg, Toast.LENGTH_LONG).show()
+                        return
+                    }
+                    Uri.fromFile(localFile)
+                }
+                else -> Uri.parse(trimmedUrl)
             }
-            mediaPlayer = null
-            playingMusicId = null
+
+            playingMusicId = id
+            isAudioBuffering = true
             isAudioPlaying = false
             playPercent = 0f
 
-            try {
-                val attributionContext = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
-                    context.createAttributionContext("eddie_audio_attribution")
-                } else {
-                    context
-                }
-                val newMp = android.media.MediaPlayer().apply {
-                    val parsedUri = android.net.Uri.parse(url)
-                    if (parsedUri.scheme == "file" && !parsedUri.path.isNullOrBlank()) {
-                        val localFile = java.io.File(parsedUri.path!!)
-                        if (!localFile.exists() || localFile.length() == 0L) {
-                            throw java.io.FileNotFoundException("Local audio file not found")
-                        }
-                        setDataSource(localFile.absolutePath)
-                    } else {
-                        setDataSource(attributionContext, parsedUri)
-                    }
-                    setOnPreparedListener {
-                        it.start()
-                        isAudioPlaying = true
-                        playingMusicId = id
-                    }
-                    setOnCompletionListener {
-                        isAudioPlaying = false
-                        playingMusicId = null
-                        playPercent = 0f
-                    }
-                    setOnErrorListener { _, _, _ ->
-                        isAudioPlaying = false
-                        playingMusicId = null
-                        playPercent = 0f
-                        Toast.makeText(context, "Failed to play audio track", Toast.LENGTH_SHORT).show()
-                        true
-                    }
-                    prepareAsync()
-                }
-                mediaPlayer = newMp
-                playingMusicId = id // show buffering state
-            } catch (e: Exception) {
-                android.util.Log.e("EddieMusic", "Failed to setup player", e)
-                Toast.makeText(context, "Media player initialization error", Toast.LENGTH_SHORT).show()
-            }
+            exoPlayer.stop()
+            exoPlayer.setMediaItem(androidx.media3.common.MediaItem.fromUri(resolvedUri))
+            exoPlayer.prepare()
+            exoPlayer.playWhenReady = true
+        } catch (e: Exception) {
+            android.util.Log.e("EddieMusic", "Failed to setup ExoPlayer", e)
+            isAudioBuffering = false
+            isAudioPlaying = false
+            playingMusicId = null
+            playPercent = 0f
+            val msg = "Gagal memulai pemutar musik: ${e.localizedMessage ?: "Terjadi kesalahan"}"
+            playbackError = msg
+            Toast.makeText(context, msg, Toast.LENGTH_LONG).show()
         }
     }
 
@@ -9739,33 +10053,51 @@ fun EddieMusicGeneratorView(
                     color = MaterialTheme.colorScheme.primary
                 )
                 Spacer(modifier = Modifier.height(4.dp))
-                if (uiState.isSubscribed || uiState.userTokens > 0.0) {
+                if (uiState.isSubscribed) {
                     Surface(
-                        onClick = onOpenSubscription,
+                        onClick = onOpenTopUp,
                         color = Color(0xFFFFB100).copy(alpha = 0.15f),
                         border = BorderStroke(1.dp, Color(0xFFFFB100)),
                         shape = RoundedCornerShape(6.dp)
                     ) {
                         Text(
-                            text = "🪙 ${uiState.getFormattedTokens()} Tokens",
+                            text = "👑 PRO • 🪙 ${uiState.getFormattedTokens()} Tokens (+ Top Up)",
                             modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
                             style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold, fontSize = 10.sp),
                             color = Color(0xFFFFB100)
                         )
                     }
                 } else {
-                    Surface(
-                        onClick = onOpenSubscription,
-                        color = Color(0xFFFFB100).copy(alpha = 0.12f),
-                        border = BorderStroke(1.dp, Color(0xFFFFB100).copy(alpha = 0.6f)),
-                        shape = RoundedCornerShape(6.dp)
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text(
-                            text = "⚡ Free Tier (Max 2 Tracks) • Upgrade PRO",
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
-                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold, fontSize = 10.sp),
-                            color = Color(0xFFD48200)
-                        )
+                        Surface(
+                            onClick = onOpenTopUp,
+                            color = Color(0xFFFFB100).copy(alpha = 0.14f),
+                            border = BorderStroke(1.dp, Color(0xFFFFB100).copy(alpha = 0.7f)),
+                            shape = RoundedCornerShape(6.dp)
+                        ) {
+                            Text(
+                                text = "🪙 ${uiState.getFormattedTokens()} Tokens • Top Up",
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+                                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold, fontSize = 10.sp),
+                                color = Color(0xFFD48200)
+                            )
+                        }
+                        Surface(
+                            onClick = onOpenSubscription,
+                            color = MaterialTheme.colorScheme.primaryContainer,
+                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)),
+                            shape = RoundedCornerShape(6.dp)
+                        ) {
+                            Text(
+                                text = "👑 Unlock PRO",
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+                                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold, fontSize = 10.sp),
+                                color = MaterialTheme.colorScheme.onPrimaryContainer
+                            )
+                        }
                     }
                 }
                 Spacer(modifier = Modifier.height(6.dp))
@@ -9959,7 +10291,7 @@ fun EddieMusicGeneratorView(
                                         }
                                     }
                                     Text(
-                                        text = modelId,
+                                        text = "$modelId • 1 token/s",
                                         style = MaterialTheme.typography.labelSmall,
                                         color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
                                     )
@@ -10114,10 +10446,16 @@ fun EddieMusicGeneratorView(
                                     }
                                 }
                             }
+                            val durSeconds = durLabel.lowercase().replace("s", "").trim().toIntOrNull() ?: 15
                             Text(
                                 text = desc,
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Text(
+                                text = "🪙 $durSeconds tokens",
+                                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold, fontSize = 10.sp),
+                                color = MaterialTheme.colorScheme.primary
                             )
                         }
                     }
@@ -10202,6 +10540,34 @@ fun EddieMusicGeneratorView(
                 }
             }
         } else {
+            val estimatedTokens = remember(selectedDuration) {
+                (selectedDuration.lowercase().replace("s", "").trim().toIntOrNull() ?: 15).coerceAtLeast(1)
+            }
+            Surface(
+                color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.45f),
+                shape = RoundedCornerShape(10.dp),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Model: ${uiState.selectedMusicModel} (1 token/sec)",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        text = "🪙 $estimatedTokens Tokens",
+                        style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
+            }
             Button(
                 onClick = { onGenerateMusic(prompt, selectedGenre, selectedDuration, selectedTempo) },
                 enabled = prompt.isNotBlank(),
@@ -10212,7 +10578,7 @@ fun EddieMusicGeneratorView(
                 shape = RoundedCornerShape(12.dp)
             ) {
                 Text(
-                    text = "Start AI Music Generation 🎵",
+                    text = "Start AI Music Generation 🎵 ($estimatedTokens Tokens)",
                     style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
                 )
             }
@@ -10296,6 +10662,45 @@ fun EddieMusicGeneratorView(
             style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
             color = MaterialTheme.colorScheme.onSurface
         )
+
+        if (!playbackError.isNullOrBlank()) {
+            Surface(
+                color = MaterialTheme.colorScheme.errorContainer,
+                shape = RoundedCornerShape(10.dp),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.4f)),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Info,
+                        contentDescription = "Playback error",
+                        tint = MaterialTheme.colorScheme.onErrorContainer,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Text(
+                        text = playbackError!!,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onErrorContainer,
+                        modifier = Modifier.weight(1f)
+                    )
+                    IconButton(
+                        onClick = { playbackError = null },
+                        modifier = Modifier.size(28.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Close,
+                            contentDescription = "Dismiss",
+                            tint = MaterialTheme.colorScheme.onErrorContainer,
+                            modifier = Modifier.size(16.dp)
+                        )
+                    }
+                }
+            }
+        }
 
         if (uiState.generatedMusic.isEmpty()) {
             Box(
@@ -10383,9 +10788,12 @@ fun EddieMusicGeneratorView(
                                         overflow = TextOverflow.Ellipsis
                                     )
 
-                                    // 2. Model Name
+                                    // 2. Model ID
+                                    val modelIdLabel = music.model.trim().takeIf {
+                                        it.isNotBlank() && !it.equals("Unknown", ignoreCase = true)
+                                    }
                                     Text(
-                                        text = "ElevenLabs Music",
+                                        text = if (modelIdLabel != null) "ElevenLabs • $modelIdLabel" else "ElevenLabs Music",
                                         style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp, fontWeight = FontWeight.SemiBold),
                                         color = MaterialTheme.colorScheme.primary,
                                         maxLines = 1,
@@ -10403,11 +10811,26 @@ fun EddieMusicGeneratorView(
                                     )
                                 }
 
-                                // Edit & Delete Icons
+                                // Download, Edit & Delete Icons
                                 Row(
                                     verticalAlignment = Alignment.CenterVertically,
                                     horizontalArrangement = Arrangement.spacedBy(2.dp)
                                 ) {
+                                    DownloadIconButton(
+                                        onClick = {
+                                            Toast.makeText(context, "Downloading music...", Toast.LENGTH_SHORT).show()
+                                            downloadAndroidMusic(context, music.musicUrl, music.id) { path ->
+                                                if (path != null) {
+                                                    Toast.makeText(context, "Saved music to $path 📥", Toast.LENGTH_LONG).show()
+                                                } else {
+                                                    Toast.makeText(context, "Failed to download music", Toast.LENGTH_SHORT).show()
+                                                }
+                                            }
+                                        },
+                                        size = 32.dp,
+                                        contentDescription = "Download Music",
+                                        modifier = Modifier.testTag("music_download_button_${music.id}")
+                                    )
                                     IconButton(
                                         onClick = { editingMusicItem = music },
                                         modifier = Modifier.size(32.dp)
@@ -10452,7 +10875,11 @@ fun EddieMusicGeneratorView(
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
                                         Text(
-                                            text = if (isAudioPlaying) "Playing..." else "Paused",
+                                            text = when {
+                                                isAudioBuffering -> "Loading audio..."
+                                                isAudioPlaying -> "Playing..."
+                                                else -> "Paused"
+                                            },
                                             style = MaterialTheme.typography.labelSmall.copy(fontSize = 8.sp, fontWeight = FontWeight.Medium),
                                             color = MaterialTheme.colorScheme.primary
                                         )
@@ -11558,11 +11985,14 @@ fun DownloadIconButton(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     color: Color = MaterialTheme.colorScheme.primary,
-    size: androidx.compose.ui.unit.Dp = 24.dp
+    size: androidx.compose.ui.unit.Dp = 24.dp,
+    contentDescription: String = "Download"
 ) {
     IconButton(
         onClick = onClick,
-        modifier = modifier.size(size)
+        modifier = modifier
+            .size(size)
+            .semantics { this.contentDescription = contentDescription }
     ) {
         androidx.compose.foundation.Canvas(modifier = Modifier.fillMaxSize().padding(if (size < 30.dp) 4.dp else 6.dp)) {
             val w = this.size.width
@@ -12118,6 +12548,154 @@ fun downloadAndroidVideo(
             }
         } catch (e: Exception) {
             android.util.Log.e("DownloadVideo", "Error downloading video", e)
+            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                onComplete(null)
+            }
+        }
+    }
+}
+
+fun downloadAndroidMusic(
+    context: android.content.Context,
+    musicUrl: String,
+    musicId: String? = null,
+    onComplete: (String?) -> Unit
+) {
+    kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
+        try {
+            val trimmed = musicUrl.trim()
+            if (trimmed.isBlank()) {
+                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) { onComplete(null) }
+                return@launch
+            }
+
+            val bytes: ByteArray? = when {
+                trimmed.startsWith("data:") -> {
+                    val base64Data = if (trimmed.contains(",")) trimmed.substringAfter(",") else trimmed
+                    android.util.Base64.decode(base64Data, android.util.Base64.DEFAULT)
+                }
+                trimmed.startsWith("content://") -> {
+                    context.contentResolver.openInputStream(android.net.Uri.parse(trimmed))?.use { it.readBytes() }
+                }
+                trimmed.startsWith("file:") || trimmed.startsWith("/") -> {
+                    val localPath = when {
+                        trimmed.startsWith("file://") -> trimmed.removePrefix("file://")
+                        trimmed.startsWith("file:") -> trimmed.removePrefix("file:")
+                        else -> trimmed
+                    }
+                    val file = java.io.File(localPath)
+                    if (file.exists() && file.length() > 0L) file.readBytes() else null
+                }
+                trimmed.startsWith("http://") || trimmed.startsWith("https://") -> {
+                    var currentUrl = trimmed
+                    var redirectCount = 0
+                    val maxRedirects = 6
+                    var downloaded: ByteArray? = null
+                    while (redirectCount < maxRedirects) {
+                        var conn: java.net.HttpURLConnection? = null
+                        try {
+                            val url = java.net.URL(currentUrl)
+                            conn = url.openConnection() as java.net.HttpURLConnection
+                            conn.connectTimeout = 30000
+                            conn.readTimeout = 30000
+                            conn.instanceFollowRedirects = false
+                            conn.setRequestProperty("Accept", "audio/*,*/*")
+
+                            val status = conn.responseCode
+                            if (status == java.net.HttpURLConnection.HTTP_MOVED_TEMP ||
+                                status == java.net.HttpURLConnection.HTTP_MOVED_PERM ||
+                                status == 307 || status == 308 || status == 303
+                            ) {
+                                val newUrl = conn.getHeaderField("Location") ?: break
+                                currentUrl = if (newUrl.startsWith("http")) newUrl else {
+                                    val portStr = if (url.port != -1) ":${url.port}" else ""
+                                    "${url.protocol}://${url.host}$portStr$newUrl"
+                                }
+                                redirectCount++
+                                continue
+                            }
+                            if (status == java.net.HttpURLConnection.HTTP_OK) {
+                                downloaded = conn.inputStream.use { it.readBytes() }
+                            }
+                            break
+                        } finally {
+                            conn?.disconnect()
+                        }
+                    }
+                    downloaded
+                }
+                else -> {
+                    val file = java.io.File(context.filesDir, trimmed)
+                    if (file.exists() && file.length() > 0L) file.readBytes() else null
+                }
+            }
+
+            if (bytes == null || bytes.size < 128) {
+                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) { onComplete(null) }
+                return@launch
+            }
+
+            val headStr = runCatching { String(bytes, 0, minOf(bytes.size, 64)).trimStart().lowercase() }.getOrDefault("")
+            if (headStr.startsWith("<!doctype") || headStr.startsWith("<html") || (headStr.startsWith("{") && headStr.contains("\"error\""))) {
+                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) { onComplete(null) }
+                return@launch
+            }
+
+            val (ext, mimeType) = when {
+                bytes.size >= 4 && bytes[0] == 'R'.code.toByte() && bytes[1] == 'I'.code.toByte() && bytes[2] == 'F'.code.toByte() && bytes[3] == 'F'.code.toByte() ->
+                    "wav" to "audio/wav"
+                bytes.size >= 4 && bytes[0] == 'O'.code.toByte() && bytes[1] == 'g'.code.toByte() && bytes[2] == 'g'.code.toByte() && bytes[3] == 'S'.code.toByte() ->
+                    "ogg" to "audio/ogg"
+                bytes.size >= 4 && bytes[0] == 'f'.code.toByte() && bytes[1] == 'L'.code.toByte() && bytes[2] == 'a'.code.toByte() && bytes[3] == 'C'.code.toByte() ->
+                    "flac" to "audio/flac"
+                bytes.size >= 8 && bytes[4] == 'f'.code.toByte() && bytes[5] == 't'.code.toByte() && bytes[6] == 'y'.code.toByte() && bytes[7] == 'p'.code.toByte() ->
+                    "m4a" to "audio/mp4"
+                trimmed.lowercase().substringBefore("?").endsWith(".wav") -> "wav" to "audio/wav"
+                trimmed.lowercase().substringBefore("?").endsWith(".ogg") -> "ogg" to "audio/ogg"
+                trimmed.lowercase().substringBefore("?").endsWith(".flac") -> "flac" to "audio/flac"
+                trimmed.lowercase().substringBefore("?").endsWith(".m4a") -> "m4a" to "audio/mp4"
+                else -> "mp3" to "audio/mpeg"
+            }
+
+            val shortId = musicId?.take(8)?.replace(Regex("[^a-zA-Z0-9_-]"), "")?.takeIf { it.isNotBlank() }
+            val filename = if (shortId != null) {
+                "EddieMusic_${shortId}_${System.currentTimeMillis()}.$ext"
+            } else {
+                "EddieMusic_${System.currentTimeMillis()}.$ext"
+            }
+
+            var savedPath: String? = null
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+                val contentValues = android.content.ContentValues().apply {
+                    put(android.provider.MediaStore.MediaColumns.DISPLAY_NAME, filename)
+                    put(android.provider.MediaStore.MediaColumns.MIME_TYPE, mimeType)
+                    put(android.provider.MediaStore.MediaColumns.RELATIVE_PATH, android.os.Environment.DIRECTORY_DOWNLOADS)
+                }
+                val uri = context.contentResolver.insert(
+                    android.provider.MediaStore.Downloads.EXTERNAL_CONTENT_URI,
+                    contentValues
+                )
+                if (uri != null) {
+                    context.contentResolver.openOutputStream(uri)?.use { output ->
+                        output.write(bytes)
+                    }
+                    savedPath = "Downloads/$filename"
+                }
+            } else {
+                val downloadsDir = android.os.Environment.getExternalStoragePublicDirectory(
+                    android.os.Environment.DIRECTORY_DOWNLOADS
+                )
+                if (!downloadsDir.exists()) downloadsDir.mkdirs()
+                val file = java.io.File(downloadsDir, filename)
+                file.outputStream().use { it.write(bytes) }
+                savedPath = file.absolutePath
+            }
+
+            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                onComplete(savedPath)
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("DownloadMusic", "Error downloading music: ${e.javaClass.simpleName}")
             kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
                 onComplete(null)
             }
@@ -14477,5 +15055,1263 @@ fun KlingEngineParametersCard(
         }
     }
 }
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+fun FluxSchnellParametersCard(
+    numInferenceSteps: Int,
+    onNumInferenceStepsChange: (Int) -> Unit,
+    imageSize: String,
+    onImageSizeChange: (String) -> Unit,
+    customWidthText: String,
+    onCustomWidthTextChange: (String) -> Unit,
+    customHeightText: String,
+    onCustomHeightTextChange: (String) -> Unit,
+    seedText: String,
+    onSeedTextChange: (String) -> Unit,
+    guidanceScale: Float,
+    onGuidanceScaleChange: (Float) -> Unit,
+    syncMode: Boolean,
+    onSyncModeChange: (Boolean) -> Unit,
+    numImages: Int,
+    onNumImagesChange: (Int) -> Unit,
+    enableSafetyChecker: Boolean,
+    onEnableSafetyCheckerChange: (Boolean) -> Unit,
+    outputFormat: String,
+    onOutputFormatChange: (String) -> Unit,
+    acceleration: String,
+    onAccelerationChange: (String) -> Unit,
+    isSubscribed: Boolean
+) {
+    val sizePresets = listOf(
+        "landscape_4_3" to "Landscape 4:3",
+        "landscape_16_9" to "Landscape 16:9",
+        "portrait_4_3" to "Portrait 4:3",
+        "portrait_16_9" to "Portrait 16:9",
+        "square_hd" to "Square HD",
+        "square" to "Square",
+        "custom" to "Custom (W×H)"
+    )
+    val formatOptions = listOf("jpeg", "png")
+    val accelerationOptions = listOf("none", "regular", "high")
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f)),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Build,
+                    contentDescription = "Flux Schnell Schema",
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(18.dp)
+                )
+                Text(
+                    text = "2. Flux Schnell Input Schema",
+                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+            }
+
+            // image_size (ImageSize | Enum)
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Image Size (image_size)",
+                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        text = "Default: landscape_4_3",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
+                FlowRow(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    sizePresets.forEach { (enumVal, label) ->
+                        val isSelected = imageSize == enumVal
+                        FilterChip(
+                            selected = isSelected,
+                            onClick = { onImageSizeChange(enumVal) },
+                            modifier = Modifier.testTag("flux_schnell_size_$enumVal"),
+                            label = {
+                                Column {
+                                    Text(
+                                        text = label,
+                                        style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold)
+                                    )
+                                    Text(
+                                        text = enumVal,
+                                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp),
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            },
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+                                selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer
+                            )
+                        )
+                    }
+                }
+
+                if (imageSize == "custom") {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        OutlinedTextField(
+                            value = customWidthText,
+                            onValueChange = { newVal ->
+                                if (newVal.all { it.isDigit() } && newVal.length <= 4) {
+                                    onCustomWidthTextChange(newVal)
+                                }
+                            },
+                            label = { Text("Width") },
+                            placeholder = { Text("1280") },
+                            singleLine = true,
+                            keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                                keyboardType = androidx.compose.ui.text.input.KeyboardType.Number
+                            ),
+                            modifier = Modifier.weight(1f).testTag("flux_schnell_custom_width"),
+                            shape = RoundedCornerShape(10.dp)
+                        )
+                        OutlinedTextField(
+                            value = customHeightText,
+                            onValueChange = { newVal ->
+                                if (newVal.all { it.isDigit() } && newVal.length <= 4) {
+                                    onCustomHeightTextChange(newVal)
+                                }
+                            },
+                            label = { Text("Height") },
+                            placeholder = { Text("720") },
+                            singleLine = true,
+                            keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                                keyboardType = androidx.compose.ui.text.input.KeyboardType.Number
+                            ),
+                            modifier = Modifier.weight(1f).testTag("flux_schnell_custom_height"),
+                            shape = RoundedCornerShape(10.dp)
+                        )
+                    }
+                }
+            }
+
+            // num_images (integer, default 1)
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Number of Images (num_images)",
+                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        text = "Default: 1",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    val numbers = listOf(1, 2, 3, 4)
+                    val badgeColor = if (isSubscribed) MaterialTheme.colorScheme.primary else Color(0xFFFFB100)
+                    val badgeTextColor = if (isSubscribed) MaterialTheme.colorScheme.onPrimary else Color(0xFF111111)
+                    numbers.forEach { num ->
+                        val isSelected = numImages == num
+                        Surface(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clickable { onNumImagesChange(num) }
+                                .testTag("flux_schnell_num_images_$num"),
+                            shape = RoundedCornerShape(10.dp),
+                            color = if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface,
+                            border = BorderStroke(
+                                width = if (isSelected) 2.dp else 1.dp,
+                                color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline.copy(alpha = 0.25f)
+                            )
+                        ) {
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.Center,
+                                modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp, horizontal = 4.dp)
+                            ) {
+                                Text(
+                                    text = "$num",
+                                    style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold),
+                                    color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface
+                                )
+                                if (num > 1) {
+                                    Spacer(modifier = Modifier.height(2.dp))
+                                    Surface(color = badgeColor, shape = RoundedCornerShape(4.dp)) {
+                                        Text(
+                                            text = "PRO",
+                                            color = badgeTextColor,
+                                            fontSize = 7.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            modifier = Modifier.padding(horizontal = 3.dp, vertical = 1.dp)
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // num_inference_steps (integer, default 4)
+            Column {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Inference Steps (num_inference_steps): $numInferenceSteps",
+                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Text(
+                        text = "Default: 4",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
+                Slider(
+                    value = numInferenceSteps.toFloat(),
+                    onValueChange = { onNumInferenceStepsChange(it.toInt().coerceIn(1, 12)) },
+                    valueRange = 1f..12f,
+                    steps = 10,
+                    modifier = Modifier.fillMaxWidth().testTag("flux_schnell_steps_slider")
+                )
+            }
+
+            // guidance_scale (float, default 3.5)
+            Column {
+                val guidanceFormatted = java.lang.String.format(java.util.Locale.US, "%.1f", guidanceScale)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Guidance Scale (guidance_scale): $guidanceFormatted",
+                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Text(
+                        text = "Default: 3.5",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
+                Text(
+                    text = "CFG scale controlling prompt adherence.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Slider(
+                    value = guidanceScale,
+                    onValueChange = {
+                        val stepped = (Math.round(it * 2f) / 2f).coerceIn(0f, 20f)
+                        onGuidanceScaleChange(stepped)
+                    },
+                    valueRange = 0f..20f,
+                    steps = 39,
+                    modifier = Modifier.fillMaxWidth().testTag("flux_schnell_guidance_slider")
+                )
+            }
+
+            // output_format (jpeg | png, default jpeg)
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Output Format (output_format)",
+                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        text = "Default: jpeg",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                    formatOptions.forEach { fmt ->
+                        val isSelected = outputFormat == fmt
+                        FilterChip(
+                            selected = isSelected,
+                            onClick = { onOutputFormatChange(fmt) },
+                            modifier = Modifier.weight(1f).testTag("flux_schnell_format_$fmt"),
+                            label = {
+                                Text(
+                                    text = fmt.uppercase(),
+                                    style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold)
+                                )
+                            }
+                        )
+                    }
+                }
+            }
+
+            // acceleration (none | regular | high, default none)
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Acceleration (acceleration)",
+                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        text = "Default: none",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                    accelerationOptions.forEach { accel ->
+                        val isSelected = acceleration == accel
+                        FilterChip(
+                            selected = isSelected,
+                            onClick = { onAccelerationChange(accel) },
+                            modifier = Modifier.weight(1f).testTag("flux_schnell_accel_$accel"),
+                            label = {
+                                Text(
+                                    text = accel.replaceFirstChar { it.uppercase() },
+                                    style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold)
+                                )
+                            }
+                        )
+                    }
+                }
+            }
+
+            // seed (integer, optional)
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text(
+                    text = "Seed (seed • Optional Integer)",
+                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    OutlinedTextField(
+                        value = seedText,
+                        onValueChange = { newVal ->
+                            if (newVal.all { it.isDigit() } && newVal.length <= 10) {
+                                onSeedTextChange(newVal)
+                            }
+                        },
+                        placeholder = { Text("Leave blank for random") },
+                        singleLine = true,
+                        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                            keyboardType = androidx.compose.ui.text.input.KeyboardType.Number
+                        ),
+                        modifier = Modifier.weight(1f).testTag("flux_schnell_seed_input"),
+                        shape = RoundedCornerShape(10.dp)
+                    )
+                    OutlinedButton(
+                        onClick = { onSeedTextChange((100000..999999).random().toString()) },
+                        modifier = Modifier.testTag("flux_schnell_random_seed_button")
+                    ) {
+                        Text("Random")
+                    }
+                    if (seedText.isNotEmpty()) {
+                        IconButton(
+                            onClick = { onSeedTextChange("") },
+                            modifier = Modifier.size(36.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Close,
+                                contentDescription = "Clear seed",
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+                    }
+                }
+            }
+
+            // sync_mode (boolean)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f).padding(end = 12.dp)) {
+                    Text(
+                        text = "Sync Mode (sync_mode)",
+                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Text(
+                        text = "Return image as a data URI (won't be stored in request history).",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                Switch(
+                    checked = syncMode,
+                    onCheckedChange = onSyncModeChange,
+                    modifier = Modifier.testTag("flux_schnell_sync_mode_switch")
+                )
+            }
+
+            // enable_safety_checker (boolean, default true)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f).padding(end = 12.dp)) {
+                    Text(
+                        text = "Safety Checker (enable_safety_checker)",
+                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Text(
+                        text = "Filter unsafe outputs (default: true).",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                Switch(
+                    checked = enableSafetyChecker,
+                    onCheckedChange = onEnableSafetyCheckerChange,
+                    modifier = Modifier.testTag("flux_schnell_safety_switch")
+                )
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+fun FluxProV11ParametersCard(
+    imageSize: String,
+    onImageSizeChange: (String) -> Unit,
+    customWidthText: String,
+    onCustomWidthTextChange: (String) -> Unit,
+    customHeightText: String,
+    onCustomHeightTextChange: (String) -> Unit,
+    seedText: String,
+    onSeedTextChange: (String) -> Unit,
+    syncMode: Boolean,
+    onSyncModeChange: (Boolean) -> Unit,
+    numImages: Int,
+    onNumImagesChange: (Int) -> Unit,
+    outputFormat: String,
+    onOutputFormatChange: (String) -> Unit,
+    safetyTolerance: String,
+    onSafetyToleranceChange: (String) -> Unit,
+    enhancePrompt: Boolean,
+    onEnhancePromptChange: (Boolean) -> Unit,
+    isSubscribed: Boolean
+) {
+    val sizePresets = listOf(
+        "landscape_4_3" to "Landscape 4:3",
+        "landscape_16_9" to "Landscape 16:9",
+        "portrait_4_3" to "Portrait 4:3",
+        "portrait_16_9" to "Portrait 16:9",
+        "square_hd" to "Square HD",
+        "square" to "Square",
+        "custom" to "Custom (W×H)"
+    )
+    val formatOptions = listOf("jpeg", "png")
+    val toleranceLevels = listOf("1", "2", "3", "4", "5", "6")
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f)),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Build,
+                    contentDescription = "Flux Pro v1.1 Schema",
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(18.dp)
+                )
+                Text(
+                    text = "2. Flux Pro v1.1 Input Schema",
+                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+            }
+
+            // image_size (ImageSize | Enum)
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Image Size (image_size)",
+                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        text = "Default: landscape_4_3",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
+                FlowRow(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    sizePresets.forEach { (enumVal, label) ->
+                        val isSelected = imageSize == enumVal
+                        FilterChip(
+                            selected = isSelected,
+                            onClick = { onImageSizeChange(enumVal) },
+                            modifier = Modifier.testTag("flux_pro_v11_size_$enumVal"),
+                            label = {
+                                Column {
+                                    Text(
+                                        text = label,
+                                        style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold)
+                                    )
+                                    Text(
+                                        text = enumVal,
+                                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp),
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            },
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+                                selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer
+                            )
+                        )
+                    }
+                }
+
+                if (imageSize == "custom") {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        OutlinedTextField(
+                            value = customWidthText,
+                            onValueChange = { newVal ->
+                                if (newVal.all { it.isDigit() } && newVal.length <= 4) {
+                                    onCustomWidthTextChange(newVal)
+                                }
+                            },
+                            label = { Text("Width") },
+                            placeholder = { Text("1280") },
+                            singleLine = true,
+                            keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                                keyboardType = androidx.compose.ui.text.input.KeyboardType.Number
+                            ),
+                            modifier = Modifier.weight(1f).testTag("flux_pro_v11_custom_width"),
+                            shape = RoundedCornerShape(10.dp)
+                        )
+                        OutlinedTextField(
+                            value = customHeightText,
+                            onValueChange = { newVal ->
+                                if (newVal.all { it.isDigit() } && newVal.length <= 4) {
+                                    onCustomHeightTextChange(newVal)
+                                }
+                            },
+                            label = { Text("Height") },
+                            placeholder = { Text("720") },
+                            singleLine = true,
+                            keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                                keyboardType = androidx.compose.ui.text.input.KeyboardType.Number
+                            ),
+                            modifier = Modifier.weight(1f).testTag("flux_pro_v11_custom_height"),
+                            shape = RoundedCornerShape(10.dp)
+                        )
+                    }
+                }
+            }
+
+            // num_images (integer, default 1)
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Number of Images (num_images)",
+                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        text = "Default: 1",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    val numbers = listOf(1, 2, 3, 4)
+                    val badgeColor = if (isSubscribed) MaterialTheme.colorScheme.primary else Color(0xFFFFB100)
+                    val badgeTextColor = if (isSubscribed) MaterialTheme.colorScheme.onPrimary else Color(0xFF111111)
+                    numbers.forEach { num ->
+                        val isSelected = numImages == num
+                        Surface(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clickable { onNumImagesChange(num) }
+                                .testTag("flux_pro_v11_num_images_$num"),
+                            shape = RoundedCornerShape(10.dp),
+                            color = if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface,
+                            border = BorderStroke(
+                                width = if (isSelected) 2.dp else 1.dp,
+                                color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline.copy(alpha = 0.25f)
+                            )
+                        ) {
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.Center,
+                                modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp, horizontal = 4.dp)
+                            ) {
+                                Text(
+                                    text = "$num",
+                                    style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold),
+                                    color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface
+                                )
+                                if (num > 1) {
+                                    Spacer(modifier = Modifier.height(2.dp))
+                                    Surface(color = badgeColor, shape = RoundedCornerShape(4.dp)) {
+                                        Text(
+                                            text = "PRO",
+                                            color = badgeTextColor,
+                                            fontSize = 7.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            modifier = Modifier.padding(horizontal = 3.dp, vertical = 1.dp)
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // output_format (jpeg | png, default jpeg)
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Output Format (output_format)",
+                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        text = "Default: jpeg",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                    formatOptions.forEach { fmt ->
+                        val isSelected = outputFormat == fmt
+                        FilterChip(
+                            selected = isSelected,
+                            onClick = { onOutputFormatChange(fmt) },
+                            modifier = Modifier.weight(1f).testTag("flux_pro_v11_format_$fmt"),
+                            label = {
+                                Text(
+                                    text = fmt.uppercase(),
+                                    style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold)
+                                )
+                            }
+                        )
+                    }
+                }
+            }
+
+            // safety_tolerance (1..6, default "2")
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Safety Tolerance (safety_tolerance)",
+                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        text = "Default: 2",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
+                Text(
+                    text = "1 = most strict, 5/6 = most permissive.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth()) {
+                    toleranceLevels.forEach { level ->
+                        val isSelected = safetyTolerance == level
+                        FilterChip(
+                            selected = isSelected,
+                            onClick = { onSafetyToleranceChange(level) },
+                            modifier = Modifier.weight(1f).testTag("flux_pro_v11_safety_$level"),
+                            label = {
+                                Text(
+                                    text = level,
+                                    style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                                    textAlign = TextAlign.Center,
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                            }
+                        )
+                    }
+                }
+            }
+
+            // seed (integer, optional)
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text(
+                    text = "Seed (seed • Optional Integer)",
+                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    OutlinedTextField(
+                        value = seedText,
+                        onValueChange = { newVal ->
+                            if (newVal.all { it.isDigit() } && newVal.length <= 10) {
+                                onSeedTextChange(newVal)
+                            }
+                        },
+                        placeholder = { Text("Leave blank for random") },
+                        singleLine = true,
+                        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                            keyboardType = androidx.compose.ui.text.input.KeyboardType.Number
+                        ),
+                        modifier = Modifier.weight(1f).testTag("flux_pro_v11_seed_input"),
+                        shape = RoundedCornerShape(10.dp)
+                    )
+                    OutlinedButton(
+                        onClick = { onSeedTextChange((100000..999999).random().toString()) },
+                        modifier = Modifier.testTag("flux_pro_v11_random_seed_button")
+                    ) {
+                        Text("Random")
+                    }
+                    if (seedText.isNotEmpty()) {
+                        IconButton(
+                            onClick = { onSeedTextChange("") },
+                            modifier = Modifier.size(48.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Close,
+                                contentDescription = "Clear seed",
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+                    }
+                }
+            }
+
+            // sync_mode (boolean)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f).padding(end = 12.dp)) {
+                    Text(
+                        text = "Sync Mode (sync_mode)",
+                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Text(
+                        text = "Return image as a data URI (won't be stored in request history).",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                Switch(
+                    checked = syncMode,
+                    onCheckedChange = onSyncModeChange,
+                    modifier = Modifier.testTag("flux_pro_v11_sync_mode_switch")
+                )
+            }
+
+            // enhance_prompt (boolean)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f).padding(end = 12.dp)) {
+                    Text(
+                        text = "Enhance Prompt (enhance_prompt)",
+                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Text(
+                        text = "Automatically enhance prompt for higher quality results.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                Switch(
+                    checked = enhancePrompt,
+                    onCheckedChange = onEnhancePromptChange,
+                    modifier = Modifier.testTag("flux_pro_v11_enhance_prompt_switch")
+                )
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+fun Flux2FlexParametersCard(
+    imageSize: String,
+    onImageSizeChange: (String) -> Unit,
+    customWidthText: String,
+    onCustomWidthTextChange: (String) -> Unit,
+    customHeightText: String,
+    onCustomHeightTextChange: (String) -> Unit,
+    seedText: String,
+    onSeedTextChange: (String) -> Unit,
+    safetyTolerance: String,
+    onSafetyToleranceChange: (String) -> Unit,
+    enableSafetyChecker: Boolean,
+    onEnableSafetyCheckerChange: (Boolean) -> Unit,
+    outputFormat: String,
+    onOutputFormatChange: (String) -> Unit,
+    syncMode: Boolean,
+    onSyncModeChange: (Boolean) -> Unit,
+    guidanceScale: Float,
+    onGuidanceScaleChange: (Float) -> Unit,
+    numInferenceSteps: Int,
+    onNumInferenceStepsChange: (Int) -> Unit
+) {
+    val sizePresets = listOf(
+        "landscape_4_3" to "Landscape 4:3",
+        "landscape_16_9" to "Landscape 16:9",
+        "portrait_4_3" to "Portrait 4:3",
+        "portrait_16_9" to "Portrait 16:9",
+        "square_hd" to "Square HD",
+        "square" to "Square",
+        "custom" to "Custom (W×H)"
+    )
+    val formatOptions = listOf("jpeg", "png")
+    val toleranceLevels = listOf("1", "2", "3", "4", "5")
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f)),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Build,
+                    contentDescription = "Flux 2 Flex Schema",
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(18.dp)
+                )
+                Text(
+                    text = "2. Flux 2 Flex Input Schema",
+                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+            }
+
+            // image_size (ImageSize | Enum)
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Image Size (image_size)",
+                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        text = "Default: landscape_4_3",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
+                FlowRow(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    sizePresets.forEach { (enumVal, label) ->
+                        val isSelected = imageSize == enumVal
+                        FilterChip(
+                            selected = isSelected,
+                            onClick = { onImageSizeChange(enumVal) },
+                            modifier = Modifier.testTag("flux2_flex_size_$enumVal"),
+                            label = {
+                                Column {
+                                    Text(
+                                        text = label,
+                                        style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold)
+                                    )
+                                    Text(
+                                        text = enumVal,
+                                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp),
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            },
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+                                selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer
+                            )
+                        )
+                    }
+                }
+
+                if (imageSize == "custom") {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        OutlinedTextField(
+                            value = customWidthText,
+                            onValueChange = { newVal ->
+                                if (newVal.all { it.isDigit() } && newVal.length <= 4) {
+                                    onCustomWidthTextChange(newVal)
+                                }
+                            },
+                            label = { Text("Width") },
+                            placeholder = { Text("1280") },
+                            singleLine = true,
+                            keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                                keyboardType = androidx.compose.ui.text.input.KeyboardType.Number
+                            ),
+                            modifier = Modifier.weight(1f).testTag("flux2_flex_custom_width"),
+                            shape = RoundedCornerShape(10.dp)
+                        )
+                        OutlinedTextField(
+                            value = customHeightText,
+                            onValueChange = { newVal ->
+                                if (newVal.all { it.isDigit() } && newVal.length <= 4) {
+                                    onCustomHeightTextChange(newVal)
+                                }
+                            },
+                            label = { Text("Height") },
+                            placeholder = { Text("720") },
+                            singleLine = true,
+                            keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                                keyboardType = androidx.compose.ui.text.input.KeyboardType.Number
+                            ),
+                            modifier = Modifier.weight(1f).testTag("flux2_flex_custom_height"),
+                            shape = RoundedCornerShape(10.dp)
+                        )
+                    }
+                }
+            }
+
+            // num_inference_steps (integer, default 28)
+            Column {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Inference Steps (num_inference_steps): $numInferenceSteps",
+                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Text(
+                        text = "Default: 28",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
+                Slider(
+                    value = numInferenceSteps.toFloat(),
+                    onValueChange = { onNumInferenceStepsChange(it.toInt().coerceIn(1, 50)) },
+                    valueRange = 1f..50f,
+                    steps = 48,
+                    modifier = Modifier.fillMaxWidth().testTag("flux2_flex_steps_slider")
+                )
+            }
+
+            // guidance_scale (float, default 3.5)
+            Column {
+                val guidanceFormatted = java.lang.String.format(java.util.Locale.US, "%.1f", guidanceScale)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Guidance Scale (guidance_scale): $guidanceFormatted",
+                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Text(
+                        text = "Default: 3.5",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
+                Slider(
+                    value = guidanceScale,
+                    onValueChange = {
+                        val stepped = (Math.round(it * 2f) / 2f).coerceIn(0f, 20f)
+                        onGuidanceScaleChange(stepped)
+                    },
+                    valueRange = 0f..20f,
+                    steps = 39,
+                    modifier = Modifier.fillMaxWidth().testTag("flux2_flex_guidance_slider")
+                )
+            }
+
+            // output_format (jpeg | png, default jpeg)
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Output Format (output_format)",
+                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        text = "Default: jpeg",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                    formatOptions.forEach { fmt ->
+                        val isSelected = outputFormat == fmt
+                        FilterChip(
+                            selected = isSelected,
+                            onClick = { onOutputFormatChange(fmt) },
+                            modifier = Modifier.weight(1f).testTag("flux2_flex_format_$fmt"),
+                            label = {
+                                Text(
+                                    text = fmt.uppercase(),
+                                    style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold)
+                                )
+                            }
+                        )
+                    }
+                }
+            }
+
+            // safety_tolerance (1..5, default "2")
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Safety Tolerance (safety_tolerance)",
+                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        text = "Default: 2",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
+                Text(
+                    text = "1 = most strict, 5 = most permissive.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth()) {
+                    toleranceLevels.forEach { level ->
+                        val isSelected = safetyTolerance == level
+                        FilterChip(
+                            selected = isSelected,
+                            onClick = { onSafetyToleranceChange(level) },
+                            modifier = Modifier.weight(1f).testTag("flux2_flex_safety_$level"),
+                            label = {
+                                Text(
+                                    text = level,
+                                    style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                                    textAlign = TextAlign.Center,
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                            }
+                        )
+                    }
+                }
+            }
+
+            // seed (integer, optional)
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text(
+                    text = "Seed (seed • Optional Integer)",
+                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    OutlinedTextField(
+                        value = seedText,
+                        onValueChange = { newVal ->
+                            if (newVal.all { it.isDigit() } && newVal.length <= 10) {
+                                onSeedTextChange(newVal)
+                            }
+                        },
+                        placeholder = { Text("Leave blank for random") },
+                        singleLine = true,
+                        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                            keyboardType = androidx.compose.ui.text.input.KeyboardType.Number
+                        ),
+                        modifier = Modifier.weight(1f).testTag("flux2_flex_seed_input"),
+                        shape = RoundedCornerShape(10.dp)
+                    )
+                    OutlinedButton(
+                        onClick = { onSeedTextChange((100000..999999).random().toString()) },
+                        modifier = Modifier.testTag("flux2_flex_random_seed_button")
+                    ) {
+                        Text("Random")
+                    }
+                    if (seedText.isNotEmpty()) {
+                        IconButton(
+                            onClick = { onSeedTextChange("") },
+                            modifier = Modifier.size(48.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Close,
+                                contentDescription = "Clear seed",
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+                    }
+                }
+            }
+
+            // sync_mode (boolean)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f).padding(end = 12.dp)) {
+                    Text(
+                        text = "Sync Mode (sync_mode)",
+                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Text(
+                        text = "Return image as a data URI (won't be stored in request history).",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                Switch(
+                    checked = syncMode,
+                    onCheckedChange = onSyncModeChange,
+                    modifier = Modifier.testTag("flux2_flex_sync_mode_switch")
+                )
+            }
+
+            // enable_safety_checker (boolean, default true)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f).padding(end = 12.dp)) {
+                    Text(
+                        text = "Safety Checker (enable_safety_checker)",
+                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Text(
+                        text = "Filter unsafe outputs (default: true).",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                Switch(
+                    checked = enableSafetyChecker,
+                    onCheckedChange = onEnableSafetyCheckerChange,
+                    modifier = Modifier.testTag("flux2_flex_safety_switch")
+                )
+            }
+        }
+    }
+}
+
+
+
 
 

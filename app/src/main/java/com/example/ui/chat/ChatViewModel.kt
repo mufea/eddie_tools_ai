@@ -233,7 +233,7 @@ data class ChatUiState(
     val videoGenLog: String = "",
     val generatedMusic: List<com.example.data.db.GeneratedMusicEntity> = emptyList(),
     val selectedMusicProvider: String = "ElevenLabs",
-    val selectedMusicModel: String = "music_v2_5",
+    val selectedMusicModel: String = "music_v2",
     val musicGenIsLoading: Boolean = false,
     val musicGenLog: String = "",
     val codeSelectedLanguage: String = "Kotlin",
@@ -503,13 +503,13 @@ class ChatViewModel(
                     }
                 }
                 val msg = if (resolvedElevenLabsKey.isNotBlank()) {
-                    "Terhubung ke proxy geminiaitools.com! ELEVENLABS_API_KEY berhasil dimuat."
+                    "Terhubung ke backend proxy aman! ELEVENLABS_API_KEY berhasil dimuat."
                 } else {
                     "Terhubung ke backend proxy aman! Semua API key dikelola di server."
                 }
                 onResult(true, keyMap, msg)
             }.onFailure { err ->
-                onResult(false, null, err.localizedMessage ?: "Gagal terhubung ke backend proxy.")
+                onResult(false, null, BackendProxyClient.sanitizeForDisplay(err.localizedMessage ?: "Gagal terhubung ke backend proxy.", url))
             }
         }
     }
@@ -639,7 +639,7 @@ class ChatViewModel(
                     onResult?.invoke(false, null, "Tidak ada model yang ditemukan dari proxy.")
                 }
             }.onFailure { err ->
-                onResult?.invoke(false, null, err.localizedMessage ?: "Gagal memuat model dari proxy.")
+                onResult?.invoke(false, null, BackendProxyClient.sanitizeForDisplay(err.localizedMessage ?: "Gagal memuat model dari proxy.", url))
             }
         }
     }
@@ -687,7 +687,7 @@ class ChatViewModel(
         }
         val showTooltip = prefs?.getBoolean("show_agentic_tooltip", false) ?: false
 
-        val tokens = if (prefs != null) {
+        val rawTokens = if (prefs != null) {
             try {
                 prefs.getFloat("user_tokens", 0f).toDouble()
             } catch (e: Exception) {
@@ -699,6 +699,19 @@ class ChatViewModel(
             }
         } else {
             0.0
+        }
+        val welcomeGranted = prefs?.getBoolean("welcome_tokens_granted", false) ?: true
+        val tokens = if (prefs != null && !welcomeGranted && rawTokens <= 0.0) {
+            prefs.edit()
+                .putBoolean("welcome_tokens_granted", true)
+                .putFloat("user_tokens", 30.0f)
+                .apply()
+            30.0
+        } else {
+            if (prefs != null && !welcomeGranted) {
+                prefs.edit().putBoolean("welcome_tokens_granted", true).apply()
+            }
+            rawTokens
         }
 
         val defaultProxy = BackendProxyClient.DEFAULT_PROXY_ROOT
@@ -1251,7 +1264,8 @@ class ChatViewModel(
                                     duration = doc.duration,
                                     tempo = doc.tempo,
                                     timestamp = doc.clientTimestamp,
-                                    userEmail = userKey
+                                    userEmail = userKey,
+                                    model = doc.model.ifBlank { "Unknown" }
                                 )
                             )
                         }
@@ -1621,11 +1635,12 @@ class ChatViewModel(
     }
 
     fun selectImageProvider(provider: String) {
+        val isSubscribed = _uiState.value.isSubscribed
         val defaultModel = when (provider) {
-            "OpenAI" -> "gpt-image-1.5"
+            "OpenAI" -> "gpt-image-2"
             "Stable Diffusion", "Stability" -> "sd3"
-            "FalAI", "Fal AI" -> "flux-pro"
-            else -> "gpt-image-1.5"
+            "FalAI", "Fal AI" -> if (isSubscribed) "flux-pro/v1.1" else "flux/schnell"
+            else -> if (isSubscribed) "gpt-image-2" else "flux/schnell"
         }
         _uiState.update { state ->
             state.copy(
@@ -1705,8 +1720,8 @@ class ChatViewModel(
 
     fun selectMusicProvider(provider: String) {
         val defaultModel = when (provider) {
-            "ElevenLabs" -> "music_v2_5"
-            else -> "music_v2_5"
+            "ElevenLabs" -> if (_uiState.value.isSubscribed) "music_v2_5" else "music_v2"
+            else -> "music_v2"
         }
         _uiState.update { state ->
             state.copy(
@@ -2212,7 +2227,8 @@ class ChatViewModel(
                 _uiState.update { state -> state.copy(isLoading = false) }
             } catch (e: Exception) {
                 _uiState.update { state -> state.copy(isLoading = false) }
-                val errorMsg = "Koneksi terputus atau batas waktu habis (timeout) saat menghubungi server: ${e.localizedMessage}. Silakan periksa koneksi internet Anda dan coba lagi."
+                val safeErr = BackendProxyClient.sanitizeForDisplay(e.localizedMessage.orEmpty(), _uiState.value.proxyBaseUrl)
+                val errorMsg = "Koneksi terputus atau batas waktu habis (timeout) saat menghubungi server: $safeErr. Silakan periksa koneksi internet Anda dan coba lagi."
                 
                 if (sessionId.isBlank()) {
                     val newSessionId = UUID.randomUUID().toString()
@@ -2315,7 +2331,7 @@ class ChatViewModel(
                     }
                     else -> {
                         val endpoint = when (val m = model.lowercase()) {
-                            "flux pro", "flux-pro" -> "fal-ai/flux-pro"
+                            "flux pro", "flux-pro", "flux pro v1.1", "flux-pro/v1.1" -> "fal-ai/flux-pro/v1.1"
                             "flux 2 flex", "flux-2-flex" -> "fal-ai/flux-2-flex"
                             "flux realism", "flux-realism" -> "fal-ai/flux-realism"
                             "ideogram-v2", "ideogram-v2-using-image-to-image" -> "fal-ai/ideogram/v2"
@@ -2383,7 +2399,8 @@ class ChatViewModel(
                 )
 
             } catch (e: Exception) {
-                val errorMessage = "❌ **Failed to generate image via $provider**\nError details: ${e.localizedMessage ?: "Unknown server error"}\n\n*Please verify that your Proxy (geminiaitools.com) or Secrets panel is configured properly.*"
+                val safeErr = BackendProxyClient.sanitizeForDisplay(e.localizedMessage ?: "Unknown server error", _uiState.value.proxyBaseUrl)
+                val errorMessage = "❌ **Failed to generate image via $provider**\nError details: $safeErr\n\n*Please verify that your Backend Proxy or Secrets panel is configured properly.*"
                 val errTs = System.currentTimeMillis()
                 chatDao.insertMessage(ChatMessageEntity(
                     id = modelMessageId,
@@ -2909,9 +2926,17 @@ class ChatViewModel(
         }
     }
 
-    fun getMusicTokenCost(provider: String, model: String): Int {
+    fun getMusicTokenCost(provider: String, model: String, duration: String = "15s"): Int {
+        val normalizedModel = model.trim().lowercase()
+        if (normalizedModel == "music_v2" || normalizedModel == "music_v2_5" || provider == "ElevenLabs") {
+            val seconds = duration.lowercase()
+                .replace("seconds", "")
+                .replace("s", "")
+                .trim()
+                .toIntOrNull() ?: 15
+            return seconds.coerceAtLeast(1) // 1 token per second
+        }
         return when (provider) {
-            "ElevenLabs" -> 20
             "Stable Audio" -> 12
             else -> 10
         }
@@ -2991,19 +3016,53 @@ class ChatViewModel(
         model: String,
         numImages: Int,
         background: String,
-        onSubscriptionRequired: () -> Unit
+        fluxSchnellInput: com.example.data.FluxSchnellInput? = null,
+        fluxProV11Input: com.example.data.FluxProV11Input? = null,
+        flux2FlexInput: com.example.data.Flux2FlexInput? = null,
+        onSubscriptionRequired: () -> Unit,
+        onTopUpRequired: () -> Unit = onSubscriptionRequired
     ) {
         if (prompt.trim().isBlank()) return
 
         val isSubscribed = _uiState.value.isSubscribed
-        val tokenCost = getImageTokenCost(provider, model) * numImages
+        val perImageCost = getImageTokenCost(provider, model)
+        val isFluxSchnell = provider == "Fal AI" && (
+            model.equals("flux/schnell", ignoreCase = true) ||
+                model.equals("flux-schnell", ignoreCase = true) ||
+                model.equals("fal-ai/flux/schnell", ignoreCase = true)
+            )
+        val isFluxProV11 = provider == "Fal AI" && (
+            model.equals("flux-pro/v1.1", ignoreCase = true) ||
+                model.equals("flux-pro", ignoreCase = true) ||
+                model.equals("flux pro v1.1", ignoreCase = true) ||
+                model.equals("fal-ai/flux-pro/v1.1", ignoreCase = true)
+            )
+        val isFlux2Flex = provider == "Fal AI" && (
+            model.equals("flux-2-flex", ignoreCase = true) ||
+                model.equals("flux 2 flex", ignoreCase = true) ||
+                model.equals("fal-ai/flux-2-flex", ignoreCase = true)
+            )
+        val effectiveNumImages = when {
+            isFluxSchnell && fluxSchnellInput != null -> fluxSchnellInput.numImages.coerceIn(1, 4)
+            isFluxProV11 && fluxProV11Input != null -> fluxProV11Input.numImages.coerceIn(1, 4)
+            isFlux2Flex -> 1
+            else -> numImages
+        }
+        val isProModel = perImageCost > 25.0
+        val isProAspectRatio = if (isFluxSchnell || isFluxProV11 || isFlux2Flex) false else aspectRatio != "1024:1024"
+        val isProNumImages = effectiveNumImages > 1
+        val isProBackground = if (isFluxSchnell || isFluxProV11 || isFlux2Flex) false else background.equals("Transparent", ignoreCase = true)
 
-        if (_uiState.value.userTokens < tokenCost.toDouble()) {
+        if (!isSubscribed && (isProModel || isProAspectRatio || isProNumImages || isProBackground)) {
             onSubscriptionRequired()
             return
         }
 
-        val perImageCost = getImageTokenCost(provider, model)
+        val tokenCost = perImageCost * effectiveNumImages
+        if (_uiState.value.userTokens < tokenCost) {
+            onTopUpRequired()
+            return
+        }
 
         viewModelScope.launch {
             _uiState.update { state ->
@@ -3022,12 +3081,59 @@ class ChatViewModel(
             delay(1000)
 
             _uiState.update { state ->
+                val schemaDetails = if (isFluxSchnell) {
+                    val opts = (fluxSchnellInput ?: com.example.data.FluxSchnellInput()).copy(numImages = effectiveNumImages)
+                    val sizeDesc = if (opts.imageSize.equals("custom", ignoreCase = true)) {
+                        "{\"width\": ${opts.customWidth}, \"height\": ${opts.customHeight}}"
+                    } else {
+                        opts.imageSize
+                    }
+                    "  - num_inference_steps: ${opts.numInferenceSteps}\n" +
+                        "  - image_size: $sizeDesc\n" +
+                        "  - seed: ${opts.seed?.toString() ?: "random"}\n" +
+                        "  - guidance_scale: ${opts.guidanceScale}\n" +
+                        "  - sync_mode: ${opts.syncMode}\n" +
+                        "  - num_images: ${opts.numImages}\n" +
+                        "  - enable_safety_checker: ${opts.enableSafetyChecker}\n" +
+                        "  - output_format: ${opts.outputFormat}\n" +
+                        "  - acceleration: ${opts.acceleration}\n"
+                } else if (isFluxProV11) {
+                    val opts = (fluxProV11Input ?: com.example.data.FluxProV11Input()).copy(numImages = effectiveNumImages)
+                    val sizeDesc = if (opts.imageSize.equals("custom", ignoreCase = true)) {
+                        "{\"width\": ${opts.customWidth}, \"height\": ${opts.customHeight}}"
+                    } else {
+                        opts.imageSize
+                    }
+                    "  - image_size: $sizeDesc\n" +
+                        "  - seed: ${opts.seed?.toString() ?: "random"}\n" +
+                        "  - sync_mode: ${opts.syncMode}\n" +
+                        "  - num_images: ${opts.numImages}\n" +
+                        "  - output_format: ${opts.outputFormat}\n" +
+                        "  - safety_tolerance: ${opts.safetyTolerance}\n" +
+                        "  - enhance_prompt: ${opts.enhancePrompt}\n"
+                } else if (isFlux2Flex) {
+                    val opts = flux2FlexInput ?: com.example.data.Flux2FlexInput()
+                    val sizeDesc = if (opts.imageSize.equals("custom", ignoreCase = true)) {
+                        "{\"width\": ${opts.customWidth}, \"height\": ${opts.customHeight}}"
+                    } else {
+                        opts.imageSize
+                    }
+                    "  - image_size: $sizeDesc\n" +
+                        "  - seed: ${opts.seed?.toString() ?: "random"}\n" +
+                        "  - safety_tolerance: ${opts.safetyTolerance}\n" +
+                        "  - enable_safety_checker: ${opts.enableSafetyChecker}\n" +
+                        "  - output_format: ${opts.outputFormat}\n" +
+                        "  - sync_mode: ${opts.syncMode}\n" +
+                        "  - guidance_scale: ${opts.guidanceScale}\n" +
+                        "  - num_inference_steps: ${opts.numInferenceSteps}\n"
+                } else {
+                    "  - Number of Images: $effectiveNumImages\n" +
+                        "  - Artistic Style: $style\n" +
+                        "  - Resolution Aspect Ratio: $aspectRatio\n" +
+                        "  - Background Mode: $background\n"
+                }
                 state.copy(
-                    imageGenLog = state.imageGenLog + "> Configuration parameters successfully negotiated:\n" +
-                            "  - Number of Images: $numImages\n" +
-                            "  - Artistic Style: $style\n" +
-                            "  - Resolution Aspect Ratio: $aspectRatio\n" +
-                            "  - Background Mode: $background\n"
+                    imageGenLog = state.imageGenLog + "> Configuration parameters successfully negotiated:\n" + schemaDetails
                 )
             }
             delay(1000)
@@ -3085,137 +3191,306 @@ class ChatViewModel(
             delay(1000)
 
             _uiState.update { state ->
-                state.copy(imageGenLog = state.imageGenLog + "> Finalizing $numImages image variant(s) pipeline rendering with custom base: $background...\n")
+                state.copy(imageGenLog = state.imageGenLog + "> Finalizing $effectiveNumImages image variant(s) pipeline rendering...\n")
             }
             delay(1000)
 
             var successfulVariants = 0
             var lastErrorMsg: String? = null
 
-            for (i in 1..numImages) {
-                var finalImageUrl = "$baselineImageUrl?w=1024&sig=${UUID.randomUUID()}"
-                var variantSucceeded = false
-
-                val variationLabel = if (numImages > 1) " (Variant $i of $numImages)" else ""
-                if (provider == "Stable Diffusion" || provider == "Stability") {
-                    try {
-                        _uiState.update { state ->
-                            state.copy(imageGenLog = state.imageGenLog + "> [Stability AI] Uploading visual weights utilizing model $model$variationLabel via backend proxy...\n")
-                        }
-                        val generatedUrl = repository.generateStabilityImage(
-                            prompt = "${prompt.trim()}, $style aesthetic style, background: $background",
-                            model = model,
-                            aspectRatio = aspectRatio,
-                            customApiKey = null,
-                            customBaseUrl = _uiState.value.proxyBaseUrl
-                        )
-                        if (generatedUrl.isNotBlank()) {
-                            finalImageUrl = generatedUrl
-                            variantSucceeded = true
-                            _uiState.update { state ->
-                                state.copy(imageGenLog = state.imageGenLog + "> [Stability AI] Decoded artwork array successfully!$variationLabel\n")
-                            }
-                        } else {
-                            lastErrorMsg = "Empty image URL returned from Stability AI."
-                        }
-                    } catch (e: Exception) {
-                        lastErrorMsg = e.localizedMessage ?: "Stability AI generation error."
-                        _uiState.update { state ->
-                            state.copy(imageGenLog = state.imageGenLog + "❌ [Stability AI] Generation failed$variationLabel: $lastErrorMsg (0 tokens charged).\n")
-                        }
-                    }
-                } else if (provider == "OpenAI") {
-                    try {
-                        _uiState.update { state ->
-                            state.copy(imageGenLog = state.imageGenLog + "> [OpenAI API] Initializing request for $model$variationLabel via backend proxy...\n")
-                        }
-                        val generatedUrl = repository.generateOpenAiImage(
-                            prompt = "${prompt.trim()}, $style aesthetic style, background: $background",
-                            model = model,
-                            aspectRatio = aspectRatio,
-                            customApiKey = null,
-                            customBaseUrl = _uiState.value.proxyBaseUrl
-                        )
-                        if (generatedUrl.isNotBlank()) {
-                            finalImageUrl = generatedUrl
-                            variantSucceeded = true
-                            _uiState.update { state ->
-                                state.copy(imageGenLog = state.imageGenLog + "> [OpenAI API] Decoded image URL successfully!$variationLabel\n")
-                            }
-                        } else {
-                            lastErrorMsg = "Empty image URL returned from OpenAI."
-                        }
-                    } catch (e: Exception) {
-                        lastErrorMsg = e.localizedMessage ?: "OpenAI generation error."
-                        _uiState.update { state ->
-                            state.copy(imageGenLog = state.imageGenLog + "❌ [OpenAI API] Generation failed$variationLabel: $lastErrorMsg (0 tokens charged).\n")
-                        }
-                    }
-                } else if (provider == "Fal AI") {
-                    try {
-                        val endpointUrl = when (val m = model.lowercase()) {
-                            "flux pro", "flux-pro" -> "fal-ai/flux-pro"
-                            "flux 2 flex", "flux-2-flex" -> "fal-ai/flux-2-flex"
-                            "flux realism", "flux-realism" -> "fal-ai/flux-realism"
-                            "ideogram-v2", "ideogram-v2-using-image-to-image" -> "fal-ai/ideogram/v2"
-                            "nano-banana" -> "fal-ai/nano-banana"
-                            "nano-banana-pro" -> "fal-ai/nano-banana-pro"
-                            "nano-banana-2" -> "fal-ai/nano-banana-2"
-                            "imagen4" -> "fal-ai/imagen4"
-                            "flux/schnell", "flux-schnell" -> "fal-ai/flux/schnell"
-                            else -> if (m.startsWith("fal-ai/")) m else "fal-ai/$m"
-                        }
-                        _uiState.update { state ->
-                            state.copy(imageGenLog = state.imageGenLog + "> [Fal.ai Serverless] Initializing proxy endpoint for $model$variationLabel...\n")
-                        }
-                        val generatedUrl = repository.generateFalImage(
-                            prompt = "${prompt.trim()}, $style aesthetic style, $aspectRatio, background: $background",
-                            endpointUrl = endpointUrl,
-                            aspectRatio = aspectRatio,
-                            customApiKey = null,
-                            customBaseUrl = _uiState.value.proxyBaseUrl
-                        )
-                        if (generatedUrl.isNotBlank()) {
-                            finalImageUrl = generatedUrl
-                            variantSucceeded = true
-                            _uiState.update { state ->
-                                state.copy(imageGenLog = state.imageGenLog + "> [Fal.ai Serverless] Streamed image response successfully!$variationLabel\n")
-                            }
-                        } else {
-                            lastErrorMsg = "Empty image URL returned from Fal.ai."
-                        }
-                    } catch (e: Exception) {
-                        lastErrorMsg = e.localizedMessage ?: "Fal.ai generation error."
-                        _uiState.update { state ->
-                            state.copy(imageGenLog = state.imageGenLog + "❌ [Fal.ai] Generation failed$variationLabel: $lastErrorMsg (0 tokens charged).\n")
-                        }
-                    }
+            if (isFluxSchnell) {
+                val effectiveFluxInput = (fluxSchnellInput ?: com.example.data.FluxSchnellInput()).copy(
+                    numImages = effectiveNumImages
+                )
+                val storedAspectLabel = if (effectiveFluxInput.imageSize.equals("custom", ignoreCase = true)) {
+                    "${effectiveFluxInput.customWidth}x${effectiveFluxInput.customHeight}"
                 } else {
-                    variantSucceeded = true
+                    effectiveFluxInput.imageSize
                 }
+                try {
+                    _uiState.update { state ->
+                        state.copy(imageGenLog = state.imageGenLog + "> [Fal.ai Serverless] Dispatching fal-ai/flux/schnell request via backend proxy...\n")
+                    }
+                    val generatedUrls = repository.generateFalImages(
+                        prompt = "${prompt.trim()}, $style aesthetic style",
+                        endpointUrl = "fal-ai/flux/schnell",
+                        aspectRatio = storedAspectLabel,
+                        fluxSchnellInput = effectiveFluxInput,
+                        customApiKey = null,
+                        customBaseUrl = _uiState.value.proxyBaseUrl
+                    )
+                    if (generatedUrls.isNotEmpty()) {
+                        _uiState.update { state ->
+                            state.copy(imageGenLog = state.imageGenLog + "> [Fal.ai Serverless] Streamed ${generatedUrls.size} image(s) successfully!\n")
+                        }
+                        generatedUrls.forEachIndexed { idx, url ->
+                            successfulVariants++
+                            val imageEntity = com.example.data.db.GeneratedImageEntity(
+                                id = UUID.randomUUID().toString(),
+                                prompt = if (generatedUrls.size > 1) "${prompt.trim()} (Image ${idx + 1} of ${generatedUrls.size})" else prompt.trim(),
+                                imageUrl = saveBase64ImageToFileIfNeeded(url),
+                                style = style,
+                                aspectRatio = storedAspectLabel,
+                                timestamp = System.currentTimeMillis() + idx * 10,
+                                userEmail = activeUserScopeKey,
+                                model = model
+                            )
+                            chatDao.insertGeneratedImage(imageEntity)
+                            firestoreSync?.saveGeneratedImage(
+                                id = imageEntity.id,
+                                prompt = imageEntity.prompt,
+                                imageUrl = imageEntity.imageUrl,
+                                style = imageEntity.style,
+                                aspectRatio = imageEntity.aspectRatio,
+                                model = imageEntity.model,
+                                clientTimestamp = imageEntity.timestamp
+                            )
+                        }
+                    } else {
+                        lastErrorMsg = "Empty image URL returned from Fal.ai."
+                    }
+                } catch (e: Exception) {
+                    lastErrorMsg = BackendProxyClient.sanitizeForDisplay(e.localizedMessage ?: "Fal.ai generation error.", _uiState.value.proxyBaseUrl)
+                    _uiState.update { state ->
+                        state.copy(imageGenLog = state.imageGenLog + "❌ [Fal.ai] Generation failed: $lastErrorMsg (0 tokens charged).\n")
+                    }
+                }
+            } else if (isFluxProV11) {
+                val effectiveFluxProInput = (fluxProV11Input ?: com.example.data.FluxProV11Input()).copy(
+                    numImages = effectiveNumImages
+                )
+                val storedAspectLabel = if (effectiveFluxProInput.imageSize.equals("custom", ignoreCase = true)) {
+                    "${effectiveFluxProInput.customWidth}x${effectiveFluxProInput.customHeight}"
+                } else {
+                    effectiveFluxProInput.imageSize
+                }
+                try {
+                    _uiState.update { state ->
+                        state.copy(imageGenLog = state.imageGenLog + "> [Fal.ai Serverless] Dispatching fal-ai/flux-pro/v1.1 request via backend proxy...\n")
+                    }
+                    val generatedUrls = repository.generateFalImages(
+                        prompt = "${prompt.trim()}, $style aesthetic style",
+                        endpointUrl = "fal-ai/flux-pro/v1.1",
+                        aspectRatio = storedAspectLabel,
+                        fluxProV11Input = effectiveFluxProInput,
+                        customApiKey = null,
+                        customBaseUrl = _uiState.value.proxyBaseUrl
+                    )
+                    if (generatedUrls.isNotEmpty()) {
+                        _uiState.update { state ->
+                            state.copy(imageGenLog = state.imageGenLog + "> [Fal.ai Serverless] Streamed ${generatedUrls.size} image(s) successfully!\n")
+                        }
+                        generatedUrls.forEachIndexed { idx, url ->
+                            successfulVariants++
+                            val imageEntity = com.example.data.db.GeneratedImageEntity(
+                                id = UUID.randomUUID().toString(),
+                                prompt = if (generatedUrls.size > 1) "${prompt.trim()} (Image ${idx + 1} of ${generatedUrls.size})" else prompt.trim(),
+                                imageUrl = saveBase64ImageToFileIfNeeded(url),
+                                style = style,
+                                aspectRatio = storedAspectLabel,
+                                timestamp = System.currentTimeMillis() + idx * 10,
+                                userEmail = activeUserScopeKey,
+                                model = model
+                            )
+                            chatDao.insertGeneratedImage(imageEntity)
+                            firestoreSync?.saveGeneratedImage(
+                                id = imageEntity.id,
+                                prompt = imageEntity.prompt,
+                                imageUrl = imageEntity.imageUrl,
+                                style = imageEntity.style,
+                                aspectRatio = imageEntity.aspectRatio,
+                                model = imageEntity.model,
+                                clientTimestamp = imageEntity.timestamp
+                            )
+                        }
+                    } else {
+                        lastErrorMsg = "Empty image URL returned from Fal.ai."
+                    }
+                } catch (e: Exception) {
+                    lastErrorMsg = BackendProxyClient.sanitizeForDisplay(e.localizedMessage ?: "Fal.ai generation error.", _uiState.value.proxyBaseUrl)
+                    _uiState.update { state ->
+                        state.copy(imageGenLog = state.imageGenLog + "❌ [Fal.ai] Generation failed: $lastErrorMsg (0 tokens charged).\n")
+                    }
+                }
+            } else if (isFlux2Flex) {
+                val effectiveFlux2FlexInput = flux2FlexInput ?: com.example.data.Flux2FlexInput()
+                val storedAspectLabel = if (effectiveFlux2FlexInput.imageSize.equals("custom", ignoreCase = true)) {
+                    "${effectiveFlux2FlexInput.customWidth}x${effectiveFlux2FlexInput.customHeight}"
+                } else {
+                    effectiveFlux2FlexInput.imageSize
+                }
+                try {
+                    _uiState.update { state ->
+                        state.copy(imageGenLog = state.imageGenLog + "> [Fal.ai Serverless] Dispatching fal-ai/flux-2-flex request via backend proxy...\n")
+                    }
+                    val generatedUrls = repository.generateFalImages(
+                        prompt = "${prompt.trim()}, $style aesthetic style",
+                        endpointUrl = "fal-ai/flux-2-flex",
+                        aspectRatio = storedAspectLabel,
+                        flux2FlexInput = effectiveFlux2FlexInput,
+                        customApiKey = null,
+                        customBaseUrl = _uiState.value.proxyBaseUrl
+                    )
+                    if (generatedUrls.isNotEmpty()) {
+                        _uiState.update { state ->
+                            state.copy(imageGenLog = state.imageGenLog + "> [Fal.ai Serverless] Streamed ${generatedUrls.size} image(s) successfully!\n")
+                        }
+                        generatedUrls.forEachIndexed { idx, url ->
+                            successfulVariants++
+                            val imageEntity = com.example.data.db.GeneratedImageEntity(
+                                id = UUID.randomUUID().toString(),
+                                prompt = if (generatedUrls.size > 1) "${prompt.trim()} (Image ${idx + 1} of ${generatedUrls.size})" else prompt.trim(),
+                                imageUrl = saveBase64ImageToFileIfNeeded(url),
+                                style = style,
+                                aspectRatio = storedAspectLabel,
+                                timestamp = System.currentTimeMillis() + idx * 10,
+                                userEmail = activeUserScopeKey,
+                                model = model
+                            )
+                            chatDao.insertGeneratedImage(imageEntity)
+                            firestoreSync?.saveGeneratedImage(
+                                id = imageEntity.id,
+                                prompt = imageEntity.prompt,
+                                imageUrl = imageEntity.imageUrl,
+                                style = imageEntity.style,
+                                aspectRatio = imageEntity.aspectRatio,
+                                model = imageEntity.model,
+                                clientTimestamp = imageEntity.timestamp
+                            )
+                        }
+                    } else {
+                        lastErrorMsg = "Empty image URL returned from Fal.ai."
+                    }
+                } catch (e: Exception) {
+                    lastErrorMsg = BackendProxyClient.sanitizeForDisplay(e.localizedMessage ?: "Fal.ai generation error.", _uiState.value.proxyBaseUrl)
+                    _uiState.update { state ->
+                        state.copy(imageGenLog = state.imageGenLog + "❌ [Fal.ai] Generation failed: $lastErrorMsg (0 tokens charged).\n")
+                    }
+                }
+            } else {
+                for (i in 1..effectiveNumImages) {
+                    var finalImageUrl = "$baselineImageUrl?w=1024&sig=${UUID.randomUUID()}"
+                    var variantSucceeded = false
 
-                if (variantSucceeded) {
-                    successfulVariants++
-                    val imageEntity = com.example.data.db.GeneratedImageEntity(
-                        id = UUID.randomUUID().toString(),
-                        prompt = if (numImages > 1) "${prompt.trim()} (Image ${i} of ${numImages})" else prompt.trim(),
-                        imageUrl = saveBase64ImageToFileIfNeeded(finalImageUrl),
-                        style = style,
-                        aspectRatio = aspectRatio,
-                        timestamp = System.currentTimeMillis() + i * 10,
-                        userEmail = activeUserScopeKey,
-                        model = model
-                    )
-                    chatDao.insertGeneratedImage(imageEntity)
-                    firestoreSync?.saveGeneratedImage(
-                        id = imageEntity.id,
-                        prompt = imageEntity.prompt,
-                        imageUrl = imageEntity.imageUrl,
-                        style = imageEntity.style,
-                        aspectRatio = imageEntity.aspectRatio,
-                        model = imageEntity.model,
-                        clientTimestamp = imageEntity.timestamp
-                    )
+                    val variationLabel = if (effectiveNumImages > 1) " (Variant $i of $effectiveNumImages)" else ""
+                    if (provider == "Stable Diffusion" || provider == "Stability") {
+                        try {
+                            _uiState.update { state ->
+                                state.copy(imageGenLog = state.imageGenLog + "> [Stability AI] Uploading visual weights utilizing model $model$variationLabel via backend proxy...\n")
+                            }
+                            val generatedUrl = repository.generateStabilityImage(
+                                prompt = "${prompt.trim()}, $style aesthetic style, background: $background",
+                                model = model,
+                                aspectRatio = aspectRatio,
+                                customApiKey = null,
+                                customBaseUrl = _uiState.value.proxyBaseUrl
+                            )
+                            if (generatedUrl.isNotBlank()) {
+                                finalImageUrl = generatedUrl
+                                variantSucceeded = true
+                                _uiState.update { state ->
+                                    state.copy(imageGenLog = state.imageGenLog + "> [Stability AI] Decoded artwork array successfully!$variationLabel\n")
+                                }
+                            } else {
+                                lastErrorMsg = "Empty image URL returned from Stability AI."
+                            }
+                        } catch (e: Exception) {
+                            lastErrorMsg = BackendProxyClient.sanitizeForDisplay(e.localizedMessage ?: "Stability AI generation error.", _uiState.value.proxyBaseUrl)
+                            _uiState.update { state ->
+                                state.copy(imageGenLog = state.imageGenLog + "❌ [Stability AI] Generation failed$variationLabel: $lastErrorMsg (0 tokens charged).\n")
+                            }
+                        }
+                    } else if (provider == "OpenAI") {
+                        try {
+                            _uiState.update { state ->
+                                state.copy(imageGenLog = state.imageGenLog + "> [OpenAI API] Initializing request for $model$variationLabel via backend proxy...\n")
+                            }
+                            val generatedUrl = repository.generateOpenAiImage(
+                                prompt = "${prompt.trim()}, $style aesthetic style, background: $background",
+                                model = model,
+                                aspectRatio = aspectRatio,
+                                customApiKey = null,
+                                customBaseUrl = _uiState.value.proxyBaseUrl
+                            )
+                            if (generatedUrl.isNotBlank()) {
+                                finalImageUrl = generatedUrl
+                                variantSucceeded = true
+                                _uiState.update { state ->
+                                    state.copy(imageGenLog = state.imageGenLog + "> [OpenAI API] Decoded image URL successfully!$variationLabel\n")
+                                }
+                            } else {
+                                lastErrorMsg = "Empty image URL returned from OpenAI."
+                            }
+                        } catch (e: Exception) {
+                            lastErrorMsg = BackendProxyClient.sanitizeForDisplay(e.localizedMessage ?: "OpenAI generation error.", _uiState.value.proxyBaseUrl)
+                            _uiState.update { state ->
+                                state.copy(imageGenLog = state.imageGenLog + "❌ [OpenAI API] Generation failed$variationLabel: $lastErrorMsg (0 tokens charged).\n")
+                            }
+                        }
+                    } else if (provider == "Fal AI") {
+                        try {
+                            val endpointUrl = when (val m = model.lowercase()) {
+                                "flux pro", "flux-pro", "flux pro v1.1", "flux-pro/v1.1" -> "fal-ai/flux-pro/v1.1"
+                                "flux 2 flex", "flux-2-flex" -> "fal-ai/flux-2-flex"
+                                "ideogram-v2", "ideogram-v2-using-image-to-image" -> "fal-ai/ideogram/v2"
+                                "nano-banana" -> "fal-ai/nano-banana"
+                                "nano-banana-pro" -> "fal-ai/nano-banana-pro"
+                                "nano-banana-2" -> "fal-ai/nano-banana-2"
+                                "flux/schnell", "flux-schnell" -> "fal-ai/flux/schnell"
+                                else -> if (m.startsWith("fal-ai/")) m else "fal-ai/$m"
+                            }
+                            _uiState.update { state ->
+                                state.copy(imageGenLog = state.imageGenLog + "> [Fal.ai Serverless] Initializing proxy endpoint for $model$variationLabel...\n")
+                            }
+                            val generatedUrl = repository.generateFalImage(
+                                prompt = "${prompt.trim()}, $style aesthetic style, $aspectRatio, background: $background",
+                                endpointUrl = endpointUrl,
+                                aspectRatio = aspectRatio,
+                                customApiKey = null,
+                                customBaseUrl = _uiState.value.proxyBaseUrl
+                            )
+                            if (generatedUrl.isNotBlank()) {
+                                finalImageUrl = generatedUrl
+                                variantSucceeded = true
+                                _uiState.update { state ->
+                                    state.copy(imageGenLog = state.imageGenLog + "> [Fal.ai Serverless] Streamed image response successfully!$variationLabel\n")
+                                }
+                            } else {
+                                lastErrorMsg = "Empty image URL returned from Fal.ai."
+                            }
+                        } catch (e: Exception) {
+                            lastErrorMsg = BackendProxyClient.sanitizeForDisplay(e.localizedMessage ?: "Fal.ai generation error.", _uiState.value.proxyBaseUrl)
+                            _uiState.update { state ->
+                                state.copy(imageGenLog = state.imageGenLog + "❌ [Fal.ai] Generation failed$variationLabel: $lastErrorMsg (0 tokens charged).\n")
+                            }
+                        }
+                    } else {
+                        variantSucceeded = true
+                    }
+
+                    if (variantSucceeded) {
+                        successfulVariants++
+                        val imageEntity = com.example.data.db.GeneratedImageEntity(
+                            id = UUID.randomUUID().toString(),
+                            prompt = if (effectiveNumImages > 1) "${prompt.trim()} (Image ${i} of ${effectiveNumImages})" else prompt.trim(),
+                            imageUrl = saveBase64ImageToFileIfNeeded(finalImageUrl),
+                            style = style,
+                            aspectRatio = aspectRatio,
+                            timestamp = System.currentTimeMillis() + i * 10,
+                            userEmail = activeUserScopeKey,
+                            model = model
+                        )
+                        chatDao.insertGeneratedImage(imageEntity)
+                        firestoreSync?.saveGeneratedImage(
+                            id = imageEntity.id,
+                            prompt = imageEntity.prompt,
+                            imageUrl = imageEntity.imageUrl,
+                            style = imageEntity.style,
+                            aspectRatio = imageEntity.aspectRatio,
+                            model = imageEntity.model,
+                            clientTimestamp = imageEntity.timestamp
+                        )
+                    }
                 }
             }
 
@@ -3306,7 +3581,7 @@ class ChatViewModel(
                 providerUrls = urlsMap
             )
         } catch (e: Exception) {
-            "Failed to generate copy: ${e.localizedMessage}"
+            "Failed to generate copy: ${BackendProxyClient.sanitizeForDisplay(e.localizedMessage.orEmpty(), _uiState.value.proxyBaseUrl)}"
         }
     }
 
@@ -3345,13 +3620,81 @@ class ChatViewModel(
         alibabaVideoUrl: String? = null,
         hunyuanInferenceSteps: Int = 28,
         hunyuanFrames: Int = 121,
-        onSubscriptionRequired: () -> Unit
+        onSubscriptionRequired: () -> Unit,
+        onTopUpRequired: () -> Unit = onSubscriptionRequired
     ) {
         if (prompt.trim().isBlank() && multiPromptJson.isNullOrBlank()) return
 
         val isSubscribed = _uiState.value.isSubscribed
         val provider = _uiState.value.selectedVideoProvider
         val model = _uiState.value.selectedVideoModel
+        val modelLower = model.lowercase().trim()
+
+        val isProVideoModel = modelLower in setOf(
+            "veo3",
+            "veo3-fast",
+            "fal-ai/veo3.1",
+            "fal-ai/veo3.1/fast",
+            "sora 2 pro",
+            "fal-ai/kling-video/v3/4k/text-to-video",
+            "fal-ai/kling-video/o3/4k/text-to-video",
+            "kling-video/v3/turbo/pro/text-to-video",
+            "kling v2.6 pro",
+            "kling v3 pro",
+            "fal-ai/kling-video/v2.6/pro/image-to-video",
+            "fal-ai/kling-video/v3/pro/image-to-video",
+            "fal-ai/kling-video/v3/4k/image-to-video",
+            "fal-ai/kling-video/v3/turbo/pro/image-to-video",
+            "fal-ai/kling-video/o3/4k/image-to-video",
+            "bytedance/seedance-2.0/text-to-video",
+            "fal-ai/bytedance/seedance-2.0/text-to-video/fast",
+            "fal-ai/bytedance/seedance-2.0/image-to-video",
+            "fal-ai/bytedance/seedance-2.0/image-to-video/fast"
+        )
+        val isProStyle = style in setOf(
+            "Cyberpunk Neon",
+            "Anime Epic",
+            "Vintage Kodachrome 35mm",
+            "IMAX Sci-Fi",
+            "Fantasy Unreal Engine 5",
+            "Claymation Stop-Motion",
+            "Cosmic Retrowave"
+        )
+        val isProOpenAiSize = provider == "OpenAI" && resolution in setOf("1024x1792", "1792x1024", "1080x1920", "1920x1080")
+        val isProAspectRatio = when {
+            modelLower.contains("hunyuan") -> aspectRatio == "9:16"
+            modelLower.contains("wan/v2.6") || modelLower.contains("wan/v2.7") || modelLower.contains("happy-horse") -> false
+            provider == "OpenAI" -> false
+            provider == "Bytedance" -> aspectRatio == "9:16"
+            else -> aspectRatio in setOf("9:16", "21:9", "2:3")
+        }
+        val isHailuoPro = modelLower.contains("hailuo-02/pro") || modelLower.contains("hailuo-2.3/pro")
+        val isProResolution = when {
+            provider == "OpenAI" -> false
+            modelLower.contains("hunyuan") -> resolution.equals("720p", ignoreCase = true)
+            isHailuoPro -> false
+            provider == "Bytedance" -> resolution.equals("1080p", ignoreCase = true)
+            modelLower.contains("veo3") -> resolution.equals("1080p", ignoreCase = true)
+            else -> resolution.equals("1080p", ignoreCase = true) ||
+                resolution.equals("true_1080p", ignoreCase = true) ||
+                resolution.equals("4K", ignoreCase = true)
+        }
+        val durSecs = Regex("\\d+").find(duration)?.value?.toIntOrNull()
+        val isProDuration = when {
+            modelLower.contains("luma/agent/ray") && _uiState.value.selectedVideoMode == "Text to Video" -> durSecs != null && durSecs >= 10
+            modelLower.contains("wan/v2.6") || modelLower.contains("wan/v2.5") || modelLower.contains("wan-25") -> durSecs != null && durSecs >= 10
+            modelLower.contains("grok-imagine-video") -> durSecs != null && durSecs > 6
+            provider == "Kling" -> durSecs != null && durSecs > 5
+            provider == "Bytedance" -> durSecs != null && durSecs > 10
+            provider == "PixVerse" -> durSecs != null && durSecs > 5
+            else -> duration == "12 seconds"
+        }
+
+        if (!isSubscribed && (isProVideoModel || isProStyle || isProOpenAiSize || isProAspectRatio || isProResolution || isProDuration)) {
+            onSubscriptionRequired()
+            return
+        }
+
         val tokenCost = getVideoTokenCost(
             provider = provider,
             model = model,
@@ -3367,7 +3710,7 @@ class ChatViewModel(
         )
 
         if (_uiState.value.userTokens < tokenCost.toDouble()) {
-            onSubscriptionRequired()
+            onTopUpRequired()
             return
         }
 
@@ -3478,8 +3821,9 @@ class ChatViewModel(
                         customBaseUrl = _uiState.value.proxyBaseUrl,
                         webhookUrl = customWebhookUrl,
                         onLogMessage = { log ->
+                            val safeLog = BackendProxyClient.sanitizeForDisplay(log, _uiState.value.proxyBaseUrl)
                             _uiState.update { state ->
-                                state.copy(videoGenLog = state.videoGenLog + log)
+                                state.copy(videoGenLog = state.videoGenLog + safeLog)
                             }
                         }
                     )
@@ -3492,7 +3836,7 @@ class ChatViewModel(
                         state.copy(videoGenLog = state.videoGenLog + msg)
                     }
                 } catch (e: Exception) {
-                    errorOccurred = e.localizedMessage ?: "Unknown OpenAI Sora generating error."
+                    errorOccurred = BackendProxyClient.sanitizeForDisplay(e.localizedMessage ?: "Unknown OpenAI Sora generating error.", _uiState.value.proxyBaseUrl)
                 }
             } else if (provider == "FalAI" || provider == "Minimax" || provider == "Veo" || provider == "Kling" || provider == "Bytedance" || provider == "PixVerse" || provider == "Alibaba" || provider == "Xai") {
                 try {
@@ -3873,13 +4217,14 @@ class ChatViewModel(
                         hunyuanFrames = hunyuanFrames,
                         customBaseUrl = _uiState.value.proxyBaseUrl,
                         onLogMessage = { log ->
+                            val safeLog = BackendProxyClient.sanitizeForDisplay(log, _uiState.value.proxyBaseUrl)
                             _uiState.update { state ->
-                                state.copy(videoGenLog = state.videoGenLog + log)
+                                state.copy(videoGenLog = state.videoGenLog + safeLog)
                             }
                         }
                     )
                 } catch (e: Exception) {
-                    errorOccurred = e.localizedMessage ?: "Unknown $provider generating error."
+                    errorOccurred = BackendProxyClient.sanitizeForDisplay(e.localizedMessage ?: "Unknown $provider generating error.", _uiState.value.proxyBaseUrl)
                 }
             } else {
                 val sampleVideoUrls = listOf(
@@ -3993,30 +4338,27 @@ class ChatViewModel(
         genre: String,
         duration: String,
         tempo: String,
-        onSubscriptionRequired: () -> Unit
+        onSubscriptionRequired: () -> Unit,
+        onTopUpRequired: () -> Unit = onSubscriptionRequired
     ) {
         if (prompt.trim().isBlank()) return
 
         val isSubscribed = _uiState.value.isSubscribed
         val provider = _uiState.value.selectedMusicProvider
         val model = _uiState.value.selectedMusicModel
-        val tokenCost = getMusicTokenCost(provider, model)
+        val tokenCost = getMusicTokenCost(provider, model, duration)
 
-        // Subscription validation rules:
-        val isProGenre = genre in listOf("Lo-Fi", "Jazz", "Classical", "EDM", "Ambient", "Hip-Hop")
-        val isProDuration = duration in listOf("60s", "120s")
+        val isProModel = model == "music_v2_5"
+        val isProGenre = genre in setOf("Lo-Fi", "Jazz", "EDM", "Classical", "Ambient", "Hip-Hop", "Acoustic", "Cinematic", "K-Pop")
+        val isProDuration = duration in setOf("60s", "120s")
 
-        val currentMusicCount = _uiState.value.generatedMusic.size
-        val isLimitReached = currentMusicCount >= 2
-
-        val hasEnoughTokens = _uiState.value.userTokens >= tokenCost.toDouble()
-        if (!isSubscribed && !hasEnoughTokens) {
-            if (isProGenre || isProDuration || isLimitReached) {
-                onSubscriptionRequired()
-                return
-            }
-        } else if (!hasEnoughTokens) {
+        if (!isSubscribed && (isProModel || isProGenre || isProDuration)) {
             onSubscriptionRequired()
+            return
+        }
+
+        if (_uiState.value.userTokens < tokenCost.toDouble()) {
+            onTopUpRequired()
             return
         }
 
@@ -4025,7 +4367,8 @@ class ChatViewModel(
                 state.copy(
                     musicGenIsLoading = true,
                     musicGenLog = "> Initializing AI Music Studio ($provider)...\n" +
-                        "> Selected Model: $model | Genre: $genre | Duration: $duration | Tempo: $tempo\n"
+                        "> Selected Model: $model | Genre: $genre | Duration: $duration | Tempo: $tempo\n" +
+                        "> Estimated Cost: 🪙 $tokenCost tokens (1 token/sec)\n"
                 )
             }
 
@@ -4042,8 +4385,9 @@ class ChatViewModel(
                     customApiKey = cachedOrFetchedKey,
                     customBaseUrl = proxyRoot,
                     onLogMessage = { msg ->
+                        val safeMsg = BackendProxyClient.sanitizeForDisplay(msg, proxyRoot)
                         _uiState.update { state ->
-                            state.copy(musicGenLog = state.musicGenLog + msg)
+                            state.copy(musicGenLog = state.musicGenLog + safeMsg)
                         }
                     }
                 )
@@ -4072,7 +4416,8 @@ class ChatViewModel(
                     duration = duration,
                     tempo = tempo,
                     timestamp = System.currentTimeMillis(),
-                    userEmail = activeUserScopeKey
+                    userEmail = activeUserScopeKey,
+                    model = model.ifBlank { "music_v2" }
                 )
 
                 chatDao.insertGeneratedMusic(musicEntity)
@@ -4083,6 +4428,7 @@ class ChatViewModel(
                     genre = musicEntity.genre,
                     duration = musicEntity.duration,
                     tempo = musicEntity.tempo,
+                    model = musicEntity.model,
                     clientTimestamp = musicEntity.timestamp
                 )
 
@@ -4099,7 +4445,10 @@ class ChatViewModel(
                 val errorMsg = when (e) {
                     is java.net.SocketTimeoutException ->
                         "Request timeout saat menunggu musik dari server/ElevenLabs. Coba durasi lebih pendek (15s/30s) atau pastikan Render proxy tidak time-out."
-                    else -> e.message ?: e.localizedMessage ?: "Unknown ElevenLabs API error"
+                    else -> BackendProxyClient.sanitizeForDisplay(
+                        e.message ?: e.localizedMessage ?: "Unknown ElevenLabs API error",
+                        _uiState.value.proxyBaseUrl
+                    )
                 }
                 _uiState.update { state ->
                     state.copy(
@@ -4213,9 +4562,10 @@ class ChatViewModel(
                     )
                 }
             } catch (e: Exception) {
+                val safeErr = BackendProxyClient.sanitizeForDisplay(e.localizedMessage.orEmpty(), _uiState.value.proxyBaseUrl)
                 _uiState.update { state ->
                     state.copy(
-                        codeOutput = "An error occurred during code processing: ${e.localizedMessage}",
+                        codeOutput = "An error occurred during code processing: $safeErr",
                         codeIsLoading = false
                     )
                 }
@@ -4303,6 +4653,8 @@ class ChatViewModel(
         musicUrl: String
     ) {
         viewModelScope.launch {
+            val originalEntity = chatDao.getGeneratedMusicById(originalId)
+            val preservedModel = originalEntity?.model?.ifBlank { "Unknown" } ?: "Unknown"
             val editedEntity = com.example.data.db.GeneratedMusicEntity(
                 id = java.util.UUID.randomUUID().toString(),
                 prompt = prompt,
@@ -4311,7 +4663,8 @@ class ChatViewModel(
                 duration = duration,
                 tempo = tempo,
                 timestamp = System.currentTimeMillis(),
-                userEmail = activeUserScopeKey
+                userEmail = activeUserScopeKey,
+                model = preservedModel
             )
             chatDao.insertGeneratedMusic(editedEntity)
             firestoreSync?.saveGeneratedMusic(
@@ -4321,6 +4674,7 @@ class ChatViewModel(
                 genre = editedEntity.genre,
                 duration = editedEntity.duration,
                 tempo = editedEntity.tempo,
+                model = editedEntity.model,
                 clientTimestamp = editedEntity.timestamp
             )
         }
@@ -4390,7 +4744,8 @@ class ChatViewModel(
                 
                 tts?.speak(response, android.speech.tts.TextToSpeech.QUEUE_FLUSH, null, "EddieVoiceUtteranceId")
             } catch (e: Exception) {
-                val errorResponse = "Sorry, I can't reach the server right now: ${e.localizedMessage}. Please check your connection."
+                val safeErr = BackendProxyClient.sanitizeForDisplay(e.localizedMessage.orEmpty(), _uiState.value.proxyBaseUrl)
+                val errorResponse = "Sorry, I can't reach the server right now: $safeErr. Please check your connection."
                 val finalUpdatedLog = _uiState.value.voiceChatLog.toMutableList()
                 finalUpdatedLog.add(errorResponse to false)
                 
@@ -4537,7 +4892,8 @@ class ChatViewModel(
                 tts?.language = localeToUse
                 tts?.speak(responseText, android.speech.tts.TextToSpeech.QUEUE_FLUSH, null, "EddieLanguageUtteranceId")
             } catch (e: Exception) {
-                val errorResponse = "Sorry, I can't reach Eddie right now: ${e.localizedMessage}. Please check your connection."
+                val safeErr = BackendProxyClient.sanitizeForDisplay(e.localizedMessage ?: "Network error", _uiState.value.proxyBaseUrl)
+                val errorResponse = "Sorry, I can't reach Eddie right now: $safeErr. Please check your connection."
                 val finalUpdatedLog = _uiState.value.languageChatLog.toMutableList()
                 finalUpdatedLog.add(LanguageChatMessage(message = errorResponse, isUser = false))
                 
@@ -4546,7 +4902,7 @@ class ChatViewModel(
                         languageIsLoading = false,
                         languageChatLog = finalUpdatedLog,
                         languageIsSpeakActive = true,
-                        languageError = e.localizedMessage ?: "Network error"
+                        languageError = safeErr
                     )
                 }
                 tts?.speak(errorResponse, android.speech.tts.TextToSpeech.QUEUE_FLUSH, null, "EddieLanguageUtteranceId")
@@ -4739,9 +5095,10 @@ class ChatViewModel(
                     visionResult = result
                 )}
             } catch (e: Exception) {
+                val safeErr = BackendProxyClient.sanitizeForDisplay(e.localizedMessage.orEmpty(), _uiState.value.proxyBaseUrl)
                 _uiState.update { it.copy(
                     visionIsLoading = false,
-                    visionResult = "Error: Connection failed or timeout occurred while analyzing the image: ${e.localizedMessage}. Please check your internet connection and try again."
+                    visionResult = "Error: Connection failed or timeout occurred while analyzing the image: $safeErr. Please check your internet connection and try again."
                 )}
             }
         }
@@ -4889,9 +5246,10 @@ class ChatViewModel(
                 ) }
 
             } catch (e: Exception) {
+                val safeErr = BackendProxyClient.sanitizeForDisplay(e.localizedMessage.orEmpty(), _uiState.value.proxyBaseUrl)
                 _uiState.update { it.copy(
                     arIsScanning = false,
-                    arSearchError = "Scan failed: ${e.localizedMessage}. Please verify your network and API keys."
+                    arSearchError = "Scan failed: $safeErr. Please verify your network and API keys."
                 ) }
             }
         }
@@ -4938,9 +5296,10 @@ class ChatViewModel(
                     arFactsList = if (bullets.isNotEmpty()) bullets else listOf(result)
                 ) }
             } catch (e: Exception) {
+                val safeErr = BackendProxyClient.sanitizeForDisplay(e.localizedMessage.orEmpty(), _uiState.value.proxyBaseUrl)
                 _uiState.update { it.copy(
                     arIsSearchingFacts = false,
-                    arSearchError = "Fact search failed: ${e.localizedMessage}"
+                    arSearchError = "Fact search failed: $safeErr"
                 ) }
             }
         }
@@ -5292,9 +5651,10 @@ class ChatViewModel(
                     docSummaryResult = result
                 )}
             } catch (e: Exception) {
+                val safeErr = BackendProxyClient.sanitizeForDisplay(e.localizedMessage.orEmpty(), _uiState.value.proxyBaseUrl)
                 _uiState.update { it.copy(
                     docIsLoading = false,
-                    docSummaryResult = "Error: Connection failed or timeout occurred while summarizing the document: ${e.localizedMessage}. Silakan periksa koneksi internet Anda dan coba lagi."
+                    docSummaryResult = "Error: Connection failed or timeout occurred while summarizing the document: $safeErr. Silakan periksa koneksi internet Anda dan coba lagi."
                 )}
             }
         }
@@ -5335,9 +5695,10 @@ class ChatViewModel(
                     docQaAnswer = result
                 )}
             } catch (e: Exception) {
+                val safeErr = BackendProxyClient.sanitizeForDisplay(e.localizedMessage.orEmpty(), _uiState.value.proxyBaseUrl)
                 _uiState.update { it.copy(
                     docQaIsLoading = false,
-                    docQaAnswer = "Error: Connection failed or timeout occurred while processing question: ${e.localizedMessage}. Please check your internet connection and try again."
+                    docQaAnswer = "Error: Connection failed or timeout occurred while processing question: $safeErr. Please check your internet connection and try again."
                 )}
             }
         }
@@ -5716,7 +6077,7 @@ class ChatViewModel(
                     
                     ---
                     
-                    *💡 Note: Connected via Proxy (geminiaitools.com).*
+                    *💡 Note: Connected via Secure Backend Proxy.*
                 """.trimIndent()
                 
                 _uiState.update { it.copy(

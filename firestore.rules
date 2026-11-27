@@ -99,6 +99,7 @@ service cloud.firestore {
              data.genre is string && data.genre.size() <= 120 &&
              data.duration is string && data.duration.size() <= 40 &&
              data.tempo is string && data.tempo.size() <= 40 &&
+             (!('model' in data) || (data.model is string && data.model.size() <= 120)) &&
              data.clientTimestamp is int && data.clientTimestamp >= 0 &&
              data.createdAt is timestamp && data.createdAt <= request.time;
     }
@@ -239,7 +240,7 @@ service cloud.firestore {
         allow create: if isOwner(userId) &&
                          isValidId(musicId) &&
                          incoming().keys().hasAll(['userId', 'prompt', 'musicUrl', 'genre', 'duration', 'tempo', 'clientTimestamp', 'createdAt']) &&
-                         incoming().keys().hasOnly(['userId', 'prompt', 'musicUrl', 'genre', 'duration', 'tempo', 'clientTimestamp', 'createdAt']) &&
+                         incoming().keys().hasOnly(['userId', 'prompt', 'musicUrl', 'genre', 'duration', 'tempo', 'model', 'clientTimestamp', 'createdAt']) &&
                          isValidGeneratedMusic(incoming());
 
         allow update: if false;

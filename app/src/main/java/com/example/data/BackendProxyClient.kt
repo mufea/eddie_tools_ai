@@ -8,6 +8,9 @@ import okhttp3.Request
 object BackendProxyClient {
     const val DEFAULT_PROXY_ROOT = "https://geminiaitools.com"
 
+    @Volatile
+    private var lastKnownProxyRoot: String = DEFAULT_PROXY_ROOT
+
     fun normalizeProxyRoot(baseUrl: String?): String {
         val raw = baseUrl?.trim().orEmpty()
         if (raw.isBlank()) return DEFAULT_PROXY_ROOT
@@ -36,7 +39,9 @@ object BackendProxyClient {
                 clean = clean.substring(0, clean.length - suffix.length).trimEnd('/')
             }
         }
-        return clean.ifBlank { DEFAULT_PROXY_ROOT }
+        val normalized = clean.ifBlank { DEFAULT_PROXY_ROOT }
+        lastKnownProxyRoot = normalized
+        return normalized
     }
 
     fun resolveEndpoint(baseUrl: String?, path: String): String {
@@ -48,10 +53,51 @@ object BackendProxyClient {
                 !parsed.host.isNullOrBlank() &&
                 raw.trimEnd('/').endsWith(normalizedPath, ignoreCase = true)
             ) {
+                normalizeProxyRoot(raw)
                 return raw.trimEnd('/')
             }
         }
         return "${normalizeProxyRoot(baseUrl)}$normalizedPath"
+    }
+
+    fun sanitizeForDisplay(text: String, customProxyUrl: String? = null): String {
+        if (text.isBlank()) return text
+        var result = text
+
+        val candidateRoots = buildSet {
+            add(DEFAULT_PROXY_ROOT)
+            add(lastKnownProxyRoot)
+            if (!customProxyUrl.isNullOrBlank()) {
+                add(normalizeProxyRoot(customProxyUrl))
+            }
+        }
+
+        val candidateHosts = candidateRoots.mapNotNull { root ->
+            runCatching { Uri.parse(root).host?.lowercase()?.takeIf { it.isNotBlank() } }.getOrNull()
+        }.toSet()
+
+        for (host in candidateHosts) {
+            val escapedHost = Regex.escape(host)
+            result = result.replace(
+                Regex("https?://[^/\\s\"'\\])>]*$escapedHost(?::\\d+)?(?:/[^\\s\"'\\])>]*)?", RegexOption.IGNORE_CASE),
+                "[secure-proxy]"
+            )
+            result = result.replace(
+                Regex(escapedHost, RegexOption.IGNORE_CASE),
+                "secure-proxy"
+            )
+        }
+
+        // Mask any proxy endpoint URL pattern even if host wasn't registered yet
+        result = result.replace(
+            Regex(
+                "https?://[^/\\s\"'\\])>]+/(?:api/(?:chat|image|video|music|keys|topup-packages)|v1/(?:chat/completions|images/generations|videos))(?:/[^\\s\"'\\])>]*)?(?:\\?[^\\s\"'\\])>]*)?",
+                RegexOption.IGNORE_CASE
+            ),
+            "[secure-proxy]"
+        )
+
+        return result
     }
 
     suspend fun getFirebaseIdToken(): String? {

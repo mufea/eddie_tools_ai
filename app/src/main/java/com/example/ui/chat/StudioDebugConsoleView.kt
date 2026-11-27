@@ -153,10 +153,13 @@ fun StudioDebugConsole(
     val context = LocalContext.current
     val clipboardManager = LocalClipboardManager.current
     val scrollState = rememberScrollState()
+    val safeLogText = remember(logText) {
+        com.example.data.BackendProxyClient.sanitizeForDisplay(logText)
+    }
 
     // Auto-scroll to bottom when new logs arrive
-    LaunchedEffect(logText) {
-        if (logText.isNotBlank()) {
+    LaunchedEffect(safeLogText) {
+        if (safeLogText.isNotBlank()) {
             scrollState.animateScrollTo(scrollState.maxValue)
         }
     }
@@ -208,10 +211,10 @@ fun StudioDebugConsole(
                     horizontalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
                     // Copy Log button
-                    if (logText.isNotBlank()) {
+                    if (safeLogText.isNotBlank()) {
                         IconButton(
                             onClick = {
-                                clipboardManager.setText(AnnotatedString(logText))
+                                clipboardManager.setText(AnnotatedString(safeLogText))
                                 Toast.makeText(context, "Log copied to clipboard", Toast.LENGTH_SHORT).show()
                             },
                             modifier = Modifier.size(28.dp)
@@ -269,7 +272,7 @@ fun StudioDebugConsole(
                     .padding(10.dp)
                     .verticalScroll(scrollState)
             ) {
-                if (logText.isBlank()) {
+                if (safeLogText.isBlank()) {
                     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                         Text(
                             text = "> $title terminal active.",
@@ -287,7 +290,7 @@ fun StudioDebugConsole(
                     }
                 } else {
                     Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                        val lines = logText.lines()
+                        val lines = safeLogText.lines()
                         lines.forEach { line ->
                             if (line.isNotEmpty()) {
                                 val textColor = when {
