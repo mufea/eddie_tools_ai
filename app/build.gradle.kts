@@ -23,24 +23,38 @@ android {
 
   signingConfigs {
     create("release") {
-      val keystorePath = System.getenv("KEYSTORE_PATH") ?: "${rootDir}/my-upload-key.jks"
-      storeFile = file(keystorePath)
-      storePassword = System.getenv("STORE_PASSWORD")
-      keyAlias = "upload"
-      keyPassword = System.getenv("KEY_PASSWORD")
+      val keystorePath = System.getenv("CM_KEYSTORE_PATH")
+          ?: System.getenv("KEYSTORE_PATH")
+          ?: "${rootDir}/my-upload-key.jks"
+      val keystoreFile = file(keystorePath)
+
+      if (keystoreFile.exists()) {
+        storeFile = keystoreFile
+        storePassword = System.getenv("CM_KEYSTORE_PASSWORD") ?: System.getenv("STORE_PASSWORD")
+        keyAlias = System.getenv("CM_KEY_ALIAS") ?: System.getenv("KEY_ALIAS") ?: "upload"
+        keyPassword = System.getenv("CM_KEY_PASSWORD") ?: System.getenv("KEY_PASSWORD")
+      }
     }
   }
 
   buildTypes {
     release {
-        isCrunchPngs = false
-        isMinifyEnabled = false
-        proguardFiles(
-            getDefaultProguardFile("proguard-android-optimize.txt"),
-            "proguard-rules.pro"
-        )
-        signingConfig = signingConfigs.getByName("release")
+      isCrunchPngs = false
+      isMinifyEnabled = false
+      proguardFiles(
+          getDefaultProguardFile("proguard-android-optimize.txt"),
+          "proguard-rules.pro"
+      )
+      signingConfig = signingConfigs.getByName("release")
     }
+
+    debug {
+      val releaseSigning = signingConfigs.getByName("release")
+      if (releaseSigning.storeFile?.exists() == true) {
+        signingConfig = releaseSigning
+      }
+    }
+  }
 
     debug {
         // Use Android Gradle Plugin default debug signing.
