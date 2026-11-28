@@ -56,10 +56,6 @@ android {
     }
   }
 
-    debug {
-        // Use Android Gradle Plugin default debug signing.
-    }
-  }
   compileOptions {
     sourceCompatibility = JavaVersion.VERSION_11
     targetCompatibility = JavaVersion.VERSION_11
